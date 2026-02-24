@@ -211,7 +211,7 @@ export default function RegisterPage() {
 
                 <div className="relative z-10 flex flex-col justify-center px-12 text-white">
                     <Image
-                        src="/logo.png"
+                        src="/logo-white.jpg"
                         alt="AyuLink"
                         width={64}
                         height={64}

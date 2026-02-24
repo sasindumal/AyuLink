@@ -144,8 +144,9 @@ export default function ScanPatientPage() {
                 setSubmitSuccess(true);
                 setDiagnosis("");
                 setMedications([{ ...emptyMedication }]);
-                // Re-fetch patient to show updated prescriptions
-                lookupPatient(patient.medicalId);
+                // Clear patient so builder doesn't reopen — user can choose next action
+                setPatient(null);
+                setManualId("");
             } else {
                 const data = await res.json();
                 setSubmitError(data.error || "Failed to issue prescription");
@@ -183,7 +184,7 @@ export default function ScanPatientPage() {
 
             {/* Success Banner */}
             {submitSuccess && (
-                <div className="mb-6 card p-4 flex items-center gap-3 bg-primary-action/5 border border-primary-action/20 animate-slide-up">
+                <div className="mb-6 card p-5 flex items-center gap-3 bg-primary-action/5 border border-primary-action/20 animate-slide-up">
                     <CheckCircle className="w-6 h-6 text-primary-action" />
                     <div className="flex-1">
                         <p className="text-sm font-semibold text-primary-dark">
@@ -195,9 +196,9 @@ export default function ScanPatientPage() {
                     </div>
                     <button
                         onClick={() => setSubmitSuccess(false)}
-                        className="p-1 hover:bg-background rounded-lg"
+                        className="text-sm text-primary-action font-medium hover:underline"
                     >
-                        <X className="w-4 h-4 text-text-muted" />
+                        Scan Next
                     </button>
                 </div>
             )}

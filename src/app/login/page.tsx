@@ -81,7 +81,7 @@ export default function LoginPage() {
                     {/* Logo */}
                     <div className="mb-12">
                         <Image
-                            src="/logo.png"
+                            src="/logo-white.jpg"
                             alt="AyuLink"
                             width={80}
                             height={80}
