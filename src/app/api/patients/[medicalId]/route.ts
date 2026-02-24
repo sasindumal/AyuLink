@@ -42,7 +42,19 @@ export async function GET(
                 role: true,
                 prescriptionsAsPatient: {
                     include: {
-                        items: true,
+                        items: {
+                            include: {
+                                dispensedBy: {
+                                    select: {
+                                        firstName: true,
+                                        lastName: true,
+                                        pharmacyProfile: {
+                                            select: { pharmacyName: true, licenseNumber: true },
+                                        },
+                                    },
+                                },
+                            },
+                        },
                         doctor: {
                             select: {
                                 firstName: true,

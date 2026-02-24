@@ -79,7 +79,7 @@ export default function PharmacyDashboard() {
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-3 gap-4 mb-8">
                 <div className="card p-5 flex items-center gap-4">
                     <div className="p-3 rounded-2xl bg-primary-action/10">
                         <ClipboardList className="w-6 h-6 text-primary-action" />
@@ -89,15 +89,7 @@ export default function PharmacyDashboard() {
                         <p className="text-sm text-text-muted">Total</p>
                     </div>
                 </div>
-                <div className="card p-5 flex items-center gap-4">
-                    <div className="p-3 rounded-2xl bg-accent-warning/10">
-                        <Activity className="w-6 h-6 text-accent-warning" />
-                    </div>
-                    <div>
-                        <p className="text-3xl font-bold text-primary-dark">{activeCount}</p>
-                        <p className="text-sm text-text-muted">Pending</p>
-                    </div>
-                </div>
+
                 <div className="card p-5 flex items-center gap-4">
                     <div className="p-3 rounded-2xl bg-primary-action/10">
                         <CheckCircle className="w-6 h-6 text-primary-action" />

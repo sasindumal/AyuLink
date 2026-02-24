@@ -75,14 +75,21 @@ async function main() {
             passwordHash,
             role: Role.PHARMACIST,
             medicalId: "med-pharmacist-demo-001",
+            pharmacyProfile: {
+                create: {
+                    pharmacyName: "MediCare Pharmacy",
+                    licenseNumber: "PL-2024-001234",
+                    pharmacyAddress: "45 Galle Road, Colombo 03",
+                },
+            },
         },
+        include: { pharmacyProfile: true },
     });
-    console.log(`✅ Pharmacist created: ${pharmacist.firstName} ${pharmacist.lastName} (NIC: ${pharmacist.nicNumber})`);
+    console.log(`✅ Pharmacist created: ${pharmacist.firstName} ${pharmacist.lastName} — ${(pharmacist as any).pharmacyProfile?.pharmacyName} (NIC: ${pharmacist.nicNumber})`);
 
     // ───────────────────────────────────────────────
     // 4. Sample Prescriptions
     // ───────────────────────────────────────────────
-    // Check if prescriptions already exist for this patient
     const existingRx = await prisma.prescription.findFirst({
         where: { patientId: patient.id, doctorId: doctor.id },
     });
@@ -132,7 +139,7 @@ async function main() {
                 doctorId: doctor.id,
                 diagnosis: "Hypertension Management",
                 status: PrescriptionStatus.DISPENSED,
-                dateIssued: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 1 week ago
+                dateIssued: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
                 items: {
                     create: [
                         {
@@ -141,6 +148,9 @@ async function main() {
                             frequency: "Once daily",
                             duration: "30 days",
                             instructions: "Take in the morning. Monitor blood pressure regularly",
+                            dispensed: true,
+                            dispensedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+                            dispensedById: pharmacist.id,
                         },
                         {
                             drugName: "Losartan 50mg",
@@ -148,6 +158,9 @@ async function main() {
                             frequency: "Once daily",
                             duration: "30 days",
                             instructions: "Take in the evening. Avoid potassium supplements",
+                            dispensed: true,
+                            dispensedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
+                            dispensedById: pharmacist.id,
                         },
                     ],
                 },
