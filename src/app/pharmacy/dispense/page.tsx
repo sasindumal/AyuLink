@@ -93,12 +93,19 @@ export default function DispensePage() {
             const res = await fetch(`/api/patients/${id}`);
             const data = await res.json();
             if (res.ok && data.patient) {
-                setPatient(data.patient);
+                // Filter out fully dispensed prescriptions for pharmacy view
+                const activePrescriptions = data.patient.prescriptionsAsPatient?.filter(
+                    (rx: PrescriptionDetail) => rx.status !== "FULLY_DISPENSED"
+                ) || [];
+
+                setPatient({
+                    ...data.patient,
+                    prescriptionsAsPatient: activePrescriptions
+                });
+
                 // Auto-expand all active prescriptions
                 const activeIds = new Set<string>(
-                    data.patient.prescriptionsAsPatient
-                        ?.filter((rx: PrescriptionDetail) => rx.status !== "FULLY_DISPENSED")
-                        .map((rx: PrescriptionDetail) => rx.id) || []
+                    activePrescriptions.map((rx: PrescriptionDetail) => rx.id)
                 );
                 setExpandedRx(activeIds);
             } else {
