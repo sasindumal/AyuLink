@@ -31,6 +31,7 @@ interface Prescription {
         doctorProfile?: {
             specialization: string;
             hospitalName: string;
+            slmcRegNo: string;
         };
     };
 }
@@ -165,6 +166,7 @@ export default function PrescriptionsPage() {
                             doctorName={`${rx.doctor.firstName} ${rx.doctor.lastName}`}
                             doctorSpecialization={rx.doctor.doctorProfile?.specialization}
                             hospitalName={rx.doctor.doctorProfile?.hospitalName}
+                            slmcRegNo={rx.doctor.doctorProfile?.slmcRegNo}
                             items={rx.items}
                             expanded={true}
                         />

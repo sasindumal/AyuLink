@@ -237,7 +237,7 @@ export async function PUT(
                         firstName: true,
                         lastName: true,
                         doctorProfile: {
-                            select: { specialization: true, hospitalName: true },
+                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
                         },
                     },
                 },

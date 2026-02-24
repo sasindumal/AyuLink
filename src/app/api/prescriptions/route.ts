@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
                         firstName: true,
                         lastName: true,
                         doctorProfile: {
-                            select: { specialization: true, hospitalName: true },
+                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
                         },
                     },
                 },

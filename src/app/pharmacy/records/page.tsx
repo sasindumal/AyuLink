@@ -52,7 +52,7 @@ interface Prescription {
     doctor: {
         firstName: string;
         lastName: string;
-        doctorProfile?: { specialization: string; hospitalName: string };
+        doctorProfile?: { specialization: string; hospitalName: string; slmcRegNo: string };
     };
 }
 
@@ -226,6 +226,9 @@ export default function PharmacyRecordsPage() {
                                     <p className="text-xs text-text-muted mt-1">
                                         {rx.doctor.doctorProfile.specialization} •{" "}
                                         {rx.doctor.doctorProfile.hospitalName}
+                                        {rx.doctor.doctorProfile.slmcRegNo && (
+                                            <> • SLMC: {rx.doctor.doctorProfile.slmcRegNo}</>
+                                        )}
                                     </p>
                                 )}
                             </div>
