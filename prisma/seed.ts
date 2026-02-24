@@ -101,7 +101,7 @@ async function main() {
                 patientId: patient.id,
                 doctorId: doctor.id,
                 diagnosis: "Upper Respiratory Tract Infection",
-                status: PrescriptionStatus.ACTIVE,
+                status: PrescriptionStatus.NOT_DISPENSED,
                 dateIssued: new Date(),
                 items: {
                     create: [
@@ -130,7 +130,7 @@ async function main() {
                 },
             },
         });
-        console.log(`✅ Prescription 1 (ACTIVE) created: ${rx1.diagnosis} — Rx #${rx1.id.slice(0, 8).toUpperCase()}`);
+        console.log(`✅ Prescription 1 (NOT_DISPENSED) created: ${rx1.diagnosis} — Rx #${rx1.id.slice(0, 8).toUpperCase()}`);
 
         // Prescription 2: Dispensed - Hypertension Management
         const rx2 = await prisma.prescription.create({
@@ -138,7 +138,7 @@ async function main() {
                 patientId: patient.id,
                 doctorId: doctor.id,
                 diagnosis: "Hypertension Management",
-                status: PrescriptionStatus.DISPENSED,
+                status: PrescriptionStatus.FULLY_DISPENSED,
                 dateIssued: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
                 items: {
                     create: [
@@ -166,7 +166,7 @@ async function main() {
                 },
             },
         });
-        console.log(`✅ Prescription 2 (DISPENSED) created: ${rx2.diagnosis} — Rx #${rx2.id.slice(0, 8).toUpperCase()}`);
+        console.log(`✅ Prescription 2 (FULLY_DISPENSED) created: ${rx2.diagnosis} — Rx #${rx2.id.slice(0, 8).toUpperCase()}`);
     } else {
         console.log("⏭️  Sample prescriptions already exist — skipping");
     }

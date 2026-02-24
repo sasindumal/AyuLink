@@ -24,7 +24,7 @@ import {
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: any[];
     patient: { firstName: string; lastName: string };
@@ -61,8 +61,8 @@ export default function DoctorDashboard() {
         return "Good evening";
     };
 
-    const activeCount = prescriptions.filter((rx) => rx.status === "ACTIVE").length;
-    const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
+    const activeCount = prescriptions.filter((rx) => rx.status !== "FULLY_DISPENSED").length;
+    const dispensedCount = prescriptions.filter((rx) => rx.status === "FULLY_DISPENSED").length;
     const recentPrescriptions = prescriptions.slice(0, 5);
 
     return (
@@ -136,7 +136,7 @@ export default function DoctorDashboard() {
                     </div>
                     <div className="flex-1">
                         <h3 className="text-lg font-bold text-primary-dark">
-                            My Prescriptions
+                            Issued Prescriptions
                         </h3>
                         <p className="text-sm text-text-muted">
                             View all issued prescriptions

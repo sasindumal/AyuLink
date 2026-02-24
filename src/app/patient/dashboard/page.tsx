@@ -21,7 +21,7 @@ import {
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: any[];
     doctor: {
@@ -62,10 +62,10 @@ export default function PatientDashboard() {
     };
 
     const activePrescriptions = prescriptions.filter(
-        (p) => p.status === "ACTIVE"
+        (p) => p.status !== "FULLY_DISPENSED"
     );
     const dispensedPrescriptions = prescriptions.filter(
-        (p) => p.status === "DISPENSED"
+        (p) => p.status === "FULLY_DISPENSED"
     );
 
     return (

@@ -45,7 +45,7 @@ interface DispensedItem {
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: DispensedItem[];
     patient: { firstName: string; lastName: string };

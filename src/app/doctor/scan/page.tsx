@@ -294,7 +294,7 @@ export default function ScanPatientPage() {
                                 </p>
                                 <p className="text-sm font-semibold text-primary-action">
                                     {patient.prescriptions?.filter(
-                                        (p: any) => p.status === "ACTIVE"
+                                        (p: any) => p.status !== "FULLY_DISPENSED"
                                     ).length || 0}
                                 </p>
                             </div>

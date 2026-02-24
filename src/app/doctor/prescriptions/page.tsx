@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: any[];
     patient: {
@@ -32,7 +32,7 @@ interface Prescription {
     };
 }
 
-type FilterType = "ALL" | "ACTIVE" | "DISPENSED";
+type FilterType = "ALL" | "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
 
 export default function DoctorPrescriptionsPage() {
     const { data: session } = useSession();
@@ -68,13 +68,15 @@ export default function DoctorPrescriptionsPage() {
         return matchesFilter && matchesSearch;
     });
 
-    const activeCount = prescriptions.filter((rx) => rx.status === "ACTIVE").length;
-    const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
+    const notDispensedCount = prescriptions.filter((rx) => rx.status === "NOT_DISPENSED").length;
+    const partialCount = prescriptions.filter((rx) => rx.status === "PARTIALLY_DISPENSED").length;
+    const fullyCount = prescriptions.filter((rx) => rx.status === "FULLY_DISPENSED").length;
 
     const filters: { key: FilterType; label: string; count: number; icon: React.ReactNode }[] = [
         { key: "ALL", label: "All Issued", count: prescriptions.length, icon: <ClipboardList className="w-4 h-4" /> },
-        { key: "ACTIVE", label: "Active", count: activeCount, icon: <Activity className="w-4 h-4" /> },
-        { key: "DISPENSED", label: "Dispensed", count: dispensedCount, icon: <CheckCircle className="w-4 h-4" /> },
+        { key: "NOT_DISPENSED", label: "Not Dispensed", count: notDispensedCount, icon: <Activity className="w-4 h-4" /> },
+        { key: "PARTIALLY_DISPENSED", label: "Partial", count: partialCount, icon: <Activity className="w-4 h-4" /> },
+        { key: "FULLY_DISPENSED", label: "Fully Dispensed", count: fullyCount, icon: <CheckCircle className="w-4 h-4" /> },
     ];
 
     return (
@@ -82,7 +84,7 @@ export default function DoctorPrescriptionsPage() {
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-primary-dark flex items-center gap-3">
-                    My Prescriptions
+                    Issued Prescriptions
                     <FileText className="w-8 h-8 text-primary-action" />
                 </h1>
                 <p className="text-text-muted mt-1">
@@ -106,8 +108,8 @@ export default function DoctorPrescriptionsPage() {
                         <Activity className="w-5 h-5 text-primary-action" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary-dark">{activeCount}</p>
-                        <p className="text-xs text-text-muted">Active</p>
+                        <p className="text-2xl font-bold text-primary-dark">{notDispensedCount}</p>
+                        <p className="text-xs text-text-muted">Not Dispensed</p>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
@@ -115,8 +117,8 @@ export default function DoctorPrescriptionsPage() {
                         <CheckCircle className="w-5 h-5 text-text-muted" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary-dark">{dispensedCount}</p>
-                        <p className="text-xs text-text-muted">Dispensed</p>
+                        <p className="text-2xl font-bold text-primary-dark">{fullyCount}</p>
+                        <p className="text-xs text-text-muted">Fully Dispensed</p>
                     </div>
                 </div>
             </div>

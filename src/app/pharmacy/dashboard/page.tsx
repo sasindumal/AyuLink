@@ -20,7 +20,7 @@ import {
 
 interface Prescription {
     id: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     items: any[];
 }
 
@@ -56,9 +56,9 @@ export default function PharmacyDashboard() {
         fetchData();
     }, []);
 
-    const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
+    const dispensedCount = prescriptions.filter((rx) => rx.status === "FULLY_DISPENSED").length;
     const totalMeds = prescriptions
-        .filter((rx) => rx.status === "DISPENSED")
+        .filter((rx) => rx.status === "FULLY_DISPENSED")
         .reduce((sum, rx) => sum + rx.items.length, 0);
 
     return (

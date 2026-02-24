@@ -21,10 +21,11 @@ enum Role {
   PHARMACIST
 }
 
-/// Prescription lifecycle status
+/// Prescription dispensing status (computed from items)
 enum PrescriptionStatus {
-  ACTIVE
-  DISPENSED
+  NOT_DISPENSED
+  PARTIALLY_DISPENSED
+  FULLY_DISPENSED
 }
 
 // ----- Models -----
@@ -83,7 +84,7 @@ model Prescription {
   doctorId   String
   dateIssued DateTime           @default(now())
   diagnosis  String
-  status     PrescriptionStatus @default(ACTIVE)
+  status     PrescriptionStatus @default(NOT_DISPENSED)
 
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

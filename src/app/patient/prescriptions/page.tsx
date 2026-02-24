@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: any[];
     doctor: {
@@ -36,7 +36,7 @@ interface Prescription {
     };
 }
 
-type FilterType = "ALL" | "ACTIVE" | "DISPENSED";
+type FilterType = "ALL" | "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
 
 export default function PrescriptionsPage() {
     const { data: session } = useSession();
@@ -72,13 +72,15 @@ export default function PrescriptionsPage() {
         return matchesFilter && matchesSearch;
     });
 
-    const activeCount = prescriptions.filter((rx) => rx.status === "ACTIVE").length;
-    const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
+    const notDispensedCount = prescriptions.filter((rx) => rx.status === "NOT_DISPENSED").length;
+    const partialCount = prescriptions.filter((rx) => rx.status === "PARTIALLY_DISPENSED").length;
+    const fullyCount = prescriptions.filter((rx) => rx.status === "FULLY_DISPENSED").length;
 
     const filters: { key: FilterType; label: string; count: number; icon: React.ReactNode }[] = [
         { key: "ALL", label: "All", count: prescriptions.length, icon: <ClipboardList className="w-4 h-4" /> },
-        { key: "ACTIVE", label: "Active", count: activeCount, icon: <Activity className="w-4 h-4" /> },
-        { key: "DISPENSED", label: "Dispensed", count: dispensedCount, icon: <CheckCircle className="w-4 h-4" /> },
+        { key: "NOT_DISPENSED", label: "Not Dispensed", count: notDispensedCount, icon: <Activity className="w-4 h-4" /> },
+        { key: "PARTIALLY_DISPENSED", label: "Partial", count: partialCount, icon: <Activity className="w-4 h-4" /> },
+        { key: "FULLY_DISPENSED", label: "Fully Dispensed", count: fullyCount, icon: <CheckCircle className="w-4 h-4" /> },
     ];
 
     return (

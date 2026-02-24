@@ -89,7 +89,7 @@ export async function GET() {
                     patientId: patient.id,
                     doctorId: doctor.id,
                     diagnosis: "Upper Respiratory Tract Infection",
-                    status: PrescriptionStatus.ACTIVE,
+                    status: PrescriptionStatus.NOT_DISPENSED,
                     items: {
                         create: [
                             {
@@ -123,7 +123,7 @@ export async function GET() {
                     patientId: patient.id,
                     doctorId: doctor.id,
                     diagnosis: "Hypertension Management",
-                    status: PrescriptionStatus.DISPENSED,
+                    status: PrescriptionStatus.FULLY_DISPENSED,
                     dateIssued: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
                     items: {
                         create: [

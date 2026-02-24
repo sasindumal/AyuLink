@@ -50,7 +50,7 @@ interface PrescriptionItem {
 interface PrescriptionDetail {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: PrescriptionItem[];
     doctor: {
@@ -97,7 +97,7 @@ export default function DispensePage() {
                 // Auto-expand all active prescriptions
                 const activeIds = new Set<string>(
                     data.patient.prescriptionsAsPatient
-                        ?.filter((rx: PrescriptionDetail) => rx.status === "ACTIVE")
+                        ?.filter((rx: PrescriptionDetail) => rx.status !== "FULLY_DISPENSED")
                         .map((rx: PrescriptionDetail) => rx.id) || []
                 );
                 setExpandedRx(activeIds);

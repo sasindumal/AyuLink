@@ -20,7 +20,7 @@ interface PrescriptionItem {
 interface PrescriptionCardProps {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     doctorName?: string;
     doctorSpecialization?: string;
@@ -48,20 +48,38 @@ export default function PrescriptionCard({
     expanded = false,
     onClick,
 }: PrescriptionCardProps) {
-    const isActive = status === "ACTIVE";
+    const borderColor =
+        status === "NOT_DISPENSED"
+            ? "border-l-primary-action"
+            : status === "PARTIALLY_DISPENSED"
+                ? "border-l-amber-500"
+                : "border-l-text-muted/30";
+
     const formattedDate = new Date(dateIssued).toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
     });
 
+    const statusLabel =
+        status === "NOT_DISPENSED"
+            ? "Not Dispensed"
+            : status === "PARTIALLY_DISPENSED"
+                ? "Partially Dispensed"
+                : "Fully Dispensed";
+
+    const statusClass =
+        status === "NOT_DISPENSED"
+            ? "bg-primary-action/10 text-primary-action border border-primary-action/20"
+            : status === "PARTIALLY_DISPENSED"
+                ? "bg-amber-50 text-amber-600 border border-amber-200"
+                : "bg-gray-100 text-gray-500 border border-gray-200";
+
     return (
         <div
             className={cn(
                 "card p-6 cursor-pointer transition-all duration-300 animate-slide-up",
-                isActive
-                    ? "border-l-4 border-l-primary-action"
-                    : "border-l-4 border-l-text-muted/30"
+                `border-l-4 ${borderColor}`
             )}
             onClick={onClick}
         >
@@ -90,8 +108,8 @@ export default function PrescriptionCard({
                 </div>
 
                 {/* Status Badge */}
-                <span className={isActive ? "badge-active" : "badge-dispensed"}>
-                    {isActive ? "Active" : "Dispensed"}
+                <span className={cn("text-xs font-semibold px-3 py-1 rounded-full", statusClass)}>
+                    {statusLabel}
                 </span>
             </div>
 

@@ -34,7 +34,7 @@ const navItems = {
     DOCTOR: [
         { href: "/doctor/dashboard", label: "Dashboard", icon: LayoutDashboard },
         { href: "/doctor/scan", label: "Scan Patient", icon: ScanLine },
-        { href: "/doctor/prescriptions", label: "My Prescriptions", icon: FileText },
+        { href: "/doctor/prescriptions", label: "Issued Prescriptions", icon: FileText },
     ],
     PHARMACIST: [
         { href: "/pharmacy/dashboard", label: "Dashboard", icon: LayoutDashboard },

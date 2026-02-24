@@ -90,9 +90,9 @@ export async function PATCH(
         const body = await req.json();
         const { status } = body;
 
-        if (!status || !["ACTIVE", "DISPENSED"].includes(status)) {
+        if (!status || !["NOT_DISPENSED", "PARTIALLY_DISPENSED", "FULLY_DISPENSED"].includes(status)) {
             return NextResponse.json(
-                { error: "Invalid status. Must be ACTIVE or DISPENSED" },
+                { error: "Invalid status. Must be NOT_DISPENSED, PARTIALLY_DISPENSED, or FULLY_DISPENSED" },
                 { status: 400 }
             );
         }
@@ -196,12 +196,23 @@ export async function PUT(
         });
 
         const allDispensed = allItems.every((i) => i.id === itemId ? dispensed : i.dispensed);
+        const anyDispensed = allItems.some((i) => i.id === itemId ? dispensed : i.dispensed);
+
+        // Compute three-state status
+        let newStatus: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
+        if (allDispensed) {
+            newStatus = "FULLY_DISPENSED";
+        } else if (anyDispensed) {
+            newStatus = "PARTIALLY_DISPENSED";
+        } else {
+            newStatus = "NOT_DISPENSED";
+        }
 
         // Auto-update prescription status
         await prisma.prescription.update({
             where: { id: prescriptionId },
             data: {
-                status: allDispensed ? "DISPENSED" : "ACTIVE",
+                status: newStatus,
             },
         });
 
