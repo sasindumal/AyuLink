@@ -1,6 +1,6 @@
 // ==============================================
 // AyuLink - Pharmacy Dashboard
-// Overview with stats, quick actions, recent activity
+// Overview with stats and quick actions
 // ==============================================
 
 "use client";
@@ -8,41 +8,24 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import PrescriptionCard from "@/components/PrescriptionCard";
 import {
     Pill,
     ScanLine,
     ClipboardList,
-    Activity,
     CheckCircle,
     Package,
-    Clock,
     ArrowRight,
-    Loader2,
 } from "lucide-react";
 
 interface Prescription {
     id: string;
-    diagnosis: string;
     status: "ACTIVE" | "DISPENSED";
-    dateIssued: string;
     items: any[];
-    patient: { firstName: string; lastName: string };
-    doctor: {
-        firstName: string;
-        lastName: string;
-        doctorProfile?: { specialization: string; hospitalName: string };
-    };
 }
 
 export default function PharmacyDashboard() {
     const { data: session } = useSession();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    const userName = session?.user
-        ? `${session.user.firstName} ${session.user.lastName}`
-        : "Pharmacist";
 
     useEffect(() => {
         const fetchPrescriptions = async () => {
@@ -52,19 +35,15 @@ export default function PharmacyDashboard() {
                 setPrescriptions(data.prescriptions || []);
             } catch (err) {
                 console.error("Failed to fetch:", err);
-            } finally {
-                setLoading(false);
             }
         };
         fetchPrescriptions();
     }, []);
 
-    const activeCount = prescriptions.filter((rx) => rx.status === "ACTIVE").length;
     const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
     const totalMeds = prescriptions
         .filter((rx) => rx.status === "DISPENSED")
         .reduce((sum, rx) => sum + rx.items.length, 0);
-    const recentPrescriptions = prescriptions.slice(0, 5);
 
     return (
         <div className="max-w-5xl mx-auto animate-fade-in">
@@ -111,7 +90,7 @@ export default function PharmacyDashboard() {
             </div>
 
             {/* Quick Actions */}
-            <div className="grid grid-cols-2 gap-5 mb-8">
+            <div className="grid grid-cols-2 gap-5">
                 <Link
                     href="/pharmacy/dispense"
                     className="card p-6 flex items-center gap-4 group hover:border-primary-action/30 transition-all border border-transparent"
@@ -146,52 +125,6 @@ export default function PharmacyDashboard() {
                     </div>
                     <ArrowRight className="w-5 h-5 text-text-muted group-hover:text-primary-action transition-colors" />
                 </Link>
-            </div>
-
-            {/* Recent Activity */}
-            <div>
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-primary-dark flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-primary-action" />
-                        Recent Activity
-                    </h2>
-                    {prescriptions.length > 5 && (
-                        <Link
-                            href="/pharmacy/records"
-                            className="text-sm text-primary-action hover:underline font-medium flex items-center gap-1"
-                        >
-                            View All <ArrowRight className="w-4 h-4" />
-                        </Link>
-                    )}
-                </div>
-
-                {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <Loader2 className="w-8 h-8 text-primary-action animate-spin" />
-                    </div>
-                ) : recentPrescriptions.length === 0 ? (
-                    <div className="card p-10 text-center">
-                        <Pill className="w-10 h-10 text-text-muted mx-auto mb-3" />
-                        <p className="text-text-muted">
-                            No prescriptions yet. Scan a patient QR to get started!
-                        </p>
-                    </div>
-                ) : (
-                    <div className="space-y-3">
-                        {recentPrescriptions.map((rx) => (
-                            <PrescriptionCard
-                                key={rx.id}
-                                id={rx.id}
-                                diagnosis={rx.diagnosis}
-                                status={rx.status}
-                                dateIssued={rx.dateIssued}
-                                patientName={`${rx.patient.firstName} ${rx.patient.lastName}`}
-                                doctorName={`${rx.doctor.firstName} ${rx.doctor.lastName}`}
-                                items={rx.items}
-                            />
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );

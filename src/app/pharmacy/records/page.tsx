@@ -1,31 +1,53 @@
 // ==============================================
 // AyuLink - Pharmacy: Records Page
-// Dispensing history with filters and stats
+// Shows only items dispensed by this pharmacy
 // ==============================================
 
 "use client";
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import PrescriptionCard from "@/components/PrescriptionCard";
 import {
     ClipboardList,
     Search,
-    Activity,
     CheckCircle,
     Loader2,
     Inbox,
     Package,
-    TrendingUp,
+    Pill,
+    Clock,
+    Calendar,
+    Stethoscope,
+    User,
+    Building2,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+interface DispensedItem {
+    id: string;
+    drugName: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    instructions: string;
+    dispensed: boolean;
+    dispensedAt: string | null;
+    dispensedBy?: {
+        id: string;
+        firstName: string;
+        lastName: string;
+        pharmacyProfile?: {
+            pharmacyName: string;
+            licenseNumber: string;
+        };
+    } | null;
+}
 
 interface Prescription {
     id: string;
     diagnosis: string;
     status: "ACTIVE" | "DISPENSED";
     dateIssued: string;
-    items: any[];
+    items: DispensedItem[];
     patient: { firstName: string; lastName: string };
     doctor: {
         firstName: string;
@@ -34,14 +56,13 @@ interface Prescription {
     };
 }
 
-type FilterType = "ALL" | "ACTIVE" | "DISPENSED";
-
 export default function PharmacyRecordsPage() {
     const { data: session } = useSession();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [loading, setLoading] = useState(true);
-    const [filter, setFilter] = useState<FilterType>("ALL");
     const [searchQuery, setSearchQuery] = useState("");
+
+    const currentUserId = (session?.user as any)?.id;
 
     useEffect(() => {
         fetchRecords();
@@ -59,64 +80,67 @@ export default function PharmacyRecordsPage() {
         }
     };
 
-    const filtered = prescriptions.filter((rx) => {
-        const matchesFilter = filter === "ALL" || rx.status === filter;
-        const matchesSearch =
-            searchQuery === "" ||
-            rx.diagnosis.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            `${rx.patient.firstName} ${rx.patient.lastName}`
-                .toLowerCase()
-                .includes(searchQuery.toLowerCase()) ||
-            rx.id.toLowerCase().includes(searchQuery.toLowerCase());
-        return matchesFilter && matchesSearch;
-    });
+    // Filter prescriptions by search, and only keep items dispensed by THIS pharmacist
+    const processedRecords = prescriptions
+        .map((rx) => {
+            const myDispensedItems = rx.items.filter(
+                (item) => item.dispensed && item.dispensedBy?.id === currentUserId
+            );
+            return { ...rx, myItems: myDispensedItems };
+        })
+        .filter((rx) => {
+            if (rx.myItems.length === 0) return false;
+            if (searchQuery === "") return true;
+            const q = searchQuery.toLowerCase();
+            return (
+                rx.diagnosis.toLowerCase().includes(q) ||
+                `${rx.patient.firstName} ${rx.patient.lastName}`.toLowerCase().includes(q) ||
+                rx.id.toLowerCase().includes(q)
+            );
+        });
 
-    const totalCount = prescriptions.length;
-    const activeCount = prescriptions.filter((rx) => rx.status === "ACTIVE").length;
-    const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
+    const totalDispensedItems = processedRecords.reduce(
+        (sum, rx) => sum + rx.myItems.length,
+        0
+    );
 
-    // Count total medications dispensed
-    const totalMedsDispensed = prescriptions
-        .filter((rx) => rx.status === "DISPENSED")
-        .reduce((sum, rx) => sum + rx.items.length, 0);
+    const formatDate = (dateStr: string) =>
+        new Date(dateStr).toLocaleDateString("en-US", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+        });
 
-    const filters: { key: FilterType; label: string; count: number; icon: React.ReactNode }[] = [
-        { key: "ALL", label: "All Records", count: totalCount, icon: <ClipboardList className="w-4 h-4" /> },
-        { key: "ACTIVE", label: "Pending", count: activeCount, icon: <Activity className="w-4 h-4" /> },
-        { key: "DISPENSED", label: "Dispensed", count: dispensedCount, icon: <CheckCircle className="w-4 h-4" /> },
-    ];
+    const formatTime = (dateStr: string) =>
+        new Date(dateStr).toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+        });
 
     return (
         <div className="max-w-4xl mx-auto animate-fade-in">
             {/* Header */}
             <div className="mb-8">
                 <h1 className="text-3xl font-bold text-primary-dark flex items-center gap-3">
-                    Pharmacy Records
+                    Dispensing Records
                     <ClipboardList className="w-8 h-8 text-primary-action" />
                 </h1>
                 <p className="text-text-muted mt-1">
-                    View all prescriptions and dispensing history
+                    Medicines dispensed by your pharmacy
                 </p>
             </div>
 
             {/* Stats Row */}
-            <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-3 gap-4 mb-6">
                 <div className="card p-4 flex items-center gap-3">
                     <div className="p-2 rounded-xl bg-primary-action/10">
                         <ClipboardList className="w-5 h-5 text-primary-action" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary-dark">{totalCount}</p>
-                        <p className="text-xs text-text-muted">Total</p>
-                    </div>
-                </div>
-                <div className="card p-4 flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-accent-warning/10">
-                        <Activity className="w-5 h-5 text-accent-warning" />
-                    </div>
-                    <div>
-                        <p className="text-2xl font-bold text-primary-dark">{activeCount}</p>
-                        <p className="text-xs text-text-muted">Pending</p>
+                        <p className="text-2xl font-bold text-primary-dark">
+                            {processedRecords.length}
+                        </p>
+                        <p className="text-xs text-text-muted">Prescriptions</p>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
@@ -124,8 +148,10 @@ export default function PharmacyRecordsPage() {
                         <CheckCircle className="w-5 h-5 text-primary-action" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary-dark">{dispensedCount}</p>
-                        <p className="text-xs text-text-muted">Dispensed</p>
+                        <p className="text-2xl font-bold text-primary-dark">
+                            {totalDispensedItems}
+                        </p>
+                        <p className="text-xs text-text-muted">Meds Dispensed</p>
                     </div>
                 </div>
                 <div className="card p-4 flex items-center gap-3">
@@ -133,35 +159,12 @@ export default function PharmacyRecordsPage() {
                         <Package className="w-5 h-5 text-primary-dark" />
                     </div>
                     <div>
-                        <p className="text-2xl font-bold text-primary-dark">{totalMedsDispensed}</p>
-                        <p className="text-xs text-text-muted">Meds Given</p>
+                        <p className="text-2xl font-bold text-primary-dark">
+                            {new Set(processedRecords.map((rx) => `${rx.patient.firstName} ${rx.patient.lastName}`)).size}
+                        </p>
+                        <p className="text-xs text-text-muted">Patients Served</p>
                     </div>
                 </div>
-            </div>
-
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-3 mb-6">
-                {filters.map((f) => (
-                    <button
-                        key={f.key}
-                        onClick={() => setFilter(f.key)}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
-                            filter === f.key
-                                ? "bg-primary-action text-white shadow-sm"
-                                : "bg-surface text-text-secondary hover:bg-background border border-border"
-                        )}
-                    >
-                        {f.icon}
-                        {f.label}
-                        <span className={cn(
-                            "ml-1 text-xs px-2 py-0.5 rounded-full",
-                            filter === f.key ? "bg-white/20 text-white" : "bg-background text-text-muted"
-                        )}>
-                            {f.count}
-                        </span>
-                    </button>
-                ))}
             </div>
 
             {/* Search */}
@@ -181,7 +184,7 @@ export default function PharmacyRecordsPage() {
                 <div className="flex items-center justify-center py-16">
                     <Loader2 className="w-8 h-8 text-primary-action animate-spin" />
                 </div>
-            ) : filtered.length === 0 ? (
+            ) : processedRecords.length === 0 ? (
                 <div className="card p-12 text-center">
                     <Inbox className="w-12 h-12 text-text-muted mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-primary-dark mb-2">
@@ -190,25 +193,104 @@ export default function PharmacyRecordsPage() {
                     <p className="text-sm text-text-muted">
                         {searchQuery
                             ? "Try adjusting your search terms"
-                            : "Dispensing records will appear here"}
+                            : "Prescriptions you dispense will appear here"}
                     </p>
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {filtered.map((rx) => (
-                        <PrescriptionCard
+                    {processedRecords.map((rx) => (
+                        <div
                             key={rx.id}
-                            id={rx.id}
-                            diagnosis={rx.diagnosis}
-                            status={rx.status}
-                            dateIssued={rx.dateIssued}
-                            patientName={`${rx.patient.firstName} ${rx.patient.lastName}`}
-                            doctorName={`${rx.doctor.firstName} ${rx.doctor.lastName}`}
-                            doctorSpecialization={rx.doctor.doctorProfile?.specialization}
-                            hospitalName={rx.doctor.doctorProfile?.hospitalName}
-                            items={rx.items}
-                            expanded={true}
-                        />
+                            className="card p-6 border-l-4 border-l-primary-action animate-slide-up"
+                        >
+                            {/* Header — NO status badge */}
+                            <div className="mb-4">
+                                <h4 className="text-lg font-bold text-primary-dark">
+                                    {rx.diagnosis}
+                                </h4>
+                                <div className="flex items-center gap-4 mt-2 text-sm text-text-muted">
+                                    <span className="flex items-center gap-1.5">
+                                        <Calendar className="w-4 h-4" />
+                                        {formatDate(rx.dateIssued)}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <Stethoscope className="w-4 h-4" />
+                                        Dr. {rx.doctor.firstName} {rx.doctor.lastName}
+                                    </span>
+                                    <span className="flex items-center gap-1.5">
+                                        <User className="w-4 h-4" />
+                                        {rx.patient.firstName} {rx.patient.lastName}
+                                    </span>
+                                </div>
+                                {rx.doctor.doctorProfile && (
+                                    <p className="text-xs text-text-muted mt-1">
+                                        {rx.doctor.doctorProfile.specialization} •{" "}
+                                        {rx.doctor.doctorProfile.hospitalName}
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Only items dispensed by THIS pharmacy */}
+                            <div className="pt-4 border-t border-border space-y-3">
+                                <p className="text-sm font-semibold text-primary-dark flex items-center gap-2">
+                                    <Pill className="w-4 h-4 text-primary-action" />
+                                    Dispensed by Your Pharmacy ({rx.myItems.length})
+                                </p>
+                                {rx.myItems.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="p-3 rounded-xl bg-primary-action/5 border border-primary-action/20"
+                                    >
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-2 h-2 rounded-full bg-primary-action mt-2 shrink-0" />
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold text-primary-dark">
+                                                    {item.drugName}
+                                                </p>
+                                                <div className="flex flex-wrap gap-3 mt-1 text-xs text-text-muted">
+                                                    <span>{item.dosage}</span>
+                                                    <span className="flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" />
+                                                        {item.frequency}
+                                                    </span>
+                                                    <span>{item.duration}</span>
+                                                </div>
+                                                {item.instructions && (
+                                                    <p className="text-xs text-text-secondary mt-1 italic">
+                                                        {item.instructions}
+                                                    </p>
+                                                )}
+                                                {item.dispensedAt && (
+                                                    <div className="mt-1.5 space-y-0.5">
+                                                        <p className="text-xs text-primary-action flex items-center gap-1">
+                                                            <CheckCircle className="w-3 h-3" />
+                                                            Dispensed at {formatTime(item.dispensedAt)}
+                                                        </p>
+                                                        {item.dispensedBy?.pharmacyProfile && (
+                                                            <p className="text-xs text-text-muted flex items-center gap-1">
+                                                                <Building2 className="w-3 h-3" />
+                                                                {item.dispensedBy.pharmacyProfile.pharmacyName}
+                                                                <span className="opacity-60">·</span>
+                                                                <span className="font-mono text-[10px]">
+                                                                    {item.dispensedBy.pharmacyProfile.licenseNumber}
+                                                                </span>
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Prescription ID */}
+                            <div className="mt-4 pt-3 border-t border-border/50">
+                                <p className="text-xs text-text-muted font-mono">
+                                    Rx #{rx.id.slice(0, 8).toUpperCase()}
+                                </p>
+                            </div>
+                        </div>
                     ))}
                 </div>
             )}
