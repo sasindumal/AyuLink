@@ -358,10 +358,12 @@ export default function RegisterPage() {
                     {step === 2 && (
                         <div className="animate-slide-up">
                             <h2 className="text-2xl font-bold text-primary-dark mb-2">
-                                Personal Details
+                                {formData.role === "PHARMACIST" ? "Pharmacy Owner Details" : "Personal Details"}
                             </h2>
                             <p className="text-text-muted mb-8">
-                                Tell us about yourself
+                                {formData.role === "PHARMACIST"
+                                    ? "Enter the pharmacy owner's personal information"
+                                    : "Tell us about yourself"}
                             </p>
 
                             <div className="space-y-4">

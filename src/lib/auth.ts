@@ -1,6 +1,7 @@
 // ==============================================
 // AyuLink - NextAuth.js Configuration
-// Credentials-based auth using NIC Number + Password
+// Supports NIC login (patients/doctors) and
+// License Number login (pharmacies)
 // ==============================================
 
 import { NextAuthOptions } from "next-auth";
@@ -14,21 +15,46 @@ export const authOptions: NextAuthOptions = {
             name: "AyuLink",
             credentials: {
                 nicNumber: { label: "NIC Number", type: "text" },
+                licenseNumber: { label: "License Number", type: "text" },
                 password: { label: "Password", type: "password" },
             },
             async authorize(credentials) {
-                if (!credentials?.nicNumber || !credentials?.password) {
-                    throw new Error("Please enter your NIC number and password");
+                if (!credentials?.password) {
+                    throw new Error("Please enter your password");
                 }
 
-                // Find user by NIC number
-                const user = await prisma.user.findUnique({
-                    where: { nicNumber: credentials.nicNumber },
-                    include: { doctorProfile: true },
-                });
+                // Determine login method
+                const hasNic = !!credentials.nicNumber;
+                const hasLicense = !!credentials.licenseNumber;
 
-                if (!user) {
-                    throw new Error("No account found with this NIC number");
+                if (!hasNic && !hasLicense) {
+                    throw new Error("Please enter your NIC number or License Number");
+                }
+
+                let user;
+
+                if (hasLicense) {
+                    // Pharmacy login via license number
+                    const pharmacyProfile = await prisma.pharmacyProfile.findUnique({
+                        where: { licenseNumber: credentials.licenseNumber },
+                        include: { user: true },
+                    });
+
+                    if (!pharmacyProfile) {
+                        throw new Error("No pharmacy found with this license number");
+                    }
+
+                    user = pharmacyProfile.user;
+                } else {
+                    // Patient / Doctor login via NIC
+                    user = await prisma.user.findUnique({
+                        where: { nicNumber: credentials.nicNumber },
+                        include: { doctorProfile: true },
+                    });
+
+                    if (!user) {
+                        throw new Error("No account found with this NIC number");
+                    }
                 }
 
                 // Verify password

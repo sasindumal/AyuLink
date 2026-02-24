@@ -1,6 +1,6 @@
 // ==============================================
 // AyuLink - Pharmacy Dashboard
-// Overview with stats and quick actions
+// Shows pharmacy identity, stats, and quick actions
 // ==============================================
 
 "use client";
@@ -9,12 +9,13 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
-    Pill,
     ScanLine,
     ClipboardList,
     CheckCircle,
     Package,
     ArrowRight,
+    Building2,
+    BadgeCheck,
 } from "lucide-react";
 
 interface Prescription {
@@ -23,21 +24,36 @@ interface Prescription {
     items: any[];
 }
 
+interface PharmacyInfo {
+    pharmacyName: string;
+    licenseNumber: string;
+    pharmacyAddress: string;
+}
+
 export default function PharmacyDashboard() {
     const { data: session } = useSession();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+    const [pharmacyInfo, setPharmacyInfo] = useState<PharmacyInfo | null>(null);
 
     useEffect(() => {
-        const fetchPrescriptions = async () => {
+        const fetchData = async () => {
             try {
-                const res = await fetch("/api/prescriptions");
-                const data = await res.json();
-                setPrescriptions(data.prescriptions || []);
+                // Fetch prescriptions
+                const rxRes = await fetch("/api/prescriptions");
+                const rxData = await rxRes.json();
+                setPrescriptions(rxData.prescriptions || []);
+
+                // Fetch pharmacy profile
+                const profileRes = await fetch("/api/pharmacy/profile");
+                if (profileRes.ok) {
+                    const profileData = await profileRes.json();
+                    setPharmacyInfo(profileData.pharmacyProfile);
+                }
             } catch (err) {
                 console.error("Failed to fetch:", err);
             }
         };
-        fetchPrescriptions();
+        fetchData();
     }, []);
 
     const dispensedCount = prescriptions.filter((rx) => rx.status === "DISPENSED").length;
@@ -47,14 +63,29 @@ export default function PharmacyDashboard() {
 
     return (
         <div className="max-w-5xl mx-auto animate-fade-in">
-            {/* Greeting */}
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-primary-dark">
-                    Pharmacy Dashboard 💊
-                </h1>
-                <p className="text-text-muted mt-1">
-                    Scan prescriptions, verify medications, and dispense to patients
-                </p>
+            {/* Pharmacy Identity Card */}
+            <div className="card p-6 mb-8 border-l-4 border-l-primary-action">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-2xl bg-primary-action/10">
+                        <Building2 className="w-8 h-8 text-primary-action" />
+                    </div>
+                    <div className="flex-1">
+                        <h1 className="text-2xl font-bold text-primary-dark flex items-center gap-2">
+                            {pharmacyInfo?.pharmacyName || "Loading..."}
+                            <BadgeCheck className="w-5 h-5 text-primary-action" />
+                        </h1>
+                        <div className="flex items-center gap-3 mt-1">
+                            <span className="text-sm text-text-muted font-mono bg-background px-2 py-0.5 rounded-lg border border-border">
+                                {pharmacyInfo?.licenseNumber || "—"}
+                            </span>
+                            {pharmacyInfo?.pharmacyAddress && (
+                                <span className="text-sm text-text-muted">
+                                    📍 {pharmacyInfo.pharmacyAddress}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Stats Row */}
