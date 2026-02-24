@@ -1,0 +1,214 @@
+/* ==============================================
+   AyuLink - Digital Healthcare Platform
+   Global Styles (Tailwind CSS v4)
+   ============================================== */
+
+@import "tailwindcss";
+
+/* ----- Custom Theme Configuration ----- */
+@theme {
+    /* AyuLink Brand Color Palette */
+    --color-background: #F7F0F0;
+    /* Soft Shell - main app background */
+    --color-primary-dark: #25671E;
+    /* Deep Forest - headers, primary typography */
+    --color-primary-action: #48A111;
+    /* Vibrant Lime - CTA buttons, active toggles */
+    --color-primary-action-hover: #3D8C0E;
+    /* Darker lime for hover states */
+    --color-accent-warning: #F2B50B;
+    /* Golden Amber - pending statuses, alerts */
+    --color-surface: #FFFFFF;
+    /* Pure White - floating cards */
+    --color-border: #E5DFD6;
+    /* Soft border color */
+    --color-text-muted: #6B7280;
+    /* Muted text */
+    --color-text-secondary: #4B5563;
+    /* Secondary text */
+
+    /* Font Family */
+    --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
+
+    /* Border Radius Tokens */
+    --radius-card: 1.5rem;
+    /* rounded-3xl for cards */
+    --radius-button: 1rem;
+    /* rounded-2xl for buttons */
+    --radius-input: 0.75rem;
+    /* rounded-xl for inputs */
+
+    /* Shadow Tokens */
+    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
+    --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.1);
+    --shadow-button: 0 2px 12px rgba(72, 161, 17, 0.3);
+}
+
+/* ----- Base Styles ----- */
+@layer base {
+    * {
+        @apply box-border;
+    }
+
+    body {
+        @apply bg-background text-primary-dark antialiased;
+        font-family: var(--font-sans);
+        min-height: 100vh;
+    }
+
+    /* Remove default focus outlines, add custom */
+    :focus-visible {
+        outline: 2px solid var(--color-primary-action);
+        outline-offset: 2px;
+        border-radius: 4px;
+    }
+
+    /* Smooth scrolling */
+    html {
+        scroll-behavior: smooth;
+    }
+}
+
+/* ----- Component Styles ----- */
+@layer components {
+
+    /* Primary CTA Button */
+    .btn-primary {
+        @apply bg-primary-action text-white font-semibold px-6 py-3;
+        border-radius: var(--radius-button);
+        box-shadow: var(--shadow-button);
+        transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+        @apply bg-primary-action-hover;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(72, 161, 17, 0.4);
+    }
+
+    .btn-primary:active {
+        transform: translateY(0);
+    }
+
+    /* Secondary Button */
+    .btn-secondary {
+        @apply bg-surface text-primary-dark font-semibold px-6 py-3 border border-border;
+        border-radius: var(--radius-button);
+        transition: all 0.2s ease;
+    }
+
+    .btn-secondary:hover {
+        @apply bg-background;
+        transform: translateY(-1px);
+    }
+
+    /* Floating Card */
+    .card {
+        @apply bg-surface;
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-card);
+        transition: box-shadow 0.3s ease;
+    }
+
+    .card:hover {
+        box-shadow: var(--shadow-card-hover);
+    }
+
+    /* Status Badges */
+    .badge-active {
+        @apply bg-primary-action/10 text-primary-action font-medium text-sm px-3 py-1;
+        border-radius: 9999px;
+    }
+
+    .badge-dispensed {
+        @apply bg-text-muted/10 text-text-muted font-medium text-sm px-3 py-1;
+        border-radius: 9999px;
+    }
+
+    .badge-warning {
+        @apply bg-accent-warning/10 text-accent-warning font-medium text-sm px-3 py-1;
+        border-radius: 9999px;
+    }
+
+    /* Input Fields */
+    .input-field {
+        @apply w-full bg-background border border-border text-primary-dark px-4 py-3;
+        border-radius: var(--radius-input);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .input-field:focus {
+        @apply border-primary-action;
+        box-shadow: 0 0 0 3px rgba(72, 161, 17, 0.1);
+        outline: none;
+    }
+
+    .input-field::placeholder {
+        @apply text-text-muted;
+    }
+}
+
+/* ----- Utility Animations ----- */
+@layer utilities {
+    .animate-fade-in {
+        animation: fadeIn 0.5s ease-out;
+    }
+
+    .animate-slide-up {
+        animation: slideUp 0.5s ease-out;
+    }
+
+    .animate-slide-in-right {
+        animation: slideInRight 0.3s ease-out;
+    }
+
+    .animate-pulse-soft {
+        animation: pulseSoft 2s ease-in-out infinite;
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes pulseSoft {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+}

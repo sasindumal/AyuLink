@@ -1,0 +1,95 @@
+// ==============================================
+// AyuLink - Digital Healthcare Platform
+// Prisma Schema Definition
+// ==============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----- Enums -----
+
+/// Role determines the user's dashboard and permissions
+enum Role {
+  PATIENT
+  DOCTOR
+  PHARMACIST
+}
+
+/// Prescription lifecycle status
+enum PrescriptionStatus {
+  ACTIVE
+  DISPENSED
+}
+
+// ----- Models -----
+
+/// Core user model supporting patients, doctors, and pharmacists
+model User {
+  id           String   @id @default(uuid())
+  nicNumber    String   @unique          // National Identity Card number (login credential)
+  firstName    String
+  lastName     String
+  mobileNumber String
+  dob          DateTime
+  passwordHash String
+  role         Role     @default(PATIENT)
+  medicalId    String   @unique @default(uuid()) // Unique Medical ID for QR code generation
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  doctorProfile        DoctorProfile?
+  prescriptionsAsPatient Prescription[] @relation("PatientPrescriptions")
+  prescriptionsAsDoctor  Prescription[] @relation("DoctorPrescriptions")
+}
+
+/// Additional profile data for doctors
+model DoctorProfile {
+  id             String @id @default(uuid())
+  userId         String @unique
+  slmcRegNo      String @unique    // Sri Lanka Medical Council registration number
+  specialization String
+  hospitalName   String
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// A digital prescription issued by a doctor to a patient
+model Prescription {
+  id         String             @id @default(uuid())
+  patientId  String
+  doctorId   String
+  dateIssued DateTime           @default(now())
+  diagnosis  String
+  status     PrescriptionStatus @default(ACTIVE)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  patient User               @relation("PatientPrescriptions", fields: [patientId], references: [id])
+  doctor  User               @relation("DoctorPrescriptions", fields: [doctorId], references: [id])
+  items   PrescriptionItem[]
+}
+
+/// Individual drug/medication line item within a prescription
+model PrescriptionItem {
+  id             String @id @default(uuid())
+  prescriptionId String
+  drugName       String
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String @default("")
+
+  // Relations
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
