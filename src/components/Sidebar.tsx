@@ -26,18 +26,18 @@ import { cn } from "@/lib/utils";
 const navItems = {
     PATIENT: [
         { href: "/patient/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/patient/dashboard", label: "My Medical ID", icon: QrCode },
-        { href: "/patient/dashboard", label: "Prescriptions", icon: ClipboardList },
+        { href: "/patient/medical-id", label: "My Medical ID", icon: QrCode },
+        { href: "/patient/prescriptions", label: "Prescriptions", icon: ClipboardList },
     ],
     DOCTOR: [
         { href: "/doctor/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/doctor/dashboard", label: "Scan Patient", icon: ScanLine },
-        { href: "/doctor/dashboard", label: "My Prescriptions", icon: FileText },
+        { href: "/doctor/scan", label: "Scan Patient", icon: ScanLine },
+        { href: "/doctor/prescriptions", label: "My Prescriptions", icon: FileText },
     ],
     PHARMACIST: [
         { href: "/pharmacy/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/pharmacy/dashboard", label: "Scan & Dispense", icon: Pill },
-        { href: "/pharmacy/dashboard", label: "Records", icon: ClipboardList },
+        { href: "/pharmacy/dispense", label: "Scan & Dispense", icon: Pill },
+        { href: "/pharmacy/records", label: "Records", icon: ClipboardList },
     ],
 };
 
@@ -73,7 +73,7 @@ export default function Sidebar() {
             {/* Navigation Links */}
             <nav className="flex-1 px-4 py-6 space-y-1.5">
                 {items.map((item, index) => {
-                    const isActive = pathname === item.href && index === 0;
+                    const isActive = pathname === item.href;
                     const Icon = item.icon;
 
                     return (
