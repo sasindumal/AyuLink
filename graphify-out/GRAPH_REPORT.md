@@ -1,12 +1,18 @@
-# Graph Report - .  (2026-05-05)
+# Graph Report - AyuLink  (2026-05-05)
 
 ## Corpus Check
-- Corpus is ~24,469 words - fits in a single context window. You may not need a graph.
+- 41 files · ~27,645 words
+- Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
 - 148 nodes · 122 edges · 48 communities (36 shown, 12 thin omitted)
 - Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 14 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `c1a5882b`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - [[_COMMUNITY_Pharmacy Dispensing UI|Pharmacy Dispensing UI]]
