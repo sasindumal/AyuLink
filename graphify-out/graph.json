@@ -1,0 +1,2983 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {
+    "hyperedges": [
+      {
+        "id": "database_schema_evolution",
+        "label": "Database Schema Evolution",
+        "nodes": [
+          "migration_init_schema",
+          "migration_add_item_dispensing",
+          "migration_add_pharmacy_profile",
+          "migration_make_pharmacy_optional"
+        ],
+        "relation": "form",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "prisma/migrations/"
+      },
+      {
+        "id": "pharmacy_feature_set",
+        "label": "Pharmacy Feature Pages",
+        "nodes": [
+          "page_pharmacy_dashboard",
+          "page_pharmacy_dispense",
+          "page_pharmacy_records",
+          "layout_pharmacy"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85,
+        "source_file": "src/app/pharmacy/"
+      },
+      {
+        "id": "doctor_feature_set",
+        "label": "Doctor Feature Pages",
+        "nodes": [
+          "page_doctor_dashboard",
+          "page_doctor_scan",
+          "page_doctor_prescriptions",
+          "layout_doctor"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85,
+        "source_file": "src/app/doctor/"
+      },
+      {
+        "id": "patient_feature_set",
+        "label": "Patient Feature Pages",
+        "nodes": [
+          "layout_patient",
+          "page_patient_dashboard",
+          "page_patient_medical_id",
+          "page_patient_prescriptions"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85,
+        "source_file": "src/app/patient/"
+      },
+      {
+        "id": "auth_flow",
+        "label": "Authentication Flow",
+        "nodes": [
+          "page_login",
+          "api_auth_nextauth",
+          "api_auth_register",
+          "auth_authoptions",
+          "authprovider"
+        ],
+        "relation": "participate_in",
+        "confidence": "EXTRACTED",
+        "confidence_score": 1.0,
+        "source_file": "src/app/"
+      },
+      {
+        "id": "prescription_crud",
+        "label": "Prescription CRUD Pipeline",
+        "nodes": [
+          "api_prescriptions",
+          "api_prescriptions_id",
+          "prescriptioncard",
+          "page_patient_prescriptions"
+        ],
+        "relation": "participate_in",
+        "confidence": "INFERRED",
+        "confidence_score": 0.85,
+        "source_file": "src/app/api/prescriptions/"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "label": "postcss.config.mjs",
+      "file_type": "code",
+      "source_file": "postcss.config.mjs",
+      "source_location": "L1",
+      "id": "postcss_config_mjs",
+      "community": 30,
+      "norm_label": "postcss.config.mjs"
+    },
+    {
+      "label": "next-env.d.ts",
+      "file_type": "code",
+      "source_file": "next-env.d.ts",
+      "source_location": "L1",
+      "id": "next_env_d_ts",
+      "community": 31,
+      "norm_label": "next-env.d.ts"
+    },
+    {
+      "label": "next.config.ts",
+      "file_type": "code",
+      "source_file": "next.config.ts",
+      "source_location": "L1",
+      "id": "next_config_ts",
+      "community": 32,
+      "norm_label": "next.config.ts"
+    },
+    {
+      "label": "seed.ts",
+      "file_type": "code",
+      "source_file": "prisma/seed.ts",
+      "source_location": "L1",
+      "id": "prisma_seed_ts",
+      "community": 14,
+      "norm_label": "seed.ts"
+    },
+    {
+      "label": "main()",
+      "file_type": "code",
+      "source_file": "prisma/seed.ts",
+      "source_location": "L12",
+      "id": "prisma_seed_main",
+      "community": 14,
+      "norm_label": "main()"
+    },
+    {
+      "label": "next-auth.d.ts",
+      "file_type": "code",
+      "source_file": "src/types/next-auth.d.ts",
+      "source_location": "L1",
+      "id": "src_types_next_auth_d_ts",
+      "community": 33,
+      "norm_label": "next-auth.d.ts"
+    },
+    {
+      "label": "layout.tsx",
+      "file_type": "code",
+      "source_file": "src/app/layout.tsx",
+      "source_location": "L1",
+      "id": "src_app_layout_tsx",
+      "community": 34,
+      "norm_label": "layout.tsx"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_page_tsx",
+      "community": 35,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "layout.tsx",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/layout.tsx",
+      "source_location": "L1",
+      "id": "src_app_pharmacy_layout_tsx",
+      "community": 15,
+      "norm_label": "layout.tsx"
+    },
+    {
+      "label": "PharmacyLayout()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/layout.tsx",
+      "source_location": "L9",
+      "id": "pharmacy_layout_pharmacylayout",
+      "community": 15,
+      "norm_label": "pharmacylayout()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_pharmacy_records_page_tsx",
+      "community": 7,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "fetchRecords()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L71",
+      "id": "records_page_fetchrecords",
+      "community": 7,
+      "norm_label": "fetchrecords()"
+    },
+    {
+      "label": "formatDate()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L107",
+      "id": "records_page_formatdate",
+      "community": 7,
+      "norm_label": "formatdate()"
+    },
+    {
+      "label": "formatTime()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L114",
+      "id": "records_page_formattime",
+      "community": 7,
+      "norm_label": "formattime()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dashboard/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_pharmacy_dashboard_page_tsx",
+      "community": 16,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "fetchData()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dashboard/page.tsx",
+      "source_location": "L39",
+      "id": "dashboard_page_fetchdata",
+      "community": 16,
+      "norm_label": "fetchdata()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_pharmacy_dispense_page_tsx",
+      "community": 0,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "handleScan()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L121",
+      "id": "dispense_page_handlescan",
+      "community": 0,
+      "norm_label": "handlescan()"
+    },
+    {
+      "label": "handleManualSearch()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L126",
+      "id": "dispense_page_handlemanualsearch",
+      "community": 0,
+      "norm_label": "handlemanualsearch()"
+    },
+    {
+      "label": "toggleExpand()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L130",
+      "id": "dispense_page_toggleexpand",
+      "community": 0,
+      "norm_label": "toggleexpand()"
+    },
+    {
+      "label": "dispenseItem()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L139",
+      "id": "dispense_page_dispenseitem",
+      "community": 0,
+      "norm_label": "dispenseitem()"
+    },
+    {
+      "label": "canRevert()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L183",
+      "id": "dispense_page_canrevert",
+      "community": 0,
+      "norm_label": "canrevert()"
+    },
+    {
+      "label": "resetAll()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L193",
+      "id": "dispense_page_resetall",
+      "community": 0,
+      "norm_label": "resetall()"
+    },
+    {
+      "label": "formatDate()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L201",
+      "id": "dispense_page_formatdate",
+      "community": 0,
+      "norm_label": "formatdate()"
+    },
+    {
+      "label": "formatTime()",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L208",
+      "id": "dispense_page_formattime",
+      "community": 0,
+      "norm_label": "formattime()"
+    },
+    {
+      "label": "layout.tsx",
+      "file_type": "code",
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": "L1",
+      "id": "src_app_doctor_layout_tsx",
+      "community": 17,
+      "norm_label": "layout.tsx"
+    },
+    {
+      "label": "DoctorLayout()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": "L9",
+      "id": "doctor_layout_doctorlayout",
+      "community": 17,
+      "norm_label": "doctorlayout()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_doctor_scan_page_tsx",
+      "community": 0,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "lookupPatient()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L69",
+      "id": "scan_page_lookuppatient",
+      "community": 0,
+      "norm_label": "lookuppatient()"
+    },
+    {
+      "label": "handleScan()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L91",
+      "id": "scan_page_handlescan",
+      "community": 0,
+      "norm_label": "handlescan()"
+    },
+    {
+      "label": "handleManualLookup()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L96",
+      "id": "scan_page_handlemanuallookup",
+      "community": 0,
+      "norm_label": "handlemanuallookup()"
+    },
+    {
+      "label": "addMedication()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L100",
+      "id": "scan_page_addmedication",
+      "community": 0,
+      "norm_label": "addmedication()"
+    },
+    {
+      "label": "removeMedication()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L103",
+      "id": "scan_page_removemedication",
+      "community": 0,
+      "norm_label": "removemedication()"
+    },
+    {
+      "label": "updateMedication()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L106",
+      "id": "scan_page_updatemedication",
+      "community": 0,
+      "norm_label": "updatemedication()"
+    },
+    {
+      "label": "handleSubmit()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L118",
+      "id": "scan_page_handlesubmit",
+      "community": 0,
+      "norm_label": "handlesubmit()"
+    },
+    {
+      "label": "resetAll()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L161",
+      "id": "scan_page_resetall",
+      "community": 0,
+      "norm_label": "resetall()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_doctor_dashboard_page_tsx",
+      "community": 11,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "fetchPrescriptions()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": "L43",
+      "id": "dashboard_page_fetchprescriptions",
+      "community": 11,
+      "norm_label": "fetchprescriptions()"
+    },
+    {
+      "label": "getGreeting()",
+      "file_type": "code",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": "L57",
+      "id": "dashboard_page_getgreeting",
+      "community": 11,
+      "norm_label": "getgreeting()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/doctor/prescriptions/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_doctor_prescriptions_page_tsx",
+      "community": 2,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "fetchPrescriptions()",
+      "file_type": "code",
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": "L52",
+      "id": "prescriptions_page_fetchprescriptions",
+      "community": 2,
+      "norm_label": "fetchprescriptions()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_register_page_tsx",
+      "community": 4,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "updateForm()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L103",
+      "id": "register_page_updateform",
+      "community": 4,
+      "norm_label": "updateform()"
+    },
+    {
+      "label": "validateStep()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L108",
+      "id": "register_page_validatestep",
+      "community": 4,
+      "norm_label": "validatestep()"
+    },
+    {
+      "label": "validatePassword()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L142",
+      "id": "register_page_validatepassword",
+      "community": 4,
+      "norm_label": "validatepassword()"
+    },
+    {
+      "label": "nextStep()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L154",
+      "id": "register_page_nextstep",
+      "community": 4,
+      "norm_label": "nextstep()"
+    },
+    {
+      "label": "prevStep()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L161",
+      "id": "register_page_prevstep",
+      "community": 4,
+      "norm_label": "prevstep()"
+    },
+    {
+      "label": "handleSubmit()",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L166",
+      "id": "register_page_handlesubmit",
+      "community": 4,
+      "norm_label": "handlesubmit()"
+    },
+    {
+      "label": "layout.tsx",
+      "file_type": "code",
+      "source_file": "src/app/patient/layout.tsx",
+      "source_location": "L1",
+      "id": "src_app_patient_layout_tsx",
+      "community": 18,
+      "norm_label": "layout.tsx"
+    },
+    {
+      "label": "PatientLayout()",
+      "file_type": "code",
+      "source_file": "src/app/patient/layout.tsx",
+      "source_location": "L9",
+      "id": "patient_layout_patientlayout",
+      "community": 18,
+      "norm_label": "patientlayout()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_patient_medical_id_page_tsx",
+      "community": 8,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "MedicalIdPage()",
+      "file_type": "code",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L20",
+      "id": "medical_id_page_medicalidpage",
+      "community": 8,
+      "norm_label": "medicalidpage()"
+    },
+    {
+      "label": "InfoRow()",
+      "file_type": "code",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L130",
+      "id": "medical_id_page_inforow",
+      "community": 8,
+      "norm_label": "inforow()"
+    },
+    {
+      "label": "Step()",
+      "file_type": "code",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L157",
+      "id": "medical_id_page_step",
+      "community": 8,
+      "norm_label": "step()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_patient_dashboard_page_tsx",
+      "community": 19,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "PatientDashboard()",
+      "file_type": "code",
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": "L38",
+      "id": "dashboard_page_patientdashboard",
+      "community": 19,
+      "norm_label": "patientdashboard()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_patient_prescriptions_page_tsx",
+      "community": 2,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/patients/[medicalId]/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_patients_medicalid_route_ts",
+      "community": 20,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "GET()",
+      "file_type": "code",
+      "source_file": "src/app/api/patients/[medicalId]/route.ts",
+      "source_location": "L12",
+      "id": "medicalid_route_get",
+      "community": 20,
+      "norm_label": "get()"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/pharmacy/profile/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_pharmacy_profile_route_ts",
+      "community": 21,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "GET()",
+      "file_type": "code",
+      "source_file": "src/app/api/pharmacy/profile/route.ts",
+      "source_location": "L11",
+      "id": "profile_route_get",
+      "community": 21,
+      "norm_label": "get()"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/seed/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_seed_route_ts",
+      "community": 22,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "GET()",
+      "file_type": "code",
+      "source_file": "src/app/api/seed/route.ts",
+      "source_location": "L10",
+      "id": "seed_route_get",
+      "community": 22,
+      "norm_label": "get()"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/auth/register/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_auth_register_route_ts",
+      "community": 23,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "POST()",
+      "file_type": "code",
+      "source_file": "src/app/api/auth/register/route.ts",
+      "source_location": "L12",
+      "id": "register_route_post",
+      "community": 23,
+      "norm_label": "post()"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/auth/[...nextauth]/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_auth_nextauth_route_ts",
+      "community": 36,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_prescriptions_route_ts",
+      "community": 12,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "GET()",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "L13",
+      "id": "prescriptions_route_get",
+      "community": 12,
+      "norm_label": "get()"
+    },
+    {
+      "label": "POST()",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "L103",
+      "id": "prescriptions_route_post",
+      "community": 12,
+      "norm_label": "post()"
+    },
+    {
+      "label": "route.ts",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L1",
+      "id": "src_app_api_prescriptions_id_route_ts",
+      "community": 9,
+      "norm_label": "route.ts"
+    },
+    {
+      "label": "GET()",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L14",
+      "id": "id_route_get",
+      "community": 9,
+      "norm_label": "get()"
+    },
+    {
+      "label": "PATCH()",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L72",
+      "id": "id_route_patch",
+      "community": 9,
+      "norm_label": "patch()"
+    },
+    {
+      "label": "PUT()",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L125",
+      "id": "id_route_put",
+      "community": 9,
+      "norm_label": "put()"
+    },
+    {
+      "label": "page.tsx",
+      "file_type": "code",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L1",
+      "id": "src_app_login_page_tsx",
+      "community": 2,
+      "norm_label": "page.tsx"
+    },
+    {
+      "label": "handleSubmit()",
+      "file_type": "code",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L29",
+      "id": "login_page_handlesubmit",
+      "community": 2,
+      "norm_label": "handlesubmit()"
+    },
+    {
+      "label": "switchMode()",
+      "file_type": "code",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L65",
+      "id": "login_page_switchmode",
+      "community": 2,
+      "norm_label": "switchmode()"
+    },
+    {
+      "label": "PrescriptionCard.tsx",
+      "file_type": "code",
+      "source_file": "src/components/PrescriptionCard.tsx",
+      "source_location": "L1",
+      "id": "src_components_prescriptioncard_tsx",
+      "community": 2,
+      "norm_label": "prescriptioncard.tsx"
+    },
+    {
+      "label": "QRCodeDisplay.tsx",
+      "file_type": "code",
+      "source_file": "src/components/QRCodeDisplay.tsx",
+      "source_location": "L1",
+      "id": "src_components_qrcodedisplay_tsx",
+      "community": 24,
+      "norm_label": "qrcodedisplay.tsx"
+    },
+    {
+      "label": "handleCopy()",
+      "file_type": "code",
+      "source_file": "src/components/QRCodeDisplay.tsx",
+      "source_location": "L28",
+      "id": "components_qrcodedisplay_handlecopy",
+      "community": 24,
+      "norm_label": "handlecopy()"
+    },
+    {
+      "label": "DashboardLayout.tsx",
+      "file_type": "code",
+      "source_file": "src/components/DashboardLayout.tsx",
+      "source_location": "L1",
+      "id": "src_components_dashboardlayout_tsx",
+      "community": 25,
+      "norm_label": "dashboardlayout.tsx"
+    },
+    {
+      "label": "DashboardLayout()",
+      "file_type": "code",
+      "source_file": "src/components/DashboardLayout.tsx",
+      "source_location": "L20",
+      "id": "components_dashboardlayout_dashboardlayout",
+      "community": 25,
+      "norm_label": "dashboardlayout()"
+    },
+    {
+      "label": "Sidebar.tsx",
+      "file_type": "code",
+      "source_file": "src/components/Sidebar.tsx",
+      "source_location": "L1",
+      "id": "src_components_sidebar_tsx",
+      "community": 2,
+      "norm_label": "sidebar.tsx"
+    },
+    {
+      "label": "AuthProvider.tsx",
+      "file_type": "code",
+      "source_file": "src/components/AuthProvider.tsx",
+      "source_location": "L1",
+      "id": "src_components_authprovider_tsx",
+      "community": 26,
+      "norm_label": "authprovider.tsx"
+    },
+    {
+      "label": "AuthProvider()",
+      "file_type": "code",
+      "source_file": "src/components/AuthProvider.tsx",
+      "source_location": "L11",
+      "id": "components_authprovider_authprovider",
+      "community": 26,
+      "norm_label": "authprovider()"
+    },
+    {
+      "label": "QRScanner.tsx",
+      "file_type": "code",
+      "source_file": "src/components/QRScanner.tsx",
+      "source_location": "L1",
+      "id": "src_components_qrscanner_tsx",
+      "community": 27,
+      "norm_label": "qrscanner.tsx"
+    },
+    {
+      "label": "startScanner()",
+      "file_type": "code",
+      "source_file": "src/components/QRScanner.tsx",
+      "source_location": "L29",
+      "id": "components_qrscanner_startscanner",
+      "community": 27,
+      "norm_label": "startscanner()"
+    },
+    {
+      "label": "prisma.ts",
+      "file_type": "code",
+      "source_file": "src/lib/prisma.ts",
+      "source_location": "L1",
+      "id": "src_lib_prisma_ts",
+      "community": 37,
+      "norm_label": "prisma.ts"
+    },
+    {
+      "label": "utils.ts",
+      "file_type": "code",
+      "source_file": "src/lib/utils.ts",
+      "source_location": "L1",
+      "id": "src_lib_utils_ts",
+      "community": 2,
+      "norm_label": "utils.ts"
+    },
+    {
+      "label": "cn()",
+      "file_type": "code",
+      "source_file": "src/lib/utils.ts",
+      "source_location": "L10",
+      "id": "lib_utils_cn",
+      "community": 2,
+      "norm_label": "cn()"
+    },
+    {
+      "label": "auth.ts",
+      "file_type": "code",
+      "source_file": "src/lib/auth.ts",
+      "source_location": "L1",
+      "id": "src_lib_auth_ts",
+      "community": 38,
+      "norm_label": "auth.ts"
+    },
+    {
+      "label": "Initial Database Schema Migration",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_init_schema",
+      "community": 3,
+      "norm_label": "initial database schema migration"
+    },
+    {
+      "label": "User Table",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TABLE User",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_user_table",
+      "community": 3,
+      "norm_label": "user table"
+    },
+    {
+      "label": "DoctorProfile Table",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TABLE DoctorProfile",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_doctorprofile_table",
+      "community": 3,
+      "norm_label": "doctorprofile table"
+    },
+    {
+      "label": "Prescription Table",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TABLE Prescription",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_prescription_table",
+      "community": 3,
+      "norm_label": "prescription table"
+    },
+    {
+      "label": "PrescriptionItem Table",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TABLE PrescriptionItem",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_prescriptionitem_table",
+      "community": 3,
+      "norm_label": "prescriptionitem table"
+    },
+    {
+      "label": "Role Enum (PATIENT, DOCTOR, PHARMACIST)",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TYPE Role",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_role_enum",
+      "community": 1,
+      "norm_label": "role enum (patient, doctor, pharmacist)"
+    },
+    {
+      "label": "PrescriptionStatus Enum",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "CREATE TYPE PrescriptionStatus",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_prescriptionstatus_enum",
+      "community": 39,
+      "norm_label": "prescriptionstatus enum"
+    },
+    {
+      "label": "Add Item Dispensing Migration",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224120054_add_item_dispensing/migration.sql",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_add_item_dispensing",
+      "community": 3,
+      "norm_label": "add item dispensing migration"
+    },
+    {
+      "label": "Add PharmacyProfile Migration",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224121851_add_pharmacy_profile/migration.sql",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_add_pharmacy_profile",
+      "community": 3,
+      "norm_label": "add pharmacyprofile migration"
+    },
+    {
+      "label": "PharmacyProfile Table",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224121851_add_pharmacy_profile/migration.sql",
+      "source_location": "CREATE TABLE PharmacyProfile",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_pharmacyprofile_table",
+      "community": 3,
+      "norm_label": "pharmacyprofile table"
+    },
+    {
+      "label": "Make Pharmacy Fields Optional",
+      "file_type": "code",
+      "source_file": "prisma/migrations/20260224130402_make_pharmacy_fields_optional/migration.sql",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "migration_make_pharmacy_optional",
+      "community": 40,
+      "norm_label": "make pharmacy fields optional"
+    },
+    {
+      "label": "Database Seed Script",
+      "file_type": "code",
+      "source_file": "prisma/seed.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "seed_demo_data",
+      "community": 1,
+      "norm_label": "database seed script"
+    },
+    {
+      "label": "NextAuth Configuration",
+      "file_type": "code",
+      "source_file": "src/lib/auth.ts",
+      "source_location": "authOptions",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "auth_authoptions",
+      "community": 1,
+      "norm_label": "nextauth configuration"
+    },
+    {
+      "label": "NIC-Based Login Strategy",
+      "file_type": "rationale",
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "auth_nic_login",
+      "community": 1,
+      "norm_label": "nic-based login strategy"
+    },
+    {
+      "label": "License Number Login Strategy",
+      "file_type": "rationale",
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "auth_license_login",
+      "community": 3,
+      "norm_label": "license number login strategy"
+    },
+    {
+      "label": "NextAuth Type Extensions",
+      "file_type": "code",
+      "source_file": "src/types/next-auth.d.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "next_auth_types",
+      "community": 1,
+      "norm_label": "nextauth type extensions"
+    },
+    {
+      "label": "Prisma Client Singleton",
+      "file_type": "code",
+      "source_file": "src/lib/prisma.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "prisma_singleton",
+      "community": 1,
+      "norm_label": "prisma client singleton"
+    },
+    {
+      "label": "Tailwind Class Merger",
+      "file_type": "code",
+      "source_file": "src/lib/utils.ts",
+      "source_location": "cn",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "utils_cn",
+      "community": 41,
+      "norm_label": "tailwind class merger"
+    },
+    {
+      "label": "Pharmacy Dashboard Page",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dashboard/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_pharmacy_dashboard",
+      "community": 28,
+      "norm_label": "pharmacy dashboard page"
+    },
+    {
+      "label": "Pharmacy Dispense Page",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_pharmacy_dispense",
+      "community": 28,
+      "norm_label": "pharmacy dispense page"
+    },
+    {
+      "label": "Pharmacy Records Page",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_pharmacy_records",
+      "community": 42,
+      "norm_label": "pharmacy records page"
+    },
+    {
+      "label": "Doctor Dashboard Page",
+      "file_type": "code",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_doctor_dashboard",
+      "community": 29,
+      "norm_label": "doctor dashboard page"
+    },
+    {
+      "label": "Doctor Scan & Prescribe Page",
+      "file_type": "code",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_doctor_scan",
+      "community": 43,
+      "norm_label": "doctor scan & prescribe page"
+    },
+    {
+      "label": "Doctor Prescriptions Page",
+      "file_type": "code",
+      "source_file": "src/app/doctor/prescriptions/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_doctor_prescriptions",
+      "community": 29,
+      "norm_label": "doctor prescriptions page"
+    },
+    {
+      "label": "Multi-Step Registration Page",
+      "file_type": "code",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_register",
+      "community": 1,
+      "norm_label": "multi-step registration page"
+    },
+    {
+      "label": "Landing Page",
+      "file_type": "code",
+      "source_file": "src/app/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_landing",
+      "community": 44,
+      "norm_label": "landing page"
+    },
+    {
+      "label": "Root Layout",
+      "file_type": "code",
+      "source_file": "src/app/layout.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "layout_root",
+      "community": 45,
+      "norm_label": "root layout"
+    },
+    {
+      "label": "Pharmacy Route Layout",
+      "file_type": "code",
+      "source_file": "src/app/pharmacy/layout.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "layout_pharmacy",
+      "community": 13,
+      "norm_label": "pharmacy route layout"
+    },
+    {
+      "label": "Doctor Route Layout",
+      "file_type": "code",
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "layout_doctor",
+      "community": 13,
+      "norm_label": "doctor route layout"
+    },
+    {
+      "label": "Role-Based Access Control Pattern",
+      "file_type": "rationale",
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": "allowedRole",
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "rbac_pattern",
+      "community": 13,
+      "norm_label": "role-based access control pattern"
+    },
+    {
+      "label": "Patient Route Layout",
+      "file_type": "code",
+      "source_file": "src/app/patient/layout.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "layout_patient",
+      "community": 10,
+      "norm_label": "patient route layout"
+    },
+    {
+      "label": "Patient Medical ID Page",
+      "file_type": "code",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_patient_medical_id",
+      "community": 6,
+      "norm_label": "patient medical id page"
+    },
+    {
+      "label": "Patient Dashboard Page",
+      "file_type": "code",
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_patient_dashboard",
+      "community": 1,
+      "norm_label": "patient dashboard page"
+    },
+    {
+      "label": "Patient Prescriptions Page",
+      "file_type": "code",
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_patient_prescriptions",
+      "community": 1,
+      "norm_label": "patient prescriptions page"
+    },
+    {
+      "label": "Patient Lookup API",
+      "file_type": "code",
+      "source_file": "src/app/api/patients/[medicalId]/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_patients_medicalid",
+      "community": 1,
+      "norm_label": "patient lookup api"
+    },
+    {
+      "label": "Pharmacy Profile API",
+      "file_type": "code",
+      "source_file": "src/app/api/pharmacy/profile/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_pharmacy_profile",
+      "community": 10,
+      "norm_label": "pharmacy profile api"
+    },
+    {
+      "label": "Seed API Endpoint",
+      "file_type": "code",
+      "source_file": "src/app/api/seed/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_seed",
+      "community": 46,
+      "norm_label": "seed api endpoint"
+    },
+    {
+      "label": "Registration API",
+      "file_type": "code",
+      "source_file": "src/app/api/auth/register/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_auth_register",
+      "community": 1,
+      "norm_label": "registration api"
+    },
+    {
+      "label": "NextAuth Route Handler",
+      "file_type": "code",
+      "source_file": "src/app/api/auth/[...nextauth]/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_auth_nextauth",
+      "community": 1,
+      "norm_label": "nextauth route handler"
+    },
+    {
+      "label": "Prescriptions API (List/Create)",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_prescriptions",
+      "community": 1,
+      "norm_label": "prescriptions api (list/create)"
+    },
+    {
+      "label": "Prescription Detail API (Get/Dispense)",
+      "file_type": "code",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "api_prescriptions_id",
+      "community": 1,
+      "norm_label": "prescription detail api (get/dispense)"
+    },
+    {
+      "label": "Login Page",
+      "file_type": "code",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "page_login",
+      "community": 1,
+      "norm_label": "login page"
+    },
+    {
+      "label": "PrescriptionCard Component",
+      "file_type": "code",
+      "source_file": "src/components/PrescriptionCard.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "prescriptioncard",
+      "community": 1,
+      "norm_label": "prescriptioncard component"
+    },
+    {
+      "label": "QRCodeDisplay Component",
+      "file_type": "code",
+      "source_file": "src/components/QRCodeDisplay.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "qrcodedisplay",
+      "community": 6,
+      "norm_label": "qrcodedisplay component"
+    },
+    {
+      "label": "DashboardLayout Component",
+      "file_type": "code",
+      "source_file": "src/components/DashboardLayout.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "dashboardlayout",
+      "community": 10,
+      "norm_label": "dashboardlayout component"
+    },
+    {
+      "label": "Sidebar Navigation Component",
+      "file_type": "code",
+      "source_file": "src/components/Sidebar.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "sidebar",
+      "community": 10,
+      "norm_label": "sidebar navigation component"
+    },
+    {
+      "label": "AuthProvider Component",
+      "file_type": "code",
+      "source_file": "src/components/AuthProvider.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "authprovider",
+      "community": 47,
+      "norm_label": "authprovider component"
+    },
+    {
+      "label": "QRScanner Component",
+      "file_type": "code",
+      "source_file": "src/components/QRScanner.tsx",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "qrscanner",
+      "community": 6,
+      "norm_label": "qrscanner component"
+    },
+    {
+      "label": "AyuLink Walkthrough Documentation",
+      "file_type": "document",
+      "source_file": "docs/walkthrough.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "walkthrough_doc",
+      "community": 6,
+      "norm_label": "ayulink walkthrough documentation"
+    },
+    {
+      "label": "Digital Medical ID Concept",
+      "file_type": "rationale",
+      "source_file": "docs/walkthrough.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "digital_medical_id",
+      "community": 6,
+      "norm_label": "digital medical id concept"
+    },
+    {
+      "label": "QR Code Prescription Flow",
+      "file_type": "rationale",
+      "source_file": "docs/walkthrough.md",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "qr_prescription_flow",
+      "community": 6,
+      "norm_label": "qr code prescription flow"
+    },
+    {
+      "label": "AyuLink Brand Logo",
+      "file_type": "image",
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_brand",
+      "community": 5,
+      "norm_label": "ayulink brand logo"
+    },
+    {
+      "label": "AyuLink Brand Logo (White)",
+      "file_type": "image",
+      "source_file": "public/logo-white.jpg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_white_brand",
+      "community": 5,
+      "norm_label": "ayulink brand logo (white)"
+    },
+    {
+      "label": "AyuLink Brand Logo (Vector)",
+      "file_type": "image",
+      "source_file": "public/logo.svg",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_svg_brand",
+      "community": 5,
+      "norm_label": "ayulink brand logo (vector)"
+    },
+    {
+      "label": "Medical Cross Element",
+      "file_type": "image",
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_cross",
+      "community": 5,
+      "norm_label": "medical cross element"
+    },
+    {
+      "label": "EKG Heartbeat Line",
+      "file_type": "image",
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_ekg",
+      "community": 5,
+      "norm_label": "ekg heartbeat line"
+    },
+    {
+      "label": "Connectivity Link Elements",
+      "file_type": "image",
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_links",
+      "community": 5,
+      "norm_label": "connectivity link elements"
+    },
+    {
+      "label": "AyuLink Typography",
+      "file_type": "image",
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "source_url": null,
+      "captured_at": null,
+      "author": null,
+      "contributor": null,
+      "id": "logo_text",
+      "community": 5,
+      "norm_label": "ayulink typography"
+    }
+  ],
+  "links": [
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "prisma/seed.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "prisma_seed_ts",
+      "target": "prisma_seed_main",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/layout.tsx",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_layout_tsx",
+      "target": "pharmacy_layout_pharmacylayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L71",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_records_page_tsx",
+      "target": "records_page_fetchrecords",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L107",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_records_page_tsx",
+      "target": "records_page_formatdate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/records/page.tsx",
+      "source_location": "L114",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_records_page_tsx",
+      "target": "records_page_formattime",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dashboard/page.tsx",
+      "source_location": "L39",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dashboard_page_tsx",
+      "target": "dashboard_page_fetchdata",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L121",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_handlescan",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L126",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_handlemanualsearch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_toggleexpand",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L139",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_dispenseitem",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L183",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_canrevert",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L193",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_resetall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L201",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_formatdate",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L208",
+      "weight": 1.0,
+      "source": "src_app_pharmacy_dispense_page_tsx",
+      "target": "dispense_page_formattime",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L123",
+      "weight": 1.0,
+      "source": "dispense_page_handlescan",
+      "target": "scan_page_lookuppatient"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "src/app/pharmacy/dispense/page.tsx",
+      "source_location": "L127",
+      "weight": 1.0,
+      "source": "dispense_page_handlemanualsearch",
+      "target": "scan_page_lookuppatient"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "src_app_doctor_layout_tsx",
+      "target": "doctor_layout_doctorlayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L24",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_lookuppatient",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L91",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_handlescan",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L96",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_handlemanuallookup",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L100",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_addmedication",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L103",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_removemedication",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L106",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_updatemedication",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L118",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_handlesubmit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L161",
+      "weight": 1.0,
+      "source": "src_app_doctor_scan_page_tsx",
+      "target": "scan_page_resetall",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L93",
+      "weight": 1.0,
+      "source": "scan_page_handlescan",
+      "target": "scan_page_lookuppatient",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/scan/page.tsx",
+      "source_location": "L97",
+      "weight": 1.0,
+      "source": "scan_page_handlemanuallookup",
+      "target": "scan_page_lookuppatient",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": "L43",
+      "weight": 1.0,
+      "source": "src_app_doctor_dashboard_page_tsx",
+      "target": "dashboard_page_fetchprescriptions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/dashboard/page.tsx",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "src_app_doctor_dashboard_page_tsx",
+      "target": "dashboard_page_getgreeting",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/prescriptions/page.tsx",
+      "source_location": "L21",
+      "weight": 1.0,
+      "source": "src_app_doctor_prescriptions_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/doctor/prescriptions/page.tsx",
+      "source_location": "L48",
+      "weight": 1.0,
+      "source": "src_app_doctor_prescriptions_page_tsx",
+      "target": "prescriptions_page_fetchprescriptions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": "L52",
+      "weight": 1.0,
+      "source": "src_app_patient_prescriptions_page_tsx",
+      "target": "prescriptions_page_fetchprescriptions",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L26",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L103",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_updateform",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L108",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_validatestep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L142",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_validatepassword",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L154",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_nextstep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L161",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_prevstep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L166",
+      "weight": 1.0,
+      "source": "src_app_register_page_tsx",
+      "target": "register_page_handlesubmit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L134",
+      "weight": 1.0,
+      "source": "register_page_validatestep",
+      "target": "register_page_validatepassword",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L155",
+      "weight": 1.0,
+      "source": "register_page_nextstep",
+      "target": "register_page_validatestep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/register/page.tsx",
+      "source_location": "L167",
+      "weight": 1.0,
+      "source": "register_page_handlesubmit",
+      "target": "register_page_validatestep",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/layout.tsx",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "src_app_patient_layout_tsx",
+      "target": "patient_layout_patientlayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "src_app_patient_medical_id_page_tsx",
+      "target": "medical_id_page_medicalidpage",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L130",
+      "weight": 1.0,
+      "source": "src_app_patient_medical_id_page_tsx",
+      "target": "medical_id_page_inforow",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": "L157",
+      "weight": 1.0,
+      "source": "src_app_patient_medical_id_page_tsx",
+      "target": "medical_id_page_step",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": "L38",
+      "weight": 1.0,
+      "source": "src_app_patient_dashboard_page_tsx",
+      "target": "dashboard_page_patientdashboard",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "src_app_patient_prescriptions_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/patients/[medicalId]/route.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "src_app_api_patients_medicalid_route_ts",
+      "target": "medicalid_route_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/pharmacy/profile/route.ts",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "src_app_api_pharmacy_profile_route_ts",
+      "target": "profile_route_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/seed/route.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "src_app_api_seed_route_ts",
+      "target": "seed_route_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/auth/register/route.ts",
+      "source_location": "L12",
+      "weight": 1.0,
+      "source": "src_app_api_auth_register_route_ts",
+      "target": "register_route_post",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "L13",
+      "weight": 1.0,
+      "source": "src_app_api_prescriptions_route_ts",
+      "target": "prescriptions_route_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "L103",
+      "weight": 1.0,
+      "source": "src_app_api_prescriptions_route_ts",
+      "target": "prescriptions_route_post",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L14",
+      "weight": 1.0,
+      "source": "src_app_api_prescriptions_id_route_ts",
+      "target": "id_route_get",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L72",
+      "weight": 1.0,
+      "source": "src_app_api_prescriptions_id_route_ts",
+      "target": "id_route_patch",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "L125",
+      "weight": 1.0,
+      "source": "src_app_api_prescriptions_id_route_ts",
+      "target": "id_route_put",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L15",
+      "weight": 1.0,
+      "source": "src_app_login_page_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "src_app_login_page_tsx",
+      "target": "login_page_handlesubmit",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "L65",
+      "weight": 1.0,
+      "source": "src_app_login_page_tsx",
+      "target": "login_page_switchmode",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/PrescriptionCard.tsx",
+      "source_location": "L9",
+      "weight": 1.0,
+      "source": "src_components_prescriptioncard_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/QRCodeDisplay.tsx",
+      "source_location": "L28",
+      "weight": 1.0,
+      "source": "src_components_qrcodedisplay_tsx",
+      "target": "components_qrcodedisplay_handlecopy",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/DashboardLayout.tsx",
+      "source_location": "L20",
+      "weight": 1.0,
+      "source": "src_components_dashboardlayout_tsx",
+      "target": "components_dashboardlayout_dashboardlayout",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "imports",
+      "context": "import",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/Sidebar.tsx",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "src_components_sidebar_tsx",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/AuthProvider.tsx",
+      "source_location": "L11",
+      "weight": 1.0,
+      "source": "src_components_authprovider_tsx",
+      "target": "components_authprovider_authprovider",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/components/QRScanner.tsx",
+      "source_location": "L29",
+      "weight": 1.0,
+      "source": "src_components_qrscanner_tsx",
+      "target": "components_qrscanner_startscanner",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "src/lib/utils.ts",
+      "source_location": "L10",
+      "weight": 1.0,
+      "source": "src_lib_utils_ts",
+      "target": "lib_utils_cn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_init_schema",
+      "target": "migration_user_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_init_schema",
+      "target": "migration_doctorprofile_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_init_schema",
+      "target": "migration_prescription_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_init_schema",
+      "target": "migration_prescriptionitem_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "FK userId",
+      "weight": 1.0,
+      "source": "migration_doctorprofile_table",
+      "target": "migration_user_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "patientId/doctorId FK",
+      "weight": 1.0,
+      "source": "migration_prescription_table",
+      "target": "migration_user_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224121851_add_pharmacy_profile/migration.sql",
+      "source_location": "FK userId",
+      "weight": 1.0,
+      "source": "migration_pharmacyprofile_table",
+      "target": "migration_user_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224080008_init/migration.sql",
+      "source_location": "prescriptionId FK",
+      "weight": 1.0,
+      "source": "migration_prescriptionitem_table",
+      "target": "migration_prescription_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224120054_add_item_dispensing/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_add_item_dispensing",
+      "target": "migration_prescriptionitem_table"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/seed.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "seed_demo_data",
+      "target": "migration_role_enum"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/types/next-auth.d.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "next_auth_types",
+      "target": "migration_role_enum"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/register/page.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_register",
+      "target": "migration_role_enum"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/20260224121851_add_pharmacy_profile/migration.sql",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "migration_add_pharmacy_profile",
+      "target": "migration_pharmacyprofile_table"
+    },
+    {
+      "relation": "shares_data_with",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "auth_license_login",
+      "target": "migration_pharmacyprofile_table"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/seed.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "seed_demo_data",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "auth_authoptions",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "auth_authoptions",
+      "target": "auth_nic_login"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/lib/auth.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "auth_authoptions",
+      "target": "auth_license_login"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "src/types/next-auth.d.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "next_auth_types",
+      "target": "auth_authoptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/auth/[...nextauth]/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_auth_nextauth",
+      "target": "auth_authoptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": "getServerSession(authOptions)",
+      "weight": 1.0,
+      "source": "api_prescriptions",
+      "target": "auth_authoptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": "getServerSession(authOptions)",
+      "weight": 1.0,
+      "source": "api_prescriptions_id",
+      "target": "auth_authoptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/login/page.tsx",
+      "source_location": "signIn(credentials)",
+      "weight": 1.0,
+      "source": "page_login",
+      "target": "auth_authoptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/patients/[medicalId]/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_patients_medicalid",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/pharmacy/profile/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_pharmacy_profile",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/auth/register/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_auth_register",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/prescriptions/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_prescriptions",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/api/prescriptions/[id]/route.ts",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_prescriptions_id",
+      "target": "prisma_singleton"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "src/app/pharmacy/",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_pharmacy_dispense",
+      "target": "page_pharmacy_dashboard"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "src/app/doctor/",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_doctor_prescriptions",
+      "target": "page_doctor_dashboard"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/pharmacy/layout.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "layout_pharmacy",
+      "target": "rbac_pattern"
+    },
+    {
+      "relation": "implements",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/doctor/layout.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "layout_doctor",
+      "target": "rbac_pattern"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/layout.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "layout_patient",
+      "target": "dashboardlayout"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/medical-id/page.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_patient_medical_id",
+      "target": "qrcodedisplay"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.75,
+      "source_file": "src/app/patient/",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_patient_medical_id",
+      "target": "page_patient_dashboard"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_patient_dashboard",
+      "target": "prescriptioncard"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/dashboard/page.tsx",
+      "source_location": "fetch /api/prescriptions",
+      "weight": 1.0,
+      "source": "page_patient_dashboard",
+      "target": "api_prescriptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "page_patient_prescriptions",
+      "target": "prescriptioncard"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/patient/prescriptions/page.tsx",
+      "source_location": "fetch /api/prescriptions",
+      "weight": 1.0,
+      "source": "page_patient_prescriptions",
+      "target": "api_prescriptions"
+    },
+    {
+      "relation": "calls",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/components/Sidebar.tsx",
+      "source_location": "fetch pharmacy name",
+      "weight": 1.0,
+      "source": "sidebar",
+      "target": "api_pharmacy_profile"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/app/api/prescriptions/",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "api_prescriptions",
+      "target": "api_prescriptions_id"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/components/QRCodeDisplay.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "qrcodedisplay",
+      "target": "digital_medical_id"
+    },
+    {
+      "relation": "semantically_similar_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/components/",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "qrscanner",
+      "target": "qrcodedisplay"
+    },
+    {
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/components/DashboardLayout.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "dashboardlayout",
+      "target": "sidebar"
+    },
+    {
+      "relation": "implements",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/components/QRScanner.tsx",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "qrscanner",
+      "target": "digital_medical_id"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/walkthrough.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "walkthrough_doc",
+      "target": "digital_medical_id"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/walkthrough.md",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "walkthrough_doc",
+      "target": "qr_prescription_flow"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_brand",
+      "target": "logo_cross"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_brand",
+      "target": "logo_ekg"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_brand",
+      "target": "logo_links"
+    },
+    {
+      "relation": "references",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "public/logo.png",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_brand",
+      "target": "logo_text"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "public/logo-white.jpg",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_white_brand",
+      "target": "logo_brand"
+    },
+    {
+      "relation": "conceptually_related_to",
+      "confidence": "INFERRED",
+      "confidence_score": 0.95,
+      "source_file": "public/logo.svg",
+      "source_location": null,
+      "weight": 1.0,
+      "source": "logo_svg_brand",
+      "target": "logo_brand"
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "database_schema_evolution",
+      "label": "Database Schema Evolution",
+      "nodes": [
+        "migration_init_schema",
+        "migration_add_item_dispensing",
+        "migration_add_pharmacy_profile",
+        "migration_make_pharmacy_optional"
+      ],
+      "relation": "form",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "prisma/migrations/"
+    },
+    {
+      "id": "pharmacy_feature_set",
+      "label": "Pharmacy Feature Pages",
+      "nodes": [
+        "page_pharmacy_dashboard",
+        "page_pharmacy_dispense",
+        "page_pharmacy_records",
+        "layout_pharmacy"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/app/pharmacy/"
+    },
+    {
+      "id": "doctor_feature_set",
+      "label": "Doctor Feature Pages",
+      "nodes": [
+        "page_doctor_dashboard",
+        "page_doctor_scan",
+        "page_doctor_prescriptions",
+        "layout_doctor"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/app/doctor/"
+    },
+    {
+      "id": "patient_feature_set",
+      "label": "Patient Feature Pages",
+      "nodes": [
+        "layout_patient",
+        "page_patient_dashboard",
+        "page_patient_medical_id",
+        "page_patient_prescriptions"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/app/patient/"
+    },
+    {
+      "id": "auth_flow",
+      "label": "Authentication Flow",
+      "nodes": [
+        "page_login",
+        "api_auth_nextauth",
+        "api_auth_register",
+        "auth_authoptions",
+        "authprovider"
+      ],
+      "relation": "participate_in",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "src/app/"
+    },
+    {
+      "id": "prescription_crud",
+      "label": "Prescription CRUD Pipeline",
+      "nodes": [
+        "api_prescriptions",
+        "api_prescriptions_id",
+        "prescriptioncard",
+        "page_patient_prescriptions"
+      ],
+      "relation": "participate_in",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "source_file": "src/app/api/prescriptions/"
+    }
+  ]
+}
