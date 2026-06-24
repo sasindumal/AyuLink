@@ -40,6 +40,10 @@ interface FormData {
     slmcRegNo: string;
     specialization: string;
     hospitalName: string;
+    // Pharmacist-specific
+    pharmacyName: string;
+    pharmacyLicense: string;
+    pharmacyAddress: string;
 }
 
 const roleOptions = [
@@ -88,10 +92,13 @@ export default function RegisterPage() {
         slmcRegNo: "",
         specialization: "",
         hospitalName: "",
+        pharmacyName: "",
+        pharmacyLicense: "",
+        pharmacyAddress: "",
     });
 
     // Determine total steps based on role
-    const totalSteps = formData.role === "DOCTOR" ? 4 : 3;
+    const totalSteps = (formData.role === "DOCTOR" || formData.role === "PHARMACIST") ? 4 : 3;
 
     const updateForm = (field: keyof FormData, value: string) => {
         setFormData((prev) => ({ ...prev, [field]: value }));
@@ -112,6 +119,13 @@ export default function RegisterPage() {
                 if (formData.role === "DOCTOR") {
                     if (!formData.slmcRegNo || !formData.specialization || !formData.hospitalName) {
                         setError("All doctor details are required");
+                        return false;
+                    }
+                    return true;
+                }
+                if (formData.role === "PHARMACIST") {
+                    if (!formData.pharmacyName || !formData.pharmacyLicense || !formData.pharmacyAddress) {
+                        setError("All pharmacy details are required");
                         return false;
                     }
                     return true;
@@ -197,7 +211,7 @@ export default function RegisterPage() {
 
                 <div className="relative z-10 flex flex-col justify-center px-12 text-white">
                     <Image
-                        src="/logo.png"
+                        src="/logo-white.jpg"
                         alt="AyuLink"
                         width={64}
                         height={64}
@@ -241,7 +255,9 @@ export default function RegisterPage() {
                                             ? "Personal Details"
                                             : formData.role === "DOCTOR" && i === 2
                                                 ? "Professional Info"
-                                                : "Create Password"}
+                                                : formData.role === "PHARMACIST" && i === 2
+                                                    ? "Pharmacy Info"
+                                                    : "Create Password"}
                                 </span>
                             </div>
                         ))}
@@ -342,10 +358,12 @@ export default function RegisterPage() {
                     {step === 2 && (
                         <div className="animate-slide-up">
                             <h2 className="text-2xl font-bold text-primary-dark mb-2">
-                                Personal Details
+                                {formData.role === "PHARMACIST" ? "Pharmacy Owner Details" : "Personal Details"}
                             </h2>
                             <p className="text-text-muted mb-8">
-                                Tell us about yourself
+                                {formData.role === "PHARMACIST"
+                                    ? "Enter the pharmacy owner's personal information"
+                                    : "Tell us about yourself"}
                             </p>
 
                             <div className="space-y-4">
@@ -487,8 +505,62 @@ export default function RegisterPage() {
                         </div>
                     )}
 
+                    {/* ===== STEP 3 (Pharmacist only): Pharmacy Details ===== */}
+                    {step === 3 && formData.role === "PHARMACIST" && (
+                        <div className="animate-slide-up">
+                            <h2 className="text-2xl font-bold text-primary-dark mb-2">
+                                Pharmacy Details
+                            </h2>
+                            <p className="text-text-muted mb-8">
+                                Tell us about your pharmacy
+                            </p>
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-primary-dark mb-2">
+                                        Pharmacy Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.pharmacyName}
+                                        onChange={(e) => updateForm("pharmacyName", e.target.value)}
+                                        placeholder="e.g., Lanka Pharmacy"
+                                        className="input-field"
+                                        autoFocus
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-primary-dark mb-2">
+                                        Pharmacy License Number
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.pharmacyLicense}
+                                        onChange={(e) => updateForm("pharmacyLicense", e.target.value)}
+                                        placeholder="e.g., PL-2024-001234"
+                                        className="input-field"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-semibold text-primary-dark mb-2">
+                                        Pharmacy Address
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={formData.pharmacyAddress}
+                                        onChange={(e) => updateForm("pharmacyAddress", e.target.value)}
+                                        placeholder="e.g., 123 Main Street, Colombo 07"
+                                        className="input-field"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ===== PASSWORD STEP (last step for all roles) ===== */}
-                    {((step === 3 && formData.role !== "DOCTOR") || step === 4) && (
+                    {((step === 3 && formData.role !== "DOCTOR" && formData.role !== "PHARMACIST") || step === 4) && (
                         <div className="animate-slide-up">
                             <h2 className="text-2xl font-bold text-primary-dark mb-2">
                                 Create Password

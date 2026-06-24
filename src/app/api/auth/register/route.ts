@@ -24,6 +24,10 @@ export async function POST(req: NextRequest) {
             slmcRegNo,
             specialization,
             hospitalName,
+            // Pharmacist-specific fields
+            pharmacyName,
+            pharmacyLicense,
+            pharmacyAddress,
         } = body;
 
         // --- Validation ---
@@ -55,13 +59,32 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            // Check duplicate SLMC registration
             const existingDoctor = await prisma.doctorProfile.findUnique({
                 where: { slmcRegNo },
             });
             if (existingDoctor) {
                 return NextResponse.json(
                     { error: "This SLMC registration number is already registered" },
+                    { status: 409 }
+                );
+            }
+        }
+
+        // Validate pharmacist-specific fields
+        if (role === Role.PHARMACIST) {
+            if (!pharmacyName || !pharmacyLicense || !pharmacyAddress) {
+                return NextResponse.json(
+                    { error: "Pharmacist registration requires pharmacy name, license number, and address" },
+                    { status: 400 }
+                );
+            }
+
+            const existingPharmacy = await prisma.pharmacyProfile.findUnique({
+                where: { licenseNumber: pharmacyLicense },
+            });
+            if (existingPharmacy) {
+                return NextResponse.json(
+                    { error: "This pharmacy license number is already registered" },
                     { status: 409 }
                 );
             }
@@ -89,9 +112,20 @@ export async function POST(req: NextRequest) {
                         },
                     },
                 }),
+                // Create pharmacy profile if role is PHARMACIST
+                ...(role === Role.PHARMACIST && {
+                    pharmacyProfile: {
+                        create: {
+                            pharmacyName,
+                            licenseNumber: pharmacyLicense,
+                            pharmacyAddress,
+                        },
+                    },
+                }),
             },
             include: {
                 doctorProfile: true,
+                pharmacyProfile: true,
             },
         });
 

@@ -21,7 +21,7 @@ import {
 interface Prescription {
     id: string;
     diagnosis: string;
-    status: "ACTIVE" | "DISPENSED";
+    status: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
     dateIssued: string;
     items: any[];
     doctor: {
@@ -30,6 +30,7 @@ interface Prescription {
         doctorProfile?: {
             specialization: string;
             hospitalName: string;
+            slmcRegNo: string;
         };
     };
 }
@@ -61,10 +62,10 @@ export default function PatientDashboard() {
     };
 
     const activePrescriptions = prescriptions.filter(
-        (p) => p.status === "ACTIVE"
+        (p) => p.status !== "FULLY_DISPENSED"
     );
     const dispensedPrescriptions = prescriptions.filter(
-        (p) => p.status === "DISPENSED"
+        (p) => p.status === "FULLY_DISPENSED"
     );
 
     return (
@@ -223,6 +224,7 @@ export default function PatientDashboard() {
                                                     rx.doctor.doctorProfile?.specialization
                                                 }
                                                 hospitalName={rx.doctor.doctorProfile?.hospitalName}
+                                                slmcRegNo={rx.doctor.doctorProfile?.slmcRegNo}
                                                 items={rx.items}
                                                 expanded={selectedRx === rx.id}
                                                 onClick={() =>
@@ -253,6 +255,7 @@ export default function PatientDashboard() {
                                                     rx.doctor.doctorProfile?.specialization
                                                 }
                                                 hospitalName={rx.doctor.doctorProfile?.hospitalName}
+                                                slmcRegNo={rx.doctor.doctorProfile?.slmcRegNo}
                                                 items={rx.items}
                                                 expanded={selectedRx === rx.id}
                                                 onClick={() =>

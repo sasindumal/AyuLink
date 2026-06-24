@@ -45,13 +45,33 @@ export async function GET(req: NextRequest) {
                 if (patient) {
                     whereClause.patientId = patient.id;
                 }
+            } else {
+                // Default: only show prescriptions where this pharmacist dispensed items
+                whereClause.items = {
+                    some: {
+                        dispensedById: session.user.id,
+                    },
+                };
             }
         }
 
         const prescriptions = await prisma.prescription.findMany({
             where: whereClause,
             include: {
-                items: true,
+                items: {
+                    include: {
+                        dispensedBy: {
+                            select: {
+                                id: true,
+                                firstName: true,
+                                lastName: true,
+                                pharmacyProfile: {
+                                    select: { pharmacyName: true, licenseNumber: true },
+                                },
+                            },
+                        },
+                    },
+                },
                 patient: {
                     select: { id: true, firstName: true, lastName: true, nicNumber: true, medicalId: true },
                 },
@@ -61,7 +81,7 @@ export async function GET(req: NextRequest) {
                         firstName: true,
                         lastName: true,
                         doctorProfile: {
-                            select: { specialization: true, hospitalName: true },
+                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
                         },
                     },
                 },

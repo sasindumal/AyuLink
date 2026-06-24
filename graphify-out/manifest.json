@@ -1,0 +1,186 @@
+{
+  "/Users/sasindumalhara/Workspace/AyuLink/postcss.config.mjs": {
+    "mtime": 1771917315.8363488,
+    "hash": "b308b26d2eddb4b5a33e3bcb932e0ab0"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/next-env.d.ts": {
+    "mtime": 1771918110.3849146,
+    "hash": "ba64ff7d54714a8f64db89b1003207d8"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/next.config.ts": {
+    "mtime": 1771917314.657943,
+    "hash": "7e4c8b392fe80359140019b00585dc43"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/prisma/seed.ts": {
+    "mtime": 1771941228.0917943,
+    "hash": "5df75e4610dbb56a626ce971d595d76a"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/prisma/migrations/20260224080008_init/migration.sql": {
+    "mtime": 1771920008.6102684,
+    "hash": "ea9df80ff9a48ddc31d8f94ad612d58f"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/prisma/migrations/20260224130402_make_pharmacy_fields_optional/migration.sql": {
+    "mtime": 1771938242.4559467,
+    "hash": "9c3ea8cc8adaf0f43e59a504ed70f700"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/prisma/migrations/20260224121851_add_pharmacy_profile/migration.sql": {
+    "mtime": 1771935531.475159,
+    "hash": "3e541c1c10c9d127114915d4a31a5beb"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/prisma/migrations/20260224120054_add_item_dispensing/migration.sql": {
+    "mtime": 1771934454.2467043,
+    "hash": "b68b273b4cc4ce6eb02fcd0f4c8ebcfe"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/types/next-auth.d.ts": {
+    "mtime": 1771917503.7417667,
+    "hash": "91625d3af299d908fceb3ed6412b54d1"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/layout.tsx": {
+    "mtime": 1772103930.3584666,
+    "hash": "58209dffadcdd83390e4ceb0cf9f9372"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/page.tsx": {
+    "mtime": 1771917980.0800953,
+    "hash": "9be4e7ed08793f4fbd8afc53c52a61bd"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/pharmacy/layout.tsx": {
+    "mtime": 1771917788.4130566,
+    "hash": "0f8c3c7fb77d53697f4eb10a8bf1c133"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/pharmacy/records/page.tsx": {
+    "mtime": 1771941378.5481625,
+    "hash": "0de00c8d86733972d1655e5a955f396b"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/pharmacy/dashboard/page.tsx": {
+    "mtime": 1771941376.2437155,
+    "hash": "c37f21c996b1c68c5b98fcf7ca7fa181"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/pharmacy/dispense/page.tsx": {
+    "mtime": 1771942539.245078,
+    "hash": "8a5253671b80798c936d188b9e6b53b0"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/doctor/layout.tsx": {
+    "mtime": 1771917786.4035301,
+    "hash": "fd84a915d529508c1a1cc1c30d41f81f"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/doctor/scan/page.tsx": {
+    "mtime": 1771941400.7192104,
+    "hash": "a298adb40a6e71f949281e5a48cdcfec"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/doctor/dashboard/page.tsx": {
+    "mtime": 1771941373.792858,
+    "hash": "27536aae15d96f1b291f7cf1a73cc344"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/doctor/prescriptions/page.tsx": {
+    "mtime": 1771941369.923237,
+    "hash": "70d74f3c6087c8a6366fded5b1df1452"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/register/page.tsx": {
+    "mtime": 1771939307.6972568,
+    "hash": "64e0f4247cea2ec307156c949f13a995"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/patient/layout.tsx": {
+    "mtime": 1771917784.394667,
+    "hash": "1b3817f472119d300134fc9d950797e5"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/patient/medical-id/page.tsx": {
+    "mtime": 1771922209.2826033,
+    "hash": "aa63694c3344078b4bb543b252a6970c"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/patient/dashboard/page.tsx": {
+    "mtime": 1771941338.045042,
+    "hash": "ceea2aa9c4c0be5f93c4a287efd2ae8c"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/patient/prescriptions/page.tsx": {
+    "mtime": 1771941325.455458,
+    "hash": "d514393628a2e4af330fbbd98fbd4331"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/patients/[medicalId]/route.ts": {
+    "mtime": 1771940493.9454749,
+    "hash": "8b8048aac70d8fbb23dd581b996422ea"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/pharmacy/profile/route.ts": {
+    "mtime": 1771939354.5915282,
+    "hash": "ff7e2473adae1e3471155bbde23ddf06"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/seed/route.ts": {
+    "mtime": 1771941420.220765,
+    "hash": "8137f913274e159fabb0e6645c8a35d1"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/auth/register/route.ts": {
+    "mtime": 1771938419.3607237,
+    "hash": "2034f0816954153ab662c6a79cae1821"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/auth/[...nextauth]/route.ts": {
+    "mtime": 1771917514.1575,
+    "hash": "e7269a3a90de742107fe6636be0a9903"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/prescriptions/route.ts": {
+    "mtime": 1771940490.0627291,
+    "hash": "18d1ed973760a316ca275c8be56e7f71"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/api/prescriptions/[id]/route.ts": {
+    "mtime": 1771941253.7453468,
+    "hash": "59b2cc0c4074dc6e6a4009f195e65ac8"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/app/login/page.tsx": {
+    "mtime": 1771939279.611621,
+    "hash": "7c7b619fe73273577a875362d64480b0"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/PrescriptionCard.tsx": {
+    "mtime": 1771941294.5043857,
+    "hash": "b54e1fb6dbaff071677f085c2e65f557"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/QRCodeDisplay.tsx": {
+    "mtime": 1771942088.3364205,
+    "hash": "87cf0c2e45ef057e447c08a0b34a8f02"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/DashboardLayout.tsx": {
+    "mtime": 1771917782.3797412,
+    "hash": "fa0e532d0bd6aefb85e14fa884b05ebc"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/Sidebar.tsx": {
+    "mtime": 1771940897.9582634,
+    "hash": "eb9293732b5b2c62bca76f2959aefa29"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/AuthProvider.tsx": {
+    "mtime": 1771917589.362683,
+    "hash": "3b4d526bb0b1672046ecc4bb4167880b"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/components/QRScanner.tsx": {
+    "mtime": 1771917633.0245287,
+    "hash": "086156edd60fc8dcd626ebff739c3571"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/lib/prisma.ts": {
+    "mtime": 1771917468.504914,
+    "hash": "943229b538c328aaff5d1712aebbfa3f"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/lib/utils.ts": {
+    "mtime": 1771917470.4945502,
+    "hash": "5f4c4f6da58575766e5a07986f5f1986"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/src/lib/auth.ts": {
+    "mtime": 1771939234.6581604,
+    "hash": "626677b86998567509375c3b19f8662c"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/docs/README.md": {
+    "mtime": 1777946672.055916,
+    "hash": "a41f5e63698fc2a63234a01d67c8f943"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/docs/walkthrough.md": {
+    "mtime": 1771923551.4515264,
+    "hash": "03c76a565b429c429e1fa436ed63775f"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/public/logo-white.jpg": {
+    "mtime": 1771918076.1147563,
+    "hash": "3fa867658ba838c2f0b4770a5c5f7958"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/public/logo.png": {
+    "mtime": 1771918076.1112015,
+    "hash": "64f4c1ffad09901fe9c5ab32c9ca4994"
+  },
+  "/Users/sasindumalhara/Workspace/AyuLink/public/logo.svg": {
+    "mtime": 1771918058.1974342,
+    "hash": "6522e971fa9770a38bc93fdb7ec99ad2"
+  }
+}

@@ -1,6 +1,7 @@
 // ==============================================
-// AyuLink - Ultra-Modern Split-Screen Login Page
-// Left: Branded gradient with logo | Right: Login form
+// AyuLink - Login Page with Two Methods
+// Tab 1: Patient / Doctor login via NIC
+// Tab 2: Pharmacy login via License Number
 // ==============================================
 
 "use client";
@@ -10,11 +11,16 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, EyeOff, ArrowRight, Shield, Heart, Zap } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Shield, Heart, Zap, User, Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type LoginMode = "nic" | "pharmacy";
 
 export default function LoginPage() {
     const router = useRouter();
+    const [mode, setMode] = useState<LoginMode>("nic");
     const [nicNumber, setNicNumber] = useState("");
+    const [licenseNumber, setLicenseNumber] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
@@ -27,7 +33,8 @@ export default function LoginPage() {
 
         try {
             const result = await signIn("credentials", {
-                nicNumber,
+                nicNumber: mode === "nic" ? nicNumber : "",
+                licenseNumber: mode === "pharmacy" ? licenseNumber : "",
                 password,
                 redirect: false,
             });
@@ -53,6 +60,14 @@ export default function LoginPage() {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const switchMode = (newMode: LoginMode) => {
+        setMode(newMode);
+        setError("");
+        setNicNumber("");
+        setLicenseNumber("");
+        setPassword("");
     };
 
     return (
@@ -81,7 +96,7 @@ export default function LoginPage() {
                     {/* Logo */}
                     <div className="mb-12">
                         <Image
-                            src="/logo.png"
+                            src="/logo-white.jpg"
                             alt="AyuLink"
                             width={80}
                             height={80}
@@ -144,6 +159,36 @@ export default function LoginPage() {
                         </p>
                     </div>
 
+                    {/* Login Mode Tabs */}
+                    <div className="flex rounded-xl bg-surface border border-border p-1 mb-6">
+                        <button
+                            type="button"
+                            onClick={() => switchMode("nic")}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all",
+                                mode === "nic"
+                                    ? "bg-primary-action text-white shadow-sm"
+                                    : "text-text-muted hover:text-primary-dark"
+                            )}
+                        >
+                            <User className="w-4 h-4" />
+                            Patient / Doctor
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => switchMode("pharmacy")}
+                            className={cn(
+                                "flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg text-sm font-semibold transition-all",
+                                mode === "pharmacy"
+                                    ? "bg-primary-action text-white shadow-sm"
+                                    : "text-text-muted hover:text-primary-dark"
+                            )}
+                        >
+                            <Building2 className="w-4 h-4" />
+                            Pharmacy
+                        </button>
+                    </div>
+
                     {/* Error Alert */}
                     {error && (
                         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm animate-slide-up">
@@ -153,25 +198,46 @@ export default function LoginPage() {
 
                     {/* Login Form */}
                     <form onSubmit={handleSubmit} className="space-y-5">
-                        {/* NIC Number Field */}
-                        <div>
-                            <label
-                                htmlFor="nicNumber"
-                                className="block text-sm font-semibold text-primary-dark mb-2"
-                            >
-                                NIC Number
-                            </label>
-                            <input
-                                id="nicNumber"
-                                type="text"
-                                value={nicNumber}
-                                onChange={(e) => setNicNumber(e.target.value)}
-                                placeholder="Enter your NIC number"
-                                className="input-field"
-                                required
-                                autoFocus
-                            />
-                        </div>
+                        {/* Identifier Field */}
+                        {mode === "nic" ? (
+                            <div>
+                                <label
+                                    htmlFor="nicNumber"
+                                    className="block text-sm font-semibold text-primary-dark mb-2"
+                                >
+                                    NIC Number
+                                </label>
+                                <input
+                                    id="nicNumber"
+                                    type="text"
+                                    value={nicNumber}
+                                    onChange={(e) => setNicNumber(e.target.value)}
+                                    placeholder="Enter your NIC number"
+                                    className="input-field"
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                        ) : (
+                            <div>
+                                <label
+                                    htmlFor="licenseNumber"
+                                    className="block text-sm font-semibold text-primary-dark mb-2"
+                                >
+                                    Pharmacy License Number
+                                </label>
+                                <input
+                                    id="licenseNumber"
+                                    type="text"
+                                    value={licenseNumber}
+                                    onChange={(e) => setLicenseNumber(e.target.value)}
+                                    placeholder="e.g., PL-2024-001234"
+                                    className="input-field"
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                        )}
 
                         {/* Password Field */}
                         <div>
