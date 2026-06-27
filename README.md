@@ -46,6 +46,19 @@ AyuLink connects three key stakeholders through one unified platform:
 
 ---
 
+## 📸 Screenshots
+
+### 1. Landing Page
+![AyuLink Landing Page](public/screenshots/landing.png)
+
+### 2. Patient Dashboard
+![Patient Dashboard](public/screenshots/patient-dashboard.png)
+
+### 3. Doctor Dashboard (Scan & Prescribe)
+![Doctor Scan & Prescribe](public/screenshots/doctor-dashboard.png)
+
+---
+
 ## ✨ Features
 
 ### 🪪 Digital Medical ID
