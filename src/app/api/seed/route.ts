@@ -123,6 +123,22 @@ export async function GET() {
             verified: true,
         });
 
+        const { data: pharmacyProfile } = await supabase
+            .from("PharmacyProfile")
+            .select("id")
+            .eq("userId", pharmacist.id)
+            .maybeSingle();
+
+        if (!pharmacyProfile) {
+            const { error } = await supabase.from("PharmacyProfile").insert({
+                userId: pharmacist.id,
+                pharmacyName: "MediCare Pharmacy",
+                licenseNumber: "PL-2024-001",
+                pharmacyAddress: "45 Galle Road, Colombo 03",
+            });
+            if (error) throw error;
+        }
+
         // 4. Sample Prescriptions (skip if already exist)
         const { data: existingRx } = await supabase
             .from("Prescription")
@@ -187,6 +203,7 @@ export async function GET() {
                 .single();
             if (rx2Error || !rx2) throw rx2Error ?? new Error("Failed to create prescription");
 
+            const dispensedAt = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
             const { error: items2Error } = await supabase.from("PrescriptionItem").insert([
                 {
                     prescriptionId: rx2.id,
@@ -195,6 +212,9 @@ export async function GET() {
                     frequency: "Once daily",
                     duration: "30 days",
                     instructions: "Take in the morning. Monitor blood pressure regularly",
+                    dispensed: true,
+                    dispensedAt,
+                    dispensedById: pharmacist.id,
                 },
                 {
                     prescriptionId: rx2.id,
@@ -203,6 +223,9 @@ export async function GET() {
                     frequency: "Once daily",
                     duration: "30 days",
                     instructions: "Take in the evening. Avoid potassium supplements",
+                    dispensed: true,
+                    dispensedAt,
+                    dispensedById: pharmacist.id,
                 },
             ]);
             if (items2Error) throw items2Error;

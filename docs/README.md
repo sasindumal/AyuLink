@@ -367,13 +367,15 @@ This creates the tables, enums, indexes, `updatedAt` triggers, the database func
 
 ### Step 6: Seed Demo Data
 
-Start the dev server (`npm run dev`) and visit:
+Run [`supabase/seed.sql`](../supabase/seed.sql) in the Supabase **SQL Editor** —
+it creates the auth accounts, profiles, and sample prescriptions directly, with
+no server required. Alternatively, start the dev server (`npm run dev`) and
+visit `http://localhost:3000/api/seed`.
 
-```
-http://localhost:3000/api/seed
-```
-
-This creates 3 demo accounts (Patient, Doctor, Pharmacist — all pre-verified) and 2 sample prescriptions. Seeding is idempotent and blocked in production.
+Either way you get 3 pre-verified demo accounts (Patient, Doctor, Pharmacist
+with the "MediCare Pharmacy" profile, license `PL-2024-001`) and 2 sample
+prescriptions. Both seeding paths are idempotent; the API route is blocked in
+production.
 
 ---
 
@@ -408,7 +410,7 @@ Opens at **http://localhost:3000** with hot module replacement via Turbopack.
 | Run ad-hoc SQL | Supabase Dashboard → **SQL Editor** |
 | Apply schema changes | Add a new file to `supabase/migrations/` and run `supabase db push` (or paste into the SQL Editor) |
 | Verify a doctor/pharmacist | Table Editor → `User` → set `verified = true` on their row |
-| Reset demo data | Delete rows in the Table Editor, then visit `/api/seed` again |
+| Reset demo data | Delete rows in the Table Editor, then re-run `supabase/seed.sql` (or visit `/api/seed`) |
 | Inspect logs | Supabase Dashboard → **Logs** |
 
 ### Browser-Based Seeding (Dev Only)

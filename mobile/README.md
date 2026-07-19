@@ -53,13 +53,18 @@ No backend to start — the apps work anywhere with internet access.
 
 ## Demo accounts
 
-Seed demo data either by visiting `/api/seed` on the web app once, or simply register fresh accounts from the apps themselves. Demo credentials after seeding:
+Seed demo data **without any server**: paste
+[`supabase/seed.sql`](../supabase/seed.sql) into the Supabase **SQL Editor** and
+run it (safe to re-run). It creates three pre-verified accounts and two sample
+prescriptions — one active with 3 medications, one already dispensed by the demo
+pharmacy. (Alternatively, if you use the web app, visiting `/api/seed` in dev
+creates the same data.)
 
 | App | Login | Credential | Password |
 |-----|-------|-----------|----------|
 | Patient | NIC | `200012345678` | `password123` |
 | Doctor | NIC | `199812345678` | `password123` |
-| Pharmacy | NIC tab | `199512345678` | `password123` |
+| Pharmacy | License `PL-2024-001` or NIC `199512345678` | — | `password123` |
 
 Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345678`
 

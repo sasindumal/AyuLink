@@ -11,5 +11,5 @@
 // and every table is locked down with RLS.
 // ==============================================
 
-export const SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
-export const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+export const SUPABASE_URL = "https://yaowhbuafvgjoiovmxuk.supabase.co";
+export const SUPABASE_ANON_KEY = "sb_publishable_OvMU-zsPusBLku_yHyPw3g_LBcrks5Y";

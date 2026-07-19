@@ -241,7 +241,9 @@ supabase db push
 > first — ⚠️ it drops every AyuLink table, function, enum, **and all app
 > logins** — then run the init migration.
 
-To seed demo accounts, start the dev server and visit `http://localhost:3000/api/seed`.
+To seed demo accounts, run [`supabase/seed.sql`](supabase/seed.sql) in the SQL
+Editor (works without any server, safe to re-run) — or start the dev server and
+visit `http://localhost:3000/api/seed`.
 
 > **Provider verification:** doctors and pharmacists who self-register start
 > unverified and cannot issue or dispense prescriptions. Approve them by
@@ -266,9 +268,9 @@ After seeding, use these credentials to explore all three roles:
 |------|-------------|------------|----------|------|
 | 👤 Patient | NIC Number | `200012345678` | `password123` | Sasindu Malhara |
 | 🩺 Doctor | NIC Number | `199812345678` | `password123` | Dr. Amal Perera |
-| 💊 Pharmacist | License Number | `199512345678` | `password123` | Nimal Fernando |
+| 💊 Pharmacist | License `PL-2024-001` or NIC | `199512345678` | `password123` | Nimal Fernando (MediCare Pharmacy) |
 
-> **Tip:** You can also reset demo data by visiting `http://localhost:3000/api/seed` in development mode.
+> **Tip:** Re-run `supabase/seed.sql` (or visit `/api/seed` in dev) any time — both are idempotent.
 
 ---
 

@@ -19,7 +19,7 @@ A Next.js 15 web application that replaces paper prescriptions with a secure Dig
 | 💊 **Pharmacist** | `199512345678` | `password123` | Nimal Fernando |
 
 > [!TIP]
-> Visit `http://localhost:3000/api/seed` (dev server running) to create or refresh the demo data. Seeding is idempotent and blocked in production. All demo accounts are pre-verified.
+> Seed demo data by running [`supabase/seed.sql`](../supabase/seed.sql) in the Supabase SQL Editor (no server needed), or by visiting `http://localhost:3000/api/seed` with the dev server running. Both are idempotent; all demo accounts are pre-verified. The pharmacist can also log in with license `PL-2024-001`.
 
 ---
 
