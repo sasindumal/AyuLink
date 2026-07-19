@@ -358,7 +358,12 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
 ```
 
-This creates the 5 tables, 2 enums, indexes, `updatedAt` triggers, the 3 transactional functions, and enables RLS.
+This creates the tables, enums, indexes, `updatedAt` triggers, the database functions, and enables RLS.
+
+> **Re-running on an existing project?** The migration needs a clean database.
+> Run [`supabase/reset.sql`](../supabase/reset.sql) in the SQL Editor first —
+> ⚠️ it drops every AyuLink table, function, and enum, and deletes **all app
+> logins** (`auth.users`) — then run the init migration again.
 
 ### Step 6: Seed Demo Data
 
@@ -833,6 +838,7 @@ The database schema only needs to be applied once per Supabase project.
 |---------|----------|
 | `Missing Supabase environment variables` on startup | Set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` |
 | Empty data / `relation "User" does not exist` | The SQL migration hasn't been applied — run `supabase/migrations/20260719000000_init.sql` |
+| Migration fails with `already exists` errors | An older schema is present — run `supabase/reset.sql` first (⚠️ deletes all data and logins), then re-run the migration |
 | `Could not find the function ... in the schema cache` | The RPC functions are missing — re-run the migration; then Dashboard → API → "Reload schema" if needed |
 | `NEXTAUTH_SECRET` warning | Set a secret: `openssl rand -base64 32` |
 | "Invalid credentials" with correct password | Check the account exists in the `User` table; NIC login is for patients/doctors, license login for pharmacists |

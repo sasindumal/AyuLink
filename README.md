@@ -236,6 +236,11 @@ supabase link --project-ref YOUR_PROJECT_REF
 supabase db push
 ```
 
+> **Re-running on an existing project?** The schema must be applied to a clean
+> database. Run [`supabase/reset.sql`](supabase/reset.sql) in the SQL Editor
+> first — ⚠️ it drops every AyuLink table, function, enum, **and all app
+> logins** — then run the init migration.
+
 To seed demo accounts, start the dev server and visit `http://localhost:3000/api/seed`.
 
 > **Provider verification:** doctors and pharmacists who self-register start

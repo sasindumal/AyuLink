@@ -18,6 +18,9 @@ Three React Native (Expo) apps that talk **directly to Supabase** — no Next.js
 
 1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
 2. Run [`supabase/migrations/20260719000000_init.sql`](../supabase/migrations/20260719000000_init.sql) in the **SQL Editor** (or `supabase db push`).
+   - **Already ran an older AyuLink schema?** Reset first: paste
+     [`supabase/reset.sql`](../supabase/reset.sql) into the SQL Editor and run it
+     (⚠️ deletes all AyuLink data and logins), then run the init migration.
 3. **Disable email confirmation**: Dashboard → **Authentication → Sign In / Up → Email** → turn off **"Confirm email"**. (The synthetic NIC emails can't receive mail; sign-ups fail without this.)
 4. From **Project Settings → API**, copy the **Project URL** and **anon public key**.
 
