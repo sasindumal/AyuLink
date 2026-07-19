@@ -76,11 +76,18 @@ AyuLink connects three key stakeholders through one unified platform:
 - Fallback manual Medical ID entry with lookup
 - Clean modal overlay with scan-line animation
 
-### 🔐 Role-Based Access Control
+### 🔐 Security & Access Control
 - Separate dashboards for Patients, Doctors, and Pharmacists
-- JWT sessions (24-hour expiry) with role-specific guards on every API endpoint
+- JWT sessions (24-hour expiry) with role- and ownership-based guards on every API endpoint
 - Dual login: NIC-based (Patients/Doctors) and License Number (Pharmacists)
-- Passwords hashed with bcrypt (12 salt rounds)
+- Passwords hashed with bcrypt (12 salt rounds); login and registration rate-limited
+- Server-side input validation (zod) on every mutating route
+- Row Level Security enabled on all tables — the database is closed to direct client access
+
+### ✅ Provider Verification
+- Self-registered doctors and pharmacists start **unverified**
+- Issuing and dispensing are blocked until an administrator approves the account
+- Approve via the Supabase Table Editor (`User.verified = true`)
 
 ### ⏪ 15-Minute Revert Window
 - Pharmacists can undo individual item dispensing within 15 minutes of action
@@ -124,6 +131,7 @@ AyuLink connects three key stakeholders through one unified platform:
 | **Database** | Supabase (PostgreSQL) |
 | **DB Client** | @supabase/supabase-js |
 | **Auth** | NextAuth.js 4.24 (Credentials + JWT) |
+| **Validation** | zod |
 | **QR Code** | qrcode.react (render), html5-qrcode (scan) |
 | **Icons** | lucide-react |
 | **Crypto** | bcryptjs |
@@ -137,6 +145,7 @@ AyuLink connects three key stakeholders through one unified platform:
 User ──────────────────────────────────────────────────
   id, nicNumber (unique), firstName, lastName
   mobileNumber, dob, passwordHash, role
+  verified (bool — providers need approval)
   medicalId (unique UUID)
   
   ├── DoctorProfile (optional)
@@ -248,14 +257,13 @@ After seeding, use these credentials to explore all three roles:
 
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
-| `POST` | `/api/auth/register` | Public | Register a new user |
-| `POST/GET` | `/api/auth/[...nextauth]` | Public | NextAuth sign-in / sign-out / session |
+| `POST` | `/api/auth/register` | Public (rate-limited) | Register a new user (providers start unverified) |
+| `POST/GET` | `/api/auth/[...nextauth]` | Public (rate-limited) | NextAuth sign-in / sign-out / session |
 | `GET` | `/api/patients/[medicalId]` | Doctor, Pharmacist | Look up a patient by Medical ID |
 | `GET` | `/api/prescriptions` | All roles | List prescriptions (role-filtered) |
-| `POST` | `/api/prescriptions` | Doctor | Create a new prescription |
-| `GET` | `/api/prescriptions/[id]` | All roles | Get a single prescription with details |
-| `PATCH` | `/api/prescriptions/[id]` | Pharmacist | Update prescription status |
-| `PUT` | `/api/prescriptions/[id]` | Pharmacist | Dispense or revert an individual item |
+| `POST` | `/api/prescriptions` | Verified Doctor | Create a new prescription (atomic) |
+| `GET` | `/api/prescriptions/[id]` | Owner / issuer / Pharmacist | Get a single prescription (ownership-checked) |
+| `PUT` | `/api/prescriptions/[id]` | Verified Pharmacist | Dispense or revert an individual item (atomic) |
 | `GET` | `/api/pharmacy/profile` | Pharmacist | Get pharmacist's pharmacy profile |
 | `GET` | `/api/seed` | Dev only | Seed database with demo data |
 
@@ -294,10 +302,15 @@ Patient registers
 
 | Concern | Implementation |
 |---------|----------------|
-| **Passwords** | bcrypt with 12 salt rounds |
+| **Passwords** | bcrypt with 12 salt rounds; 8-char minimum enforced server-side |
 | **Sessions** | JWT, 24-hour expiry, HTTP-only cookies |
-| **API guards** | Role-based access control on every endpoint |
-| **Unique identifiers** | NIC, SLMC registration, pharmacy license |
+| **API guards** | Role checks on every endpoint + ownership checks on prescription reads |
+| **Provider gating** | Unverified doctors/pharmacists cannot issue or dispense |
+| **Rate limiting** | Login: 5 / 15 min per IP+identifier · Registration: 10 / hour per IP |
+| **User enumeration** | All login failures return one generic "Invalid credentials" message |
+| **Input validation** | zod schemas on all mutating routes (NIC/mobile format, past DOB, item shape) |
+| **Database** | RLS deny-all; service-role access from the server only; atomic writes via SQL functions |
+| **Unique identifiers** | NIC, SLMC registration, pharmacy license (race-safe, mapped to 409) |
 | **QR code safety** | Contains only a UUID — no health data embedded |
 | **Camera access** | Requires HTTPS (except localhost) |
 | **Seed protection** | `/api/seed` blocked in production (`NODE_ENV`) |
@@ -364,10 +377,12 @@ ayulink/
 │   │   ├── QRCodeDisplay.tsx
 │   │   └── QRScanner.tsx
 │   ├── lib/
-│   │   ├── auth.ts            # NextAuth configuration
+│   │   ├── auth.ts            # NextAuth configuration (throttled, generic errors)
 │   │   ├── supabase.ts        # Supabase server client (service role)
+│   │   ├── rate-limit.ts      # In-memory rate limiter
+│   │   ├── validation.ts      # zod request schemas
 │   │   └── utils.ts           # cn() utility (clsx + tailwind-merge)
-│   └── types/                 # Shared TypeScript types
+│   └── types/                 # Role/status enums + NextAuth augmentations
 ├── public/                    # Static assets
 ├── docs/                      # Project documentation
 ├── next.config.ts
@@ -401,6 +416,7 @@ ayulink/
 - [ ] SMS / email notifications
 - [ ] Drug interaction checking
 - [ ] Prescription expiry management
+- [ ] Automated provider verification against SLMC / NMRA registries
 
 ---
 

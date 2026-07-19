@@ -14,7 +14,7 @@
 6. [Setup & Installation](#6-setup--installation)
 7. [Running the Application](#7-running-the-application)
 8. [Database Management](#8-database-management)
-9. [Authentication System](#9-authentication-system)
+9. [Authentication & Security](#9-authentication--security)
 10. [API Reference](#10-api-reference)
 11. [Frontend Pages & Components](#11-frontend-pages--components)
 12. [Environment Variables](#12-environment-variables)
@@ -27,7 +27,7 @@
 
 ## 1. Project Overview
 
-AyuLink is a **production-ready digital healthcare platform** built for Sri Lanka's healthcare ecosystem. It replaces paper prescriptions with a secure **Digital Medical ID** and digital prescription system, connecting **Patients**, **Doctors**, and **Pharmacists** through a unified web application.
+AyuLink is a **digital healthcare platform** built for Sri Lanka's healthcare ecosystem. It replaces paper prescriptions with a secure **Digital Medical ID** and digital prescription system, connecting **Patients**, **Doctors**, and **Pharmacists** through a unified web application.
 
 ### Core Features
 
@@ -39,6 +39,7 @@ AyuLink is a **production-ready digital healthcare platform** built for Sri Lank
 | **QR Code Scanning** | Doctors/Pharmacists scan patient QR codes to look up records |
 | **Pharmacy Dispensing** | Per-item dispensing with 15-minute revert window |
 | **Three-State Tracking** | `NOT_DISPENSED` → `PARTIALLY_DISPENSED` → `FULLY_DISPENSED` |
+| **Provider Verification** | Self-registered doctors/pharmacists must be approved before issuing or dispensing |
 
 ### Demo Credentials
 
@@ -58,9 +59,10 @@ AyuLink is a **production-ready digital healthcare platform** built for Sri Lank
 | **Runtime** | React | 19.0 |
 | **Language** | TypeScript | 5.7+ |
 | **Styling** | Tailwind CSS v4 | 4.0 |
-| **Database** | PostgreSQL | 14+ |
-| **ORM** | Prisma | 6.3 |
+| **Database** | Supabase (managed PostgreSQL) | — |
+| **DB Client** | @supabase/supabase-js | 2.x |
 | **Auth** | NextAuth.js (Credentials) | 4.24 |
+| **Validation** | zod | 4.x |
 | **Password Hashing** | bcryptjs | 2.4 |
 | **QR Generation** | qrcode.react | 4.2 |
 | **QR Scanning** | html5-qrcode | 2.3 |
@@ -85,22 +87,32 @@ AyuLink is a **production-ready digital healthcare platform** built for Sri Lank
 └─────────────────────┬───────────────────────────┘
                       │ HTTP/HTTPS
 ┌─────────────────────▼───────────────────────────┐
-│              Next.js 15 Server                   │
+│              Next.js 15 Server                  │
 │  ┌──────────────┐ ┌───────────┐ ┌─────────────┐ │
-│  │ API Routes   │ │ NextAuth  │ │    SSR      │ │
-│  │ (Handlers)   │ │ (JWT)     │ │  Rendering  │ │
-│  └──────┬───────┘ └───────────┘ └──────┬──────┘ │
-└─────────┼──────────────────────────────┼────────┘
-          │                              │
-┌─────────▼──────────────────────────────▼────────┐
-│              Prisma ORM → PostgreSQL             │
+│  │ API Routes   │ │ NextAuth  │ │ zod input   │ │
+│  │ (Handlers)   │ │ (JWT)     │ │ validation  │ │
+│  └──────┬───────┘ └───────────┘ └─────────────┘ │
+│         │  supabase-js (service role key)       │
+└─────────┼───────────────────────────────────────┘
+          │ PostgREST over HTTPS
+┌─────────▼───────────────────────────────────────┐
+│           Supabase (PostgreSQL)                 │
 │  ┌──────┐ ┌───────────┐ ┌────────────┐          │
 │  │ User │ │ Prescrip- │ │ Doctor/    │          │
 │  │      │ │ tion      │ │ Pharmacy   │          │
 │  │      │ │ + Items   │ │ Profiles   │          │
 │  └──────┘ └───────────┘ └────────────┘          │
+│  RLS enabled (deny-all; service role only)      │
+│  3 SQL functions for transactional writes       │
 └─────────────────────────────────────────────────┘
 ```
+
+**Key architectural decisions**
+
+- **All database access is server-side.** API routes use a singleton supabase-js client authenticated with the **service role key** ([src/lib/supabase.ts](../src/lib/supabase.ts)). The browser never talks to Supabase directly.
+- **Row Level Security is enabled on every table with no policies**, so the anon key cannot read or write anything. Only the service role (which bypasses RLS) has access.
+- **Multi-table writes are atomic.** Registration, prescription creation, and dispensing each call a Postgres function via `supabase.rpc()`, so partial writes cannot occur and concurrent dispenses are serialized with row locks.
+- **API response shapes mirror the old ORM output.** Tables and columns keep camelCase names (quoted identifiers), and PostgREST embedded selects reproduce the nested `items` / `patient` / `doctor` structure the frontend expects.
 
 ### 3.2 Page Navigation Flow
 
@@ -124,12 +136,13 @@ Pharmacist: /pharmacy/dashboard ──► /pharmacy/dispense
 1. Patient visits Doctor (shows QR Medical ID)
 2. Doctor scans QR → GET /api/patients/[medicalId] → Patient info
 3. Doctor creates Rx → POST /api/prescriptions → Status: NOT_DISPENSED
+   (doctor must be verified)
 4. Patient views Rx in their dashboard
-5. Patient visits Pharmacy (shows QR or Rx ID)
-6. Pharmacist looks up Rx → GET /api/prescriptions/[id]
+5. Patient visits Pharmacy (shows QR)
+6. Pharmacist looks up patient → active prescriptions listed
 7. Pharmacist dispenses items → PUT /api/prescriptions/[id]
-   - Each item toggles individually
-   - Status auto-computes: NOT_DISPENSED → PARTIALLY → FULLY_DISPENSED
+   - Each item toggles individually (pharmacist must be verified)
+   - Status auto-computes atomically: NOT_DISPENSED → PARTIALLY → FULLY_DISPENSED
    - 15-minute revert window for undoing a dispense
 ```
 
@@ -137,33 +150,33 @@ Pharmacist: /pharmacy/dashboard ──► /pharmacy/dispense
 
 ```
 ┌──────────────────────┐       ┌──────────────────────┐
-│        User          │       │    DoctorProfile      │
+│        User          │       │    DoctorProfile     │
 ├──────────────────────┤       ├──────────────────────┤
-│ id          UUID PK  │──┐    │ id          UUID PK  │
-│ nicNumber   String UK│  │    │ userId      UUID FK  │◄──┐
-│ firstName   String   │  │    │ slmcRegNo   String UK│   │
-│ lastName    String   │  │    │ specialization String│   │
-│ mobileNumber String  │  │    │ hospitalName String  │   │
-│ dob         DateTime │  │    └──────────────────────┘   │
-│ passwordHash String  │  │                               │
-│ role        Enum     │  ├───────────────────────────────┘
-│ medicalId   UUID UK  │  │
-│ createdAt   DateTime │  │    ┌──────────────────────┐
-│ updatedAt   DateTime │  │    │   PharmacyProfile     │
-└──────────────────────┘  │    ├──────────────────────┤
-         │                │    │ id            UUID PK│
-         │                └───►│ userId        UUID FK│
-         │                     │ pharmacyName  String │
-         │                     │ licenseNumber String UK│
-         ▼                     │ pharmacyAddress String│
+│ id          text PK  │──┐    │ id          text PK  │
+│ nicNumber   text UK  │  │    │ userId      text FK  │◄──┐
+│ firstName   text     │  │    │ slmcRegNo   text UK  │   │
+│ lastName    text     │  │    │ specialization text  │   │
+│ mobileNumber text    │  │    │ hospitalName text    │   │
+│ dob         timestamptz│ │    └──────────────────────┘   │
+│ passwordHash text    │  │                               │
+│ role        Role     │  ├───────────────────────────────┘
+│ verified    boolean  │  │
+│ medicalId   text UK  │  │    ┌──────────────────────┐
+│ createdAt   timestamptz│ │    │   PharmacyProfile    │
+│ updatedAt   timestamptz│ │    ├──────────────────────┤
+└──────────────────────┘  │    │ id            text PK│
+         │                └───►│ userId        text FK│
+         │                     │ pharmacyName  text   │
+         │                     │ licenseNumber text UK│
+         ▼                     │ pharmacyAddress text │
 ┌──────────────────────┐       └──────────────────────┘
 │    Prescription      │
 ├──────────────────────┤
-│ id         UUID PK   │
-│ patientId  UUID FK   │◄── User (patient)
-│ doctorId   UUID FK   │◄── User (doctor)
-│ dateIssued DateTime  │
-│ diagnosis  String    │
+│ id         text PK   │
+│ patientId  text FK   │◄── User (patient)
+│ doctorId   text FK   │◄── User (doctor)
+│ dateIssued timestamptz│
+│ diagnosis  text      │
 │ status     Enum      │  NOT_DISPENSED | PARTIALLY_DISPENSED | FULLY_DISPENSED
 └──────────┬───────────┘
            │
@@ -171,18 +184,28 @@ Pharmacist: /pharmacy/dashboard ──► /pharmacy/dispense
 ┌──────────────────────┐
 │  PrescriptionItem    │
 ├──────────────────────┤
-│ id             UUID PK│
-│ prescriptionId UUID FK│
-│ drugName       String │
-│ dosage         String │
-│ frequency      String │
-│ duration       String │
-│ instructions   String │
-│ dispensed      Boolean│
-│ dispensedAt    DateTime?│
-│ dispensedById  UUID FK?│◄── User (pharmacist)
+│ id             text PK│
+│ prescriptionId text FK│
+│ drugName       text   │
+│ dosage         text   │
+│ frequency      text   │
+│ duration       text   │
+│ instructions   text   │
+│ dispensed      boolean│
+│ dispensedAt    timestamptz?│
+│ dispensedById  text FK?│◄── User (pharmacist)
 └──────────────────────┘
 ```
+
+All IDs are UUIDs stored as `text` (`gen_random_uuid()::text`). `updatedAt` is maintained by a database trigger.
+
+### 3.5 Database Functions (RPC)
+
+| Function | Called by | Purpose |
+|----------|-----------|---------|
+| `create_user_with_profile(p_user, p_doctor, p_pharmacy)` | `POST /api/auth/register` | Inserts the user and their doctor/pharmacy profile in one transaction. Sets `verified = true` only for patients. |
+| `create_prescription_with_items(p_patient_id, p_doctor_id, p_diagnosis, p_items)` | `POST /api/prescriptions` | Inserts a prescription and all of its items in one transaction. |
+| `dispense_prescription_item(p_prescription_id, p_item_id, p_dispensed, p_pharmacist_id)` | `PUT /api/prescriptions/[id]` | Locks the prescription row, updates the item, enforces the 15-minute revert window, and recomputes the three-state status — all atomically. |
 
 ---
 
@@ -190,15 +213,15 @@ Pharmacist: /pharmacy/dashboard ──► /pharmacy/dispense
 
 ```
 AyuLink/
-├── prisma/
-│   ├── schema.prisma              # Database schema (5 models, 2 enums)
-│   ├── seed.ts                    # Demo data seed script
-│   └── migrations/                # 4 migration files
-│
+├── supabase/
+│   └── migrations/
+│       └── 20260719000000_init.sql   # Full schema: tables, enums, indexes,
+│                                     # triggers, RPC functions, RLS
 ├── public/
 │   ├── logo.png                   # Brand logo (PNG)
 │   ├── logo.svg                   # Brand logo (SVG)
-│   └── logo-white.jpg             # White variant for dark backgrounds
+│   ├── logo-white.jpg             # White variant for dark backgrounds
+│   └── screenshots/               # README screenshots
 │
 ├── src/
 │   ├── app/
@@ -229,11 +252,11 @@ AyuLink/
 │   │   └── api/                   # API Route Handlers
 │   │       ├── auth/[...nextauth]/route.ts   # NextAuth handler
 │   │       ├── auth/register/route.ts        # POST registration
-│   │       ├── patients/[medicalId]/route.ts  # GET patient lookup
-│   │       ├── prescriptions/route.ts         # GET list / POST create
-│   │       ├── prescriptions/[id]/route.ts    # GET / PATCH / PUT
-│   │       ├── pharmacy/profile/route.ts      # GET pharmacy profile
-│   │       └── seed/route.ts                  # GET seed (dev only)
+│   │       ├── patients/[medicalId]/route.ts # GET patient lookup
+│   │       ├── prescriptions/route.ts        # GET list / POST create
+│   │       ├── prescriptions/[id]/route.ts   # GET detail / PUT dispense
+│   │       ├── pharmacy/profile/route.ts     # GET pharmacy profile
+│   │       └── seed/route.ts                 # GET seed (dev only)
 │   │
 │   ├── components/
 │   │   ├── AuthProvider.tsx       # NextAuth SessionProvider wrapper
@@ -244,13 +267,17 @@ AyuLink/
 │   │   └── QRScanner.tsx          # Camera-based QR scanner
 │   │
 │   ├── lib/
-│   │   ├── auth.ts                # NextAuth config (credentials, JWT, callbacks)
-│   │   ├── prisma.ts              # Prisma client singleton
+│   │   ├── auth.ts                # NextAuth config (credentials, JWT, throttling)
+│   │   ├── supabase.ts            # Supabase server client (service role, singleton)
+│   │   ├── rate-limit.ts          # In-memory fixed-window rate limiter
+│   │   ├── validation.ts          # zod schemas for all mutating routes
 │   │   └── utils.ts               # cn() utility (clsx + tailwind-merge)
 │   │
 │   └── types/
+│       ├── db.ts                  # Role / PrescriptionStatus enums
 │       └── next-auth.d.ts         # NextAuth type augmentations
 │
+├── .env.example                   # Template for environment variables
 ├── .env                           # Environment variables (not committed)
 ├── next.config.ts                 # Next.js configuration
 ├── tsconfig.json                  # TypeScript configuration
@@ -266,19 +293,11 @@ AyuLink/
 |-------------|---------|---------------|
 | **Node.js** | 18.17+ | `node -v` |
 | **npm** | 9+ | `npm -v` |
-| **PostgreSQL** | 14+ | `psql --version` |
+| **Supabase account** | Free tier is fine | [supabase.com](https://supabase.com) |
 | **Git** | Any | `git --version` |
+| **Supabase CLI** (optional) | Latest | `supabase --version` |
 
-### Install PostgreSQL (macOS)
-
-```bash
-# Using Homebrew
-brew install postgresql@16
-brew services start postgresql@16
-
-# Create the database
-createdb ayulink_db
-```
+No local PostgreSQL installation is needed — the database is hosted by Supabase.
 
 ---
 
@@ -297,15 +316,23 @@ cd AyuLink
 npm install
 ```
 
-> This automatically runs `prisma generate` via the `postinstall` script.
+### Step 3: Create a Supabase Project
 
-### Step 3: Configure Environment
+1. Sign in at [supabase.com](https://supabase.com) and create a new project.
+2. From **Project Settings → API**, note your **Project URL** and **service_role key**.
 
-Create a `.env` file in the project root:
+### Step 4: Configure Environment
+
+Copy the template and fill in your values:
+
+```bash
+cp .env.example .env
+```
 
 ```env
-# PostgreSQL connection string
-DATABASE_URL="postgresql://YOUR_USERNAME@localhost:5432/ayulink_db"
+# Supabase (Project Settings -> API)
+NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
 
 # NextAuth.js configuration
 NEXTAUTH_URL="http://localhost:3000"
@@ -313,20 +340,35 @@ NEXTAUTH_SECRET="generate-a-strong-random-secret-here"
 ```
 
 > **Generate a secret:** `openssl rand -base64 32`
+>
+> ⚠️ The **service role key bypasses Row Level Security**. It must only ever live
+> in server-side environment variables — never expose it to the browser or
+> commit it to version control.
 
-### Step 4: Run Database Migrations
+### Step 5: Apply the Database Schema
+
+Run [supabase/migrations/20260719000000_init.sql](../supabase/migrations/20260719000000_init.sql) against your project. Either:
+
+**Option A — Dashboard:** open **SQL Editor** in the Supabase Dashboard, paste the file's contents, and run it.
+
+**Option B — Supabase CLI:**
 
 ```bash
-npx prisma migrate dev
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
 ```
 
-### Step 5: Seed Demo Data
+This creates the 5 tables, 2 enums, indexes, `updatedAt` triggers, the 3 transactional functions, and enables RLS.
 
-```bash
-npx prisma db seed
+### Step 6: Seed Demo Data
+
+Start the dev server (`npm run dev`) and visit:
+
+```
+http://localhost:3000/api/seed
 ```
 
-This creates 3 demo accounts (Patient, Doctor, Pharmacist) and 2 sample prescriptions.
+This creates 3 demo accounts (Patient, Doctor, Pharmacist — all pre-verified) and 2 sample prescriptions. Seeding is idempotent and blocked in production.
 
 ---
 
@@ -348,69 +390,72 @@ Opens at **http://localhost:3000** with hot module replacement via Turbopack.
 | `build` | `next build` | Create production build |
 | `start` | `next start` | Start production server |
 | `lint` | `next lint` | Run ESLint |
-| `postinstall` | `prisma generate` | Generate Prisma client |
 
 ---
 
 ## 8. Database Management
 
-### Prisma Commands
+### Everyday Tasks
 
-```bash
-# Generate the Prisma client after schema changes
-npx prisma generate
-
-# Create and apply a new migration
-npx prisma migrate dev --name describe_your_change
-
-# Apply migrations in production
-npx prisma migrate deploy
-
-# Reset database (drops all data, re-runs migrations + seed)
-npx prisma migrate reset
-
-# Open Prisma Studio (visual database browser)
-npx prisma studio
-
-# Seed demo data
-npx prisma db seed
-```
+| Task | How |
+|------|-----|
+| Browse / edit data | Supabase Dashboard → **Table Editor** |
+| Run ad-hoc SQL | Supabase Dashboard → **SQL Editor** |
+| Apply schema changes | Add a new file to `supabase/migrations/` and run `supabase db push` (or paste into the SQL Editor) |
+| Verify a doctor/pharmacist | Table Editor → `User` → set `verified = true` on their row |
+| Reset demo data | Delete rows in the Table Editor, then visit `/api/seed` again |
+| Inspect logs | Supabase Dashboard → **Logs** |
 
 ### Browser-Based Seeding (Dev Only)
 
-Visit **http://localhost:3000/api/seed** to seed via browser. Blocked in production.
+Visit **http://localhost:3000/api/seed** to seed via browser. Blocked when `NODE_ENV=production`.
 
-### Migration History
+### Provider Verification
 
-| Migration | Description |
-|-----------|-------------|
-| `20260224080008_init` | Initial schema: User, DoctorProfile, Prescription, PrescriptionItem |
-| `20260224120054_add_item_dispensing` | Per-item dispensing fields (dispensedAt, dispensedById) |
-| `20260224121851_add_pharmacy_profile` | PharmacyProfile model for pharmacist users |
-| `20260224130402_make_pharmacy_fields_optional` | Make pharmacy-specific fields nullable |
+Doctors and pharmacists who self-register start with `verified = false` and receive
+`403` responses from issue/dispense endpoints until an administrator flips
+`verified` to `true` in the `User` table. Patients are auto-verified at
+registration. Seeded demo accounts are pre-verified.
 
 ---
 
-## 9. Authentication System
+## 9. Authentication & Security
 
-### How It Works
+### How Login Works
 
 ```
 1. User submits NIC + password (or License Number for pharmacists)
-2. NextAuth CredentialsProvider looks up user in PostgreSQL
-3. bcrypt.compare() validates the password (12 salt rounds)
-4. JWT token is issued with: id, role, medicalId, firstName, lastName, nicNumber
-5. Token stored as HTTP-only cookie (24-hour expiry)
-6. Subsequent requests: JWT is verified, session populated from token
+2. Attempt is rate-limited: max 5 tries per 15 minutes per IP + identifier
+3. NextAuth CredentialsProvider looks up the user in Supabase
+4. bcrypt.compare() validates the password (12 salt rounds)
+5. Any failure returns the same generic "Invalid credentials" error
+   (no user enumeration)
+6. JWT token is issued with: id, role, medicalId, firstName, lastName, nicNumber
+7. Token stored as HTTP-only cookie (24-hour expiry)
+8. Subsequent requests: JWT is verified, session populated from token
 ```
 
-### Key Design Decisions
+### Security Measures
 
-- **JWT Strategy** — Stateless sessions for serverless compatibility; 24-hour expiry
-- **Dual Login** — NIC number (Patient/Doctor) or License Number (Pharmacist)
-- **bcryptjs** — 12 salt rounds for password hashing
-- **Role in Token** — Role, medicalId, firstName, lastName embedded in JWT
-- **Custom Pages** — Login at `/login`, errors redirect to `/login`
+| Concern | Implementation |
+|---------|----------------|
+| **Passwords** | bcrypt, 12 salt rounds; 8-character minimum enforced server-side |
+| **Sessions** | JWT, 24-hour expiry, HTTP-only cookies |
+| **Login throttling** | 5 attempts / 15 min per IP+identifier; registration 10 / hour per IP |
+| **User enumeration** | Single generic "Invalid credentials" message for all failures |
+| **Input validation** | zod schemas on every mutating route (NIC format, mobile format, past-date DOB, item shape) |
+| **API authorization** | Session + role checks on every endpoint |
+| **Object-level access** | Patients can only read their own prescriptions; doctors only ones they issued; unauthorized lookups return 404 |
+| **Provider gating** | Unverified doctors/pharmacists cannot issue or dispense |
+| **Database exposure** | RLS enabled deny-all; only the server's service role key has access |
+| **Atomic writes** | Multi-table writes run inside Postgres functions (real transactions, row locks) |
+| **Duplicate races** | Unique-violation errors (Postgres `23505`) mapped to clean `409` responses |
+| **QR code safety** | QR contains only the Medical ID (UUID) — no health data |
+| **Seed protection** | `/api/seed` blocked when `NODE_ENV=production` |
+
+> **Note:** the rate limiter is in-memory and per-instance. It is effective for a
+> single server; for multi-instance/serverless deployments, replace it with a
+> shared store (e.g. `@upstash/ratelimit` on Redis).
 
 ### Route Protection
 
@@ -420,6 +465,8 @@ Each dashboard section uses a `layout.tsx` that wraps content in `<DashboardLayo
 - **Wrong role** → redirect to correct dashboard
 - **Correct role** → render content with sidebar
 
+This client-side guard is a UX convenience; the actual enforcement happens in the API routes, which all validate the session server-side.
+
 ---
 
 ## 10. API Reference
@@ -428,7 +475,7 @@ Each dashboard section uses a `layout.tsx` that wraps content in `<DashboardLayo
 
 #### `POST /api/auth/register`
 
-Register a new user account.
+Register a new user account. **Rate limited:** 10 requests/hour per IP.
 
 **Request Body:**
 
@@ -450,11 +497,18 @@ Register a new user account.
 }
 ```
 
-**Responses:** `201` Created | `400` Validation error | `409` Duplicate NIC/SLMC/License
+Validation (zod): NIC must match the Sri Lankan format (9 digits + V/X, or 12 digits),
+mobile must be 9–15 digits, DOB must be a valid past date, password ≥ 8 characters.
+
+Doctors and pharmacists are created **unverified** and cannot issue/dispense until approved.
+
+**Responses:** `201` Created | `400` Validation error | `409` Duplicate NIC/SLMC/License | `429` Rate limited
 
 #### `POST /api/auth/[...nextauth]`
 
-NextAuth.js handler — manages sign-in, sign-out, and session.
+NextAuth.js handler — manages sign-in, sign-out, and session. Login attempts are
+throttled (5 per 15 minutes per IP+identifier) and all credential failures return
+the same generic error.
 
 ---
 
@@ -492,11 +546,12 @@ Look up a patient by their Medical ID (after QR scan). **Doctor/Pharmacist only.
 Fetch prescriptions filtered by the caller's role:
 - **Patient** → own prescriptions only
 - **Doctor** → own issued prescriptions (or by `?patientId=`)
-- **Pharmacist** → dispensed by self (or by `?patientId=` / `?medicalId=`)
+- **Pharmacist** → prescriptions containing items they dispensed (or by `?patientId=` / `?medicalId=`; an unknown `medicalId` returns an empty list)
 
 #### `POST /api/prescriptions`
 
-Create a new prescription. **Doctor only.**
+Create a new prescription. **Doctor only — must be verified.**
+Runs atomically via the `create_prescription_with_items` database function.
 
 ```json
 {
@@ -514,23 +569,25 @@ Create a new prescription. **Doctor only.**
 }
 ```
 
-**Responses:** `201` Created | `400` Missing fields | `403` Not a doctor | `404` Patient not found
+**Responses:** `201` Created | `400` Validation error | `403` Not a doctor / unverified | `404` Patient not found
 
 #### `GET /api/prescriptions/[id]`
 
 Fetch a single prescription with all items, patient, and doctor details.
 
-#### `PATCH /api/prescriptions/[id]`
-
-Update prescription status directly. **Pharmacist only.** (Legacy endpoint)
-
-```json
-{ "status": "FULLY_DISPENSED" }
-```
+**Object-level access control:** patients can only fetch their own prescriptions,
+doctors only prescriptions they issued; pharmacists can fetch any (required for
+dispensing scanned prescriptions). Unauthorized requests receive `404` so the
+response does not confirm the prescription exists.
 
 #### `PUT /api/prescriptions/[id]`
 
-Dispense or revert an individual item. **Pharmacist only.** Auto-computes the prescription's three-state status. Reverts allowed within **15-minute window** only.
+Dispense or revert an individual item. **Pharmacist only — must be verified.**
+
+Runs atomically via the `dispense_prescription_item` database function, which
+locks the prescription row, updates the item, and recomputes the three-state
+status in one transaction. Reverts are only allowed within a **15-minute window**
+after dispensing.
 
 ```json
 {
@@ -538,6 +595,8 @@ Dispense or revert an individual item. **Pharmacist only.** Auto-computes the pr
   "dispensed": true
 }
 ```
+
+**Responses:** `200` OK | `400` Validation / not dispensed / window expired | `403` Not a pharmacist / unverified | `404` Prescription or item not found
 
 ---
 
@@ -570,7 +629,7 @@ Seeds the database with demo data. **Blocked in production.**
 | `/doctor/dashboard` | Doctor Home | Stats, quick actions, recent prescriptions |
 | `/doctor/scan` | Scan & Prescribe | QR scanner + manual ID + prescription builder |
 | `/doctor/prescriptions` | Issued Rxs | All issued prescriptions with filters |
-| `/pharmacy/dashboard` | Pharmacy Home | 4 stats, quick actions, recent activity |
+| `/pharmacy/dashboard` | Pharmacy Home | Stats, quick actions, recent activity |
 | `/pharmacy/dispense` | Scan & Dispense | QR scan + Rx lookup + per-item dispensing |
 | `/pharmacy/records` | Records | Dispensing history with stats and filters |
 
@@ -606,11 +665,13 @@ Seeds the database with demo data. **Blocked in production.**
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Your Supabase project URL (`https://xxx.supabase.co`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Service role key — server-side only, bypasses RLS |
 | `NEXTAUTH_URL` | ✅ | Application URL (`http://localhost:3000`) |
 | `NEXTAUTH_SECRET` | ✅ | Secret for JWT signing (min 32 chars) |
 
 > ⚠️ **Never commit `.env` to version control.** It is in `.gitignore` by default.
+> A template is provided in `.env.example`.
 
 ---
 
@@ -636,10 +697,12 @@ Runs at **http://localhost:3000** in production mode.
 
 - [ ] Set `NEXTAUTH_SECRET` to a strong random value
 - [ ] Set `NEXTAUTH_URL` to your production domain
-- [ ] Set `DATABASE_URL` to production PostgreSQL
-- [ ] Run `npx prisma migrate deploy`
-- [ ] Remove `/api/seed` route or ensure `NODE_ENV=production`
-- [ ] Enable HTTPS via reverse proxy (Nginx/Caddy)
+- [ ] Set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for the production Supabase project
+- [ ] Apply `supabase/migrations/20260719000000_init.sql` to the production database
+- [ ] Confirm RLS shows as **enabled** on all 5 tables (Supabase Dashboard → Database → Tables)
+- [ ] Ensure `NODE_ENV=production` (blocks `/api/seed`)
+- [ ] Replace the in-memory rate limiter with a shared store if deploying to multiple instances / serverless
+- [ ] Enable HTTPS (required for camera-based QR scanning)
 
 ---
 
@@ -648,9 +711,8 @@ Runs at **http://localhost:3000** in production mode.
 ### Manual Testing Workflow
 
 **Step 1: Seed the database**
-```bash
-npx prisma db seed
-```
+
+Visit `http://localhost:3000/api/seed` with the dev server running.
 
 **Step 2: Test the Patient flow**
 1. Login with NIC `200012345678` / `password123`
@@ -667,13 +729,17 @@ npx prisma db seed
 
 **Step 4: Test the Pharmacist flow**
 1. Login with NIC `199512345678` / `password123`
-2. Navigate to **Scan & Dispense** — look up a prescription ID
-3. Dispense individual items — verify status updates
+2. Navigate to **Scan & Dispense** — look up Medical ID `med-patient-demo-001`
+3. Dispense individual items — verify status updates and the Undo window
 4. Navigate to **Records** — verify dispensing history
 
 **Step 5: Verify end-to-end**
-- Log back in as Patient → see newly issued prescription
+- Log back in as Patient → see newly issued prescription with dispensing status
 - Log in as Pharmacist → see dispensed items with pharmacist info
+
+**Step 6: Verify security behavior**
+- Fail login 6 times → expect "Too many login attempts"
+- Register a new doctor → expect "pending verification" message; issuing a prescription should return 403 until `verified` is set to `true` in the `User` table
 
 ### API Testing (cURL)
 
@@ -709,9 +775,8 @@ npx tsc --noEmit
 
 ### Database Inspection
 
-```bash
-npx prisma studio
-```
+Use the Supabase Dashboard → **Table Editor**, or connect any Postgres client
+using the connection string from **Project Settings → Database**.
 
 ---
 
@@ -721,9 +786,12 @@ npx prisma studio
 
 1. Push code to GitHub
 2. Import project in [Vercel Dashboard](https://vercel.com)
-3. Set environment variables (`DATABASE_URL`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`)
-4. Vercel auto-detects Next.js and runs `prisma generate` via `postinstall`
-5. Run `npx prisma migrate deploy` via build command
+3. Set environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`)
+4. Vercel auto-detects Next.js — no extra build steps needed
+5. Apply the SQL migration to your production Supabase project (SQL Editor or `supabase db push`)
+
+> On Vercel/serverless, swap the in-memory rate limiter for a shared store
+> (e.g. `@upstash/ratelimit`) — each serverless instance has its own memory.
 
 ### Docker
 
@@ -733,7 +801,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 COPY . .
-RUN npx prisma generate
 RUN npm run build
 
 FROM node:20-alpine AS runner
@@ -741,7 +808,6 @@ WORKDIR /app
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/public ./public
 ENV NODE_ENV=production
 EXPOSE 3000
@@ -753,10 +819,11 @@ CMD ["npm", "start"]
 ```bash
 git pull origin main
 npm ci
-npx prisma migrate deploy
 npm run build
 pm2 start npm --name ayulink -- start
 ```
+
+The database schema only needs to be applied once per Supabase project.
 
 ---
 
@@ -764,16 +831,18 @@ pm2 start npm --name ayulink -- start
 
 | Problem | Solution |
 |---------|----------|
-| `PrismaClientInitializationError` | Check `DATABASE_URL`, ensure PostgreSQL is running |
+| `Missing Supabase environment variables` on startup | Set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` |
+| Empty data / `relation "User" does not exist` | The SQL migration hasn't been applied — run `supabase/migrations/20260719000000_init.sql` |
+| `Could not find the function ... in the schema cache` | The RPC functions are missing — re-run the migration; then Dashboard → API → "Reload schema" if needed |
 | `NEXTAUTH_SECRET` warning | Set a secret: `openssl rand -base64 32` |
+| "Invalid credentials" with correct password | Check the account exists in the `User` table; NIC login is for patients/doctors, license login for pharmacists |
+| "Too many login attempts" | Wait 15 minutes, or restart the dev server (limiter is in-memory) |
+| 403 "pending verification" when issuing/dispensing | Set `verified = true` on the user's row in the `User` table |
 | Port 3000 in use | `lsof -i :3000` then `kill -9 <PID>` |
-| Prisma client out of date | Run `npx prisma generate` |
-| Migration drift | Run `npx prisma migrate reset` (⚠️ drops all data) |
 | QR scanner not working | Requires HTTPS for camera access (or localhost) |
-| Wrong dashboard after login | Clear cookies, check role in `npx prisma studio` |
-| `Module not found: @prisma/client` | Run `npm install` (triggers `postinstall`) |
+| Wrong dashboard after login | Clear cookies, check the `role` column in the `User` table |
 | Build fails with TS errors | Run `npx tsc --noEmit` to see type issues |
 
 ---
 
-> **Last updated:** May 2026 · **Version:** 0.1.0 · **License:** Private
+> **Last updated:** July 2026 · **Version:** 0.1.0 · **License:** Private
