@@ -7,7 +7,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -35,26 +35,30 @@ export const authOptions: NextAuthOptions = {
 
                 if (hasLicense) {
                     // Pharmacy login via license number
-                    const pharmacyProfile = await prisma.pharmacyProfile.findUnique({
-                        where: { licenseNumber: credentials.licenseNumber },
-                        include: { user: true },
-                    });
+                    const { data: pharmacyProfile } = await supabase
+                        .from("PharmacyProfile")
+                        .select("*, user:User(*)")
+                        .eq("licenseNumber", credentials.licenseNumber)
+                        .maybeSingle();
 
-                    if (!pharmacyProfile) {
+                    if (!pharmacyProfile?.user) {
                         throw new Error("No pharmacy found with this license number");
                     }
 
                     user = pharmacyProfile.user;
                 } else {
                     // Patient / Doctor login via NIC
-                    user = await prisma.user.findUnique({
-                        where: { nicNumber: credentials.nicNumber },
-                        include: { doctorProfile: true },
-                    });
+                    const { data } = await supabase
+                        .from("User")
+                        .select("*")
+                        .eq("nicNumber", credentials.nicNumber)
+                        .maybeSingle();
 
-                    if (!user) {
+                    if (!data) {
                         throw new Error("No account found with this NIC number");
                     }
+
+                    user = data;
                 }
 
                 // Verify password

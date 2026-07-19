@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(
     req: NextRequest,
@@ -29,46 +29,31 @@ export async function GET(
 
         const { medicalId } = await params;
 
-        const patient = await prisma.user.findUnique({
-            where: { medicalId },
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                nicNumber: true,
-                medicalId: true,
-                dob: true,
-                mobileNumber: true,
-                role: true,
-                prescriptionsAsPatient: {
-                    include: {
-                        items: {
-                            include: {
-                                dispensedBy: {
-                                    select: {
-                                        firstName: true,
-                                        lastName: true,
-                                        pharmacyProfile: {
-                                            select: { pharmacyName: true, licenseNumber: true },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                        doctor: {
-                            select: {
-                                firstName: true,
-                                lastName: true,
-                                doctorProfile: {
-                                    select: { specialization: true, hospitalName: true, slmcRegNo: true },
-                                },
-                            },
-                        },
-                    },
-                    orderBy: { dateIssued: "desc" },
-                },
-            },
-        });
+        const { data: patient } = await supabase
+            .from("User")
+            .select(`
+                id, firstName, lastName, nicNumber, medicalId, dob, mobileNumber, role,
+                prescriptionsAsPatient:Prescription!Prescription_patientId_fkey (
+                    *,
+                    items:PrescriptionItem (
+                        *,
+                        dispensedBy:User!PrescriptionItem_dispensedById_fkey (
+                            firstName, lastName,
+                            pharmacyProfile:PharmacyProfile ( pharmacyName, licenseNumber )
+                        )
+                    ),
+                    doctor:User!Prescription_doctorId_fkey (
+                        firstName, lastName,
+                        doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                    )
+                )
+            `)
+            .eq("medicalId", medicalId)
+            .order("dateIssued", {
+                ascending: false,
+                referencedTable: "prescriptionsAsPatient",
+            })
+            .maybeSingle();
 
         if (!patient || patient.role !== "PATIENT") {
             return NextResponse.json(

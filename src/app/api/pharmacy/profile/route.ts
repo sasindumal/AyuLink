@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 export async function GET() {
     try {
@@ -19,9 +19,11 @@ export async function GET() {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        const pharmacyProfile = await prisma.pharmacyProfile.findUnique({
-            where: { userId: (session.user as any).id },
-        });
+        const { data: pharmacyProfile } = await supabase
+            .from("PharmacyProfile")
+            .select("*")
+            .eq("userId", (session.user as any).id)
+            .maybeSingle();
 
         if (!pharmacyProfile) {
             return NextResponse.json({ error: "Pharmacy profile not found" }, { status: 404 });

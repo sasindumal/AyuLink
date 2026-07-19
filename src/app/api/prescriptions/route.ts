@@ -7,7 +7,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
+
+// Nested select shared by prescription queries.
+// FK hints (User!Prescription_patientId_fkey) disambiguate the two
+// Prescription -> User relations.
+const PRESCRIPTION_SELECT = `
+    *,
+    items:PrescriptionItem (
+        *,
+        dispensedBy:User!PrescriptionItem_dispensedById_fkey (
+            id, firstName, lastName,
+            pharmacyProfile:PharmacyProfile ( pharmacyName, licenseNumber )
+        )
+    ),
+    patient:User!Prescription_patientId_fkey ( id, firstName, lastName, nicNumber, medicalId ),
+    doctor:User!Prescription_doctorId_fkey (
+        id, firstName, lastName,
+        doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+    )
+`;
 
 // GET: Fetch prescriptions (filtered by role)
 export async function GET(req: NextRequest) {
@@ -21,73 +40,56 @@ export async function GET(req: NextRequest) {
         const patientId = searchParams.get("patientId");
         const medicalId = searchParams.get("medicalId");
 
-        let whereClause: any = {};
+        let query = supabase
+            .from("Prescription")
+            .select(PRESCRIPTION_SELECT)
+            .order("dateIssued", { ascending: false });
 
         // Role-based filtering
         if (session.user.role === "PATIENT") {
-            whereClause.patientId = session.user.id;
+            query = query.eq("patientId", session.user.id);
         } else if (session.user.role === "DOCTOR") {
             // Doctors can see their own prescriptions or search by patient
             if (patientId) {
-                whereClause.patientId = patientId;
+                query = query.eq("patientId", patientId);
             } else {
-                whereClause.doctorId = session.user.id;
+                query = query.eq("doctorId", session.user.id);
             }
         } else if (session.user.role === "PHARMACIST") {
             // Pharmacists can look up any prescription by patient
             if (patientId) {
-                whereClause.patientId = patientId;
+                query = query.eq("patientId", patientId);
             } else if (medicalId) {
                 // Find patient by medical ID first
-                const patient = await prisma.user.findUnique({
-                    where: { medicalId },
-                });
+                const { data: patient } = await supabase
+                    .from("User")
+                    .select("id")
+                    .eq("medicalId", medicalId)
+                    .maybeSingle();
                 if (patient) {
-                    whereClause.patientId = patient.id;
+                    query = query.eq("patientId", patient.id);
                 }
             } else {
                 // Default: only show prescriptions where this pharmacist dispensed items
-                whereClause.items = {
-                    some: {
-                        dispensedById: session.user.id,
-                    },
-                };
+                const { data: dispensedItems } = await supabase
+                    .from("PrescriptionItem")
+                    .select("prescriptionId")
+                    .eq("dispensedById", session.user.id);
+
+                const prescriptionIds = [
+                    ...new Set((dispensedItems ?? []).map((i) => i.prescriptionId)),
+                ];
+
+                if (prescriptionIds.length === 0) {
+                    return NextResponse.json({ prescriptions: [] });
+                }
+
+                query = query.in("id", prescriptionIds);
             }
         }
 
-        const prescriptions = await prisma.prescription.findMany({
-            where: whereClause,
-            include: {
-                items: {
-                    include: {
-                        dispensedBy: {
-                            select: {
-                                id: true,
-                                firstName: true,
-                                lastName: true,
-                                pharmacyProfile: {
-                                    select: { pharmacyName: true, licenseNumber: true },
-                                },
-                            },
-                        },
-                    },
-                },
-                patient: {
-                    select: { id: true, firstName: true, lastName: true, nicNumber: true, medicalId: true },
-                },
-                doctor: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        doctorProfile: {
-                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
-                        },
-                    },
-                },
-            },
-            orderBy: { dateIssued: "desc" },
-        });
+        const { data: prescriptions, error } = await query;
+        if (error) throw error;
 
         return NextResponse.json({ prescriptions });
     } catch (error) {
@@ -126,9 +128,11 @@ export async function POST(req: NextRequest) {
         }
 
         // Verify patient exists
-        const patient = await prisma.user.findUnique({
-            where: { id: patientId },
-        });
+        const { data: patient } = await supabase
+            .from("User")
+            .select("id, role")
+            .eq("id", patientId)
+            .maybeSingle();
 
         if (!patient || patient.role !== "PATIENT") {
             return NextResponse.json(
@@ -137,29 +141,49 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Create prescription with items
-        const prescription = await prisma.prescription.create({
-            data: {
+        // Create prescription
+        const { data: created, error: createError } = await supabase
+            .from("Prescription")
+            .insert({
                 patientId,
                 doctorId: session.user.id,
                 diagnosis,
-                items: {
-                    create: items.map((item: any) => ({
-                        drugName: item.drugName,
-                        dosage: item.dosage,
-                        frequency: item.frequency,
-                        duration: item.duration,
-                        instructions: item.instructions || "",
-                    })),
-                },
-            },
-            include: {
-                items: true,
-                patient: {
-                    select: { firstName: true, lastName: true, nicNumber: true, medicalId: true },
-                },
-            },
-        });
+            })
+            .select()
+            .single();
+
+        if (createError || !created) {
+            throw createError ?? new Error("Failed to create prescription");
+        }
+
+        // Create items; roll back the prescription if it fails
+        const { error: itemsError } = await supabase
+            .from("PrescriptionItem")
+            .insert(
+                items.map((item: any) => ({
+                    prescriptionId: created.id,
+                    drugName: item.drugName,
+                    dosage: item.dosage,
+                    frequency: item.frequency,
+                    duration: item.duration,
+                    instructions: item.instructions || "",
+                }))
+            );
+
+        if (itemsError) {
+            await supabase.from("Prescription").delete().eq("id", created.id);
+            throw itemsError;
+        }
+
+        const { data: prescription } = await supabase
+            .from("Prescription")
+            .select(`
+                *,
+                items:PrescriptionItem (*),
+                patient:User!Prescription_patientId_fkey ( firstName, lastName, nicNumber, medicalId )
+            `)
+            .eq("id", created.id)
+            .single();
 
         return NextResponse.json(
             { message: "Prescription issued successfully", prescription },

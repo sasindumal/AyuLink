@@ -6,8 +6,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
+import { supabase } from "@/lib/supabase";
+import { Role } from "@/types/db";
 
 export async function POST(req: NextRequest) {
     try {
@@ -39,9 +39,11 @@ export async function POST(req: NextRequest) {
         }
 
         // Check if NIC already registered
-        const existingUser = await prisma.user.findUnique({
-            where: { nicNumber },
-        });
+        const { data: existingUser } = await supabase
+            .from("User")
+            .select("id")
+            .eq("nicNumber", nicNumber)
+            .maybeSingle();
 
         if (existingUser) {
             return NextResponse.json(
@@ -59,9 +61,11 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            const existingDoctor = await prisma.doctorProfile.findUnique({
-                where: { slmcRegNo },
-            });
+            const { data: existingDoctor } = await supabase
+                .from("DoctorProfile")
+                .select("id")
+                .eq("slmcRegNo", slmcRegNo)
+                .maybeSingle();
             if (existingDoctor) {
                 return NextResponse.json(
                     { error: "This SLMC registration number is already registered" },
@@ -79,9 +83,11 @@ export async function POST(req: NextRequest) {
                 );
             }
 
-            const existingPharmacy = await prisma.pharmacyProfile.findUnique({
-                where: { licenseNumber: pharmacyLicense },
-            });
+            const { data: existingPharmacy } = await supabase
+                .from("PharmacyProfile")
+                .select("id")
+                .eq("licenseNumber", pharmacyLicense)
+                .maybeSingle();
             if (existingPharmacy) {
                 return NextResponse.json(
                     { error: "This pharmacy license number is already registered" },
@@ -93,41 +99,54 @@ export async function POST(req: NextRequest) {
         // --- Create User ---
         const passwordHash = await bcrypt.hash(password, 12);
 
-        const user = await prisma.user.create({
-            data: {
+        const { data: user, error: userError } = await supabase
+            .from("User")
+            .insert({
                 nicNumber,
                 firstName,
                 lastName,
                 mobileNumber,
-                dob: new Date(dob),
+                dob: new Date(dob).toISOString(),
                 passwordHash,
                 role: role || Role.PATIENT,
-                // Create doctor profile if role is DOCTOR
-                ...(role === Role.DOCTOR && {
-                    doctorProfile: {
-                        create: {
-                            slmcRegNo,
-                            specialization,
-                            hospitalName,
-                        },
-                    },
-                }),
-                // Create pharmacy profile if role is PHARMACIST
-                ...(role === Role.PHARMACIST && {
-                    pharmacyProfile: {
-                        create: {
-                            pharmacyName,
-                            licenseNumber: pharmacyLicense,
-                            pharmacyAddress,
-                        },
-                    },
-                }),
-            },
-            include: {
-                doctorProfile: true,
-                pharmacyProfile: true,
-            },
-        });
+            })
+            .select()
+            .single();
+
+        if (userError || !user) {
+            throw userError ?? new Error("Failed to create user");
+        }
+
+        // Create role-specific profile; roll back the user if it fails
+        if (role === Role.DOCTOR) {
+            const { error: profileError } = await supabase
+                .from("DoctorProfile")
+                .insert({
+                    userId: user.id,
+                    slmcRegNo,
+                    specialization,
+                    hospitalName,
+                });
+
+            if (profileError) {
+                await supabase.from("User").delete().eq("id", user.id);
+                throw profileError;
+            }
+        } else if (role === Role.PHARMACIST) {
+            const { error: profileError } = await supabase
+                .from("PharmacyProfile")
+                .insert({
+                    userId: user.id,
+                    pharmacyName,
+                    licenseNumber: pharmacyLicense,
+                    pharmacyAddress,
+                });
+
+            if (profileError) {
+                await supabase.from("User").delete().eq("id", user.id);
+                throw profileError;
+            }
+        }
 
         // Return user without sensitive data
         return NextResponse.json(

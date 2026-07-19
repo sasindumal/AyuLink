@@ -11,8 +11,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15.1-black?style=flat-square&logo=next.js)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript)](https://www.typescriptlang.org/)
-[![Prisma](https://img.shields.io/badge/Prisma-6.3-2D3748?style=flat-square&logo=prisma)](https://www.prisma.io/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase)](https://supabase.com/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?style=flat-square&logo=tailwind-css)](https://tailwindcss.com/)
 
 </div>
@@ -122,8 +121,8 @@ AyuLink connects three key stakeholders through one unified platform:
 | **Framework** | Next.js 15.1 (App Router + Turbopack) |
 | **Language** | TypeScript 5.7 |
 | **UI** | React 19 + Tailwind CSS v4 |
-| **Database** | PostgreSQL 14+ |
-| **ORM** | Prisma 6.3 |
+| **Database** | Supabase (PostgreSQL) |
+| **DB Client** | @supabase/supabase-js |
 | **Auth** | NextAuth.js 4.24 (Credentials + JWT) |
 | **QR Code** | qrcode.react (render), html5-qrcode (scan) |
 | **Icons** | lucide-react |
@@ -192,8 +191,9 @@ npm install
 Create a `.env` file in the project root:
 
 ```env
-# PostgreSQL connection string
-DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/ayulink"
+# Supabase (Project Settings -> API)
+NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
 
 # NextAuth secret — generate with: openssl rand -base64 32
 NEXTAUTH_SECRET="your-secret-here"
@@ -204,13 +204,16 @@ NEXTAUTH_URL="http://localhost:3000"
 
 ### 4. Set up the database
 
-```bash
-# Run all migrations
-npx prisma migrate deploy
+Create a [Supabase](https://supabase.com/) project, then run the schema in
+`supabase/migrations/20260719000000_init.sql` — either paste it into the
+Dashboard **SQL Editor**, or use the CLI:
 
-# (Optional) Seed with demo accounts
-npx prisma db seed
+```bash
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
 ```
+
+To seed demo accounts, start the dev server and visit `http://localhost:3000/api/seed`.
 
 ### 5. Start the development server
 
@@ -332,10 +335,8 @@ Patient registers
 
 ```
 ayulink/
-├── prisma/
-│   ├── schema.prisma          # Database schema
-│   ├── seed.ts                # Demo data seeder
-│   └── migrations/            # Migration history
+├── supabase/
+│   └── migrations/            # SQL schema for Supabase
 ├── src/
 │   ├── app/
 │   │   ├── page.tsx           # Landing page
@@ -359,7 +360,7 @@ ayulink/
 │   │   └── QRScanner.tsx
 │   ├── lib/
 │   │   ├── auth.ts            # NextAuth configuration
-│   │   ├── prisma.ts          # Prisma singleton client
+│   │   ├── supabase.ts        # Supabase server client (service role)
 │   │   └── utils.ts           # cn() utility (clsx + tailwind-merge)
 │   └── types/                 # Shared TypeScript types
 ├── public/                    # Static assets
@@ -379,9 +380,8 @@ ayulink/
 | `npm run build` | Build for production |
 | `npm run start` | Start production server |
 | `npm run lint` | Run ESLint |
-| `npx prisma migrate dev` | Run a new migration |
-| `npx prisma db seed` | Seed demo data |
-| `npx prisma studio` | Open Prisma database GUI |
+| `supabase db push` | Apply SQL migrations to Supabase |
+| `GET /api/seed` | Seed demo data (dev only) |
 
 ---
 

@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
 
 // GET: Fetch a specific prescription by ID
 export async function GET(
@@ -23,33 +23,21 @@ export async function GET(
 
         const { id } = await params;
 
-        const prescription = await prisma.prescription.findUnique({
-            where: { id },
-            include: {
-                items: true,
-                patient: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        nicNumber: true,
-                        medicalId: true,
-                        dob: true,
-                        mobileNumber: true,
-                    },
-                },
-                doctor: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        doctorProfile: {
-                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
-                        },
-                    },
-                },
-            },
-        });
+        const { data: prescription } = await supabase
+            .from("Prescription")
+            .select(`
+                *,
+                items:PrescriptionItem (*),
+                patient:User!Prescription_patientId_fkey (
+                    id, firstName, lastName, nicNumber, medicalId, dob, mobileNumber
+                ),
+                doctor:User!Prescription_doctorId_fkey (
+                    id, firstName, lastName,
+                    doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                )
+            `)
+            .eq("id", id)
+            .maybeSingle();
 
         if (!prescription) {
             return NextResponse.json(
@@ -97,16 +85,20 @@ export async function PATCH(
             );
         }
 
-        const prescription = await prisma.prescription.update({
-            where: { id },
-            data: { status },
-            include: {
-                items: true,
-                patient: {
-                    select: { firstName: true, lastName: true },
-                },
-            },
-        });
+        const { data: prescription, error } = await supabase
+            .from("Prescription")
+            .update({ status })
+            .eq("id", id)
+            .select(`
+                *,
+                items:PrescriptionItem (*),
+                patient:User!Prescription_patientId_fkey ( firstName, lastName )
+            `)
+            .single();
+
+        if (error || !prescription) {
+            throw error ?? new Error("Prescription not found");
+        }
 
         return NextResponse.json({
             message: `Prescription marked as ${status.toLowerCase()}`,
@@ -151,9 +143,12 @@ export async function PUT(
         }
 
         // Verify the item belongs to this prescription
-        const item = await prisma.prescriptionItem.findFirst({
-            where: { id: itemId, prescriptionId },
-        });
+        const { data: item } = await supabase
+            .from("PrescriptionItem")
+            .select("*")
+            .eq("id", itemId)
+            .eq("prescriptionId", prescriptionId)
+            .maybeSingle();
 
         if (!item) {
             return NextResponse.json(
@@ -172,7 +167,7 @@ export async function PUT(
             }
 
             const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-            if (item.dispensedAt < fifteenMinutesAgo) {
+            if (new Date(item.dispensedAt) < fifteenMinutesAgo) {
                 return NextResponse.json(
                     { error: "Cannot revert — 15-minute window has expired" },
                     { status: 400 }
@@ -181,22 +176,29 @@ export async function PUT(
         }
 
         // Update the individual item with pharmacist info
-        const updatedItem = await prisma.prescriptionItem.update({
-            where: { id: itemId },
-            data: {
+        const { data: updatedItem, error: updateError } = await supabase
+            .from("PrescriptionItem")
+            .update({
                 dispensed,
-                dispensedAt: dispensed ? new Date() : null,
-                dispensedById: dispensed ? (session.user as any).id : null,
-            },
-        });
+                dispensedAt: dispensed ? new Date().toISOString() : null,
+                dispensedById: dispensed ? session.user.id : null,
+            })
+            .eq("id", itemId)
+            .select()
+            .single();
+
+        if (updateError || !updatedItem) {
+            throw updateError ?? new Error("Failed to update item");
+        }
 
         // Check if ALL items in this prescription are now dispensed
-        const allItems = await prisma.prescriptionItem.findMany({
-            where: { prescriptionId },
-        });
+        const { data: allItems } = await supabase
+            .from("PrescriptionItem")
+            .select("id, dispensed")
+            .eq("prescriptionId", prescriptionId);
 
-        const allDispensed = allItems.every((i) => i.id === itemId ? dispensed : i.dispensed);
-        const anyDispensed = allItems.some((i) => i.id === itemId ? dispensed : i.dispensed);
+        const allDispensed = (allItems ?? []).every((i) => i.id === itemId ? dispensed : i.dispensed);
+        const anyDispensed = (allItems ?? []).some((i) => i.id === itemId ? dispensed : i.dispensed);
 
         // Compute three-state status
         let newStatus: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
@@ -209,51 +211,33 @@ export async function PUT(
         }
 
         // Auto-update prescription status
-        await prisma.prescription.update({
-            where: { id: prescriptionId },
-            data: {
-                status: newStatus,
-            },
-        });
+        await supabase
+            .from("Prescription")
+            .update({ status: newStatus })
+            .eq("id", prescriptionId);
 
         // Return updated prescription with all items and pharmacy info
-        const updatedPrescription = await prisma.prescription.findUnique({
-            where: { id: prescriptionId },
-            include: {
-                items: {
-                    include: {
-                        dispensedBy: {
-                            select: {
-                                firstName: true,
-                                lastName: true,
-                                pharmacyProfile: {
-                                    select: { pharmacyName: true, licenseNumber: true },
-                                },
-                            },
-                        },
-                    },
-                },
-                patient: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        nicNumber: true,
-                        medicalId: true,
-                    },
-                },
-                doctor: {
-                    select: {
-                        id: true,
-                        firstName: true,
-                        lastName: true,
-                        doctorProfile: {
-                            select: { specialization: true, hospitalName: true, slmcRegNo: true },
-                        },
-                    },
-                },
-            },
-        });
+        const { data: updatedPrescription } = await supabase
+            .from("Prescription")
+            .select(`
+                *,
+                items:PrescriptionItem (
+                    *,
+                    dispensedBy:User!PrescriptionItem_dispensedById_fkey (
+                        firstName, lastName,
+                        pharmacyProfile:PharmacyProfile ( pharmacyName, licenseNumber )
+                    )
+                ),
+                patient:User!Prescription_patientId_fkey (
+                    id, firstName, lastName, nicNumber, medicalId
+                ),
+                doctor:User!Prescription_doctorId_fkey (
+                    id, firstName, lastName,
+                    doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                )
+            `)
+            .eq("id", prescriptionId)
+            .single();
 
         return NextResponse.json({
             message: dispensed
