@@ -8,7 +8,7 @@
 
 ### 1.1 What AyuLink Is
 
-AyuLink is a **production-ready digital healthcare platform** purpose-built for **Sri Lanka's healthcare ecosystem**. It replaces traditional paper-based prescriptions with a secure, QR-code-driven **Digital Medical ID** system that connects three key stakeholders — **Patients**, **Doctors**, and **Pharmacists** — through a single, unified web application.
+AyuLink is a **digital healthcare platform** purpose-built for **Sri Lanka's healthcare ecosystem**. It replaces traditional paper-based prescriptions with a secure, QR-code-driven **Digital Medical ID** system that connects three key stakeholders — **Patients**, **Doctors**, and **Pharmacists** — through a single, unified web application.
 
 ### 1.2 Problem Statement
 
@@ -28,11 +28,13 @@ Sri Lanka's current healthcare system relies heavily on **paper prescriptions**,
 **In Scope (v0.1.0):**
 - Digital identity (Medical ID with QR code) for patients
 - Role-based registration and authentication (Patient, Doctor, Pharmacist)
+- Provider verification workflow (doctors/pharmacists approved before practicing)
 - Digital prescription creation by doctors
 - Per-item medication dispensing by pharmacists
 - Three-state prescription tracking (Not Dispensed → Partially → Fully Dispensed)
 - 15-minute revert window for dispensing errors
 - Role-guarded dashboards with statistics and activity history
+- Login/registration throttling and server-side input validation
 
 **Out of Scope (Future):**
 - Mobile native apps (iOS/Android)
@@ -44,6 +46,7 @@ Sri Lanka's current healthcare system relies heavily on **paper prescriptions**,
 - SMS/email notifications
 - Drug interaction checking
 - Prescription expiry management
+- Automated verification against SLMC / NMRA registries (currently manual)
 
 ---
 
@@ -55,7 +58,7 @@ Sri Lanka's current healthcare system relies heavily on **paper prescriptions**,
 
 AyuLink envisions a future where:
 
-1. **Every Sri Lankan citizen** has a unique Digital Medical ID accessible via QR code
+1. **Every Sri Lankan citizen** has a unique NIC-derived Digital Medical ID accessible via QR code
 2. **Every prescription** is digital, structured, and instantly verifiable
 3. **Every pharmacy visit** is a simple scan-and-dispense workflow with full audit trails
 4. **Medical history** follows the patient across any doctor or pharmacy in the country
@@ -64,10 +67,10 @@ AyuLink envisions a future where:
 ### 2.2 Design Philosophy
 
 - **Simplicity First** — One scan connects the entire workflow
-- **Security by Design** — JWT authentication, bcrypt hashing (12 salt rounds), role-based access
+- **Security by Design** — JWT authentication, bcrypt hashing (12 salt rounds), role- and object-level access control, rate limiting, deny-all Row Level Security
 - **Sri Lanka Context** — NIC-based identity, SLMC registration for doctors, pharmacy licensing
 - **Modern UX** — Responsive design, micro-animations, accessible color palette
-- **Serverless-Ready** — Stateless JWT sessions for cloud deployment compatibility
+- **Serverless-Ready** — Stateless JWT sessions and a managed Supabase database for cloud deployment compatibility
 
 ---
 
@@ -78,11 +81,12 @@ AyuLink envisions a future where:
 | # | Aim | How It's Achieved |
 |---|-----|-------------------|
 | 1 | **Eliminate paper prescriptions** | Doctors create structured digital prescriptions via the web app |
-| 2 | **Provide universal patient identity** | Every patient gets a UUID-based QR Medical ID at registration |
+| 2 | **Provide universal patient identity** | Every patient gets an NIC-derived QR Medical ID (`AYU-<NIC>`) at registration |
 | 3 | **Enable instant verification** | QR scanning allows doctors/pharmacists to look up patients in seconds |
 | 4 | **Track medication dispensing** | Per-item dispensing with pharmacist identity and timestamp recording |
-| 5 | **Ensure data security** | Role-based access control, password hashing, JWT tokens, HTTPS |
-| 6 | **Create audit trails** | Every dispense action is logged with who, when, and what |
+| 5 | **Ensure data security** | Role/object-level access control, password hashing, JWT tokens, RLS, rate limiting, HTTPS |
+| 6 | **Create audit trails** | Every dispense action is logged with who, when, and what — updated atomically |
+| 7 | **Keep providers accountable** | Doctors and pharmacists must be verified before issuing or dispensing |
 
 ### 3.2 Secondary Objectives
 
@@ -101,14 +105,15 @@ AyuLink envisions a future where:
 | Capability | Patient | Doctor | Pharmacist |
 |-----------|---------|--------|------------|
 | Register account | ✅ | ✅ | ✅ |
+| Verified automatically at registration | ✅ | ❌ (manual approval) | ❌ (manual approval) |
 | Login (NIC) | ✅ | ✅ | ❌ |
 | Login (License Number) | ❌ | ❌ | ✅ |
 | View own Medical ID / QR | ✅ | ❌ | ❌ |
 | Scan patient QR | ❌ | ✅ | ✅ |
 | Look up patient by Medical ID | ❌ | ✅ | ✅ |
-| Create prescriptions | ❌ | ✅ | ❌ |
-| View own prescriptions | ✅ | ✅ (issued) | ✅ (dispensed) |
-| Dispense medications | ❌ | ❌ | ✅ |
+| Create prescriptions | ❌ | ✅ (verified only) | ❌ |
+| View prescriptions | ✅ (own only) | ✅ (issued only) | ✅ (any — needed for dispensing) |
+| Dispense medications | ❌ | ❌ | ✅ (verified only) |
 | Revert dispensing (15 min) | ❌ | ❌ | ✅ |
 
 ### 4.2 Role-Specific Registration Fields
@@ -119,54 +124,53 @@ AyuLink envisions a future where:
 
 **Pharmacist:** All Patient fields + Pharmacy Name, Pharmacy License Number, Pharmacy Address
 
+All fields are validated server-side with zod: NIC must match the Sri Lankan format
+(9 digits + V/X or 12 digits), mobile must be 9–15 digits, DOB must be a valid past
+date, and passwords require at least 8 characters.
+
 ---
 
 ## 5. Existing Functions — Complete Inventory
 
-### 5.1 API Route Handlers (Backend — 10 Endpoints)
+### 5.1 API Route Handlers (Backend — 9 Endpoints)
 
 #### `POST /api/auth/register`
 - **File:** `src/app/api/auth/register/route.ts`
 - **Purpose:** Register a new user account
-- **Logic:** Validates required fields → checks duplicate NIC → validates role-specific fields (SLMC for doctors, license for pharmacists) → checks uniqueness of professional IDs → hashes password (bcrypt, 12 rounds) → creates User with nested profile → returns sanitized user
-- **Responses:** `201` Created | `400` Validation | `409` Duplicate | `500` Error
+- **Logic:** Rate limit (10/hour/IP) → zod validation → bcrypt hash (12 rounds) → `create_user_with_profile` RPC creates the user and role profile in one transaction → patients auto-verified, providers start unverified → unique violations (Postgres `23505`) mapped to per-field `409` messages → returns sanitized user
+- **Responses:** `201` Created | `400` Validation | `409` Duplicate | `429` Rate limited | `500` Error
 
 #### `POST/GET /api/auth/[...nextauth]`
 - **File:** `src/app/api/auth/[...nextauth]/route.ts`
 - **Purpose:** NextAuth.js handler for sign-in, sign-out, session
-- **Logic:** CredentialsProvider with dual login (NIC or License Number) → bcrypt.compare → JWT (24h) → custom callbacks inject id, role, medicalId, firstName, lastName, nicNumber
+- **Logic:** CredentialsProvider with dual login (NIC or License Number) → rate limit (5 tries / 15 min per IP+identifier) → Supabase lookup → bcrypt.compare → all failures return the same generic "Invalid credentials" (no user enumeration) → JWT (24h) with id, role, medicalId, firstName, lastName, nicNumber
 
 #### `GET /api/patients/[medicalId]`
 - **File:** `src/app/api/patients/[medicalId]/route.ts`
 - **Purpose:** Look up patient by Medical ID (post-QR scan)
 - **Access:** Doctor/Pharmacist only (Patient → 403)
-- **Returns:** Patient info + prescription history with items, doctor, and dispensing details
+- **Returns:** Patient info + prescription history with items, doctor, and dispensing details (PostgREST embedded select)
 
 #### `GET /api/prescriptions`
 - **File:** `src/app/api/prescriptions/route.ts`
 - **Purpose:** Fetch prescriptions filtered by caller's role
-- **Filtering:** Patient → own only | Doctor → own issued or by patientId | Pharmacist → own dispensed or by patientId/medicalId
-- **Includes:** Items with dispensedBy, patient details, doctor with profile
+- **Filtering:** Patient → own only | Doctor → own issued or by patientId | Pharmacist → prescriptions containing items they dispensed, or by patientId/medicalId (unknown medicalId returns an empty list, never an unfiltered query)
+- **Includes:** Items with dispensedBy + pharmacy, patient details, doctor with profile
 
 #### `POST /api/prescriptions`
 - **File:** `src/app/api/prescriptions/route.ts`
-- **Purpose:** Create a new prescription (Doctor only)
-- **Validates:** patientId, diagnosis, ≥1 item; verifies patient exists with PATIENT role
-- **Creates:** Prescription + nested PrescriptionItem records
+- **Purpose:** Create a new prescription (verified Doctor only)
+- **Logic:** zod validation (diagnosis, 1–50 items, all item fields) → verified check (403 if pending) → verifies patient exists with PATIENT role → `create_prescription_with_items` RPC inserts prescription + items atomically
 
 #### `GET /api/prescriptions/[id]`
 - **File:** `src/app/api/prescriptions/[id]/route.ts`
 - **Purpose:** Fetch single prescription with full details (items, patient, doctor)
-
-#### `PATCH /api/prescriptions/[id]`
-- **File:** `src/app/api/prescriptions/[id]/route.ts`
-- **Purpose:** Update prescription status directly (legacy, Pharmacist only)
-- **Validates:** Status must be valid enum value
+- **Access:** Object-level — patient must own it, doctor must have issued it, pharmacists may fetch any. Unauthorized access returns `404` (existence not confirmed)
 
 #### `PUT /api/prescriptions/[id]`
 - **File:** `src/app/api/prescriptions/[id]/route.ts`
-- **Purpose:** Dispense/revert individual item (Pharmacist only)
-- **Logic:** Validates itemId + dispensed boolean → verifies item belongs to prescription → **revert check:** 15-minute window enforcement → updates item (dispensed, dispensedAt, dispensedById) → **auto-computes** prescription three-state status → returns updated prescription
+- **Purpose:** Dispense/revert individual item (verified Pharmacist only)
+- **Logic:** zod validation → verified check → `dispense_prescription_item` RPC: locks the prescription row, verifies the item belongs to it, enforces the **15-minute revert window**, updates the item (dispensed, dispensedAt, dispensedById), and **auto-computes** the three-state status — all in one transaction, so concurrent dispenses cannot corrupt the status
 
 #### `GET /api/pharmacy/profile`
 - **File:** `src/app/api/pharmacy/profile/route.ts`
@@ -174,7 +178,7 @@ AyuLink envisions a future where:
 
 #### `GET /api/seed`
 - **File:** `src/app/api/seed/route.ts`
-- **Purpose:** Seed database with demo data (blocked in production)
+- **Purpose:** Seed database with demo data — 3 pre-verified accounts + 2 sample prescriptions; idempotent; blocked in production
 
 ---
 
@@ -252,12 +256,12 @@ AyuLink envisions a future where:
    - Password field with show/hide toggle
    - Confirm Password field
    - **Password Strength Meter** — 4-bar visual indicator; color changes: red (< 8 chars) → amber (8–11 chars) → green (12+ chars); labels: "Too short" / "Good" / "Strong"
-   - Minimum 8 characters validation; match validation
+   - Minimum 8 characters validation (also enforced server-side); match validation
 7. **Navigation** — "Back" and "Continue"/"Create Account" buttons; step progress tracked
 8. **Left Panel** — Step indicator showing numbered steps with completion checkmarks; branded gradient panel
 9. **Mobile Progress Bar** — Percentage-based progress bar with "Step X of Y" label
 10. **Error Handling** — Red alert banners with slide-up animation for validation errors
-11. **Submit** — POST to `/api/auth/register`; on success → redirect to `/login?registered=true`; loading spinner during submission
+11. **Submit** — POST to `/api/auth/register`; on success → redirect to `/login?registered=true`; loading spinner during submission. Doctors/pharmacists are informed their account is pending verification.
 
 **State:** `step`, `formData` (14 fields), `error`, `isLoading`, `showPassword`
 
@@ -365,7 +369,7 @@ AyuLink envisions a future where:
      - Trash icon to remove a medication (hidden if only 1 remains)
      - Fields validated: drugName, dosage, frequency, duration required
    - **Submit Button** — "Sign & Issue Digital Prescription" with Send icon; loading spinner during submission
-   - **Error Display** — Red alert for submission errors
+   - **Error Display** — Red alert for submission errors (including "pending verification" for unapproved doctors)
 4. **Success Banner** — Green card: "Prescription issued successfully!" with "Scan Next" action
 5. **State Reset** — After successful submission: clears patient, diagnosis, medications; shows success banner
 
@@ -424,7 +428,7 @@ AyuLink envisions a future where:
    - **Undo Button** — Appears only for items dispensed in current session AND within 15-minute window; "Undo" with Undo2 icon
    - **Loading State** — Per-item spinner while dispensing/reverting
 5. **Progress Bar** — Per-prescription visual progress bar; "Dispensing Progress" label with X/Y count; green fill with smooth animation
-6. **Error Handling** — Error banner with auto-dismiss after 4 seconds
+6. **Error Handling** — Error banner with auto-dismiss after 4 seconds (including "pending verification" for unapproved pharmacists)
 7. **Session Tracking** — `sessionDispensed` Set tracks items dispensed in this browser session for revert eligibility
 
 **Key Functions:** `lookupPatient()`, `dispenseItem()`, `canRevert()`, `toggleExpand()`, `resetAll()`, `formatDate()`, `formatTime()`
@@ -505,29 +509,37 @@ AyuLink envisions a future where:
 
 ---
 
-### 5.4 Library Modules (3)
+### 5.4 Library Modules (5)
 
 | Module | Export | Purpose |
 |--------|--------|---------|
-| **auth.ts** | `authOptions` | NextAuth config: CredentialsProvider, JWT (24h), custom callbacks |
-| **prisma.ts** | `prisma` | Singleton PrismaClient via globalThis caching |
+| **auth.ts** | `authOptions` | NextAuth config: CredentialsProvider, JWT (24h), login throttling, generic errors, custom callbacks |
+| **supabase.ts** | `supabase` | Singleton supabase-js client using the service role key (server-side only) |
+| **rate-limit.ts** | `rateLimit()`, `clientIp()` | In-memory fixed-window rate limiter + proxy-aware client IP helper |
+| **validation.ts** | `registerSchema`, `createPrescriptionSchema`, `dispenseItemSchema`, `firstError()` | zod schemas for all mutating routes |
 | **utils.ts** | `cn()` | clsx + tailwind-merge for conflict-free class composition |
 
 ---
 
-### 5.5 Database Schema
+### 5.5 Database Schema (Supabase / PostgreSQL)
 
 **2 Enums:** `Role` (PATIENT, DOCTOR, PHARMACIST) · `PrescriptionStatus` (NOT_DISPENSED, PARTIALLY_DISPENSED, FULLY_DISPENSED)
 
-**5 Models:**
+**5 Tables:**
 
-| Model | Key Fields | Relations |
+| Table | Key Fields | Relations |
 |-------|-----------|-----------|
-| **User** | id, nicNumber (UK), firstName, lastName, mobile, dob, passwordHash, role, medicalId (UK) | doctorProfile?, pharmacyProfile?, prescriptionsAsPatient[], prescriptionsAsDoctor[], dispensedItems[] |
+| **User** | id, nicNumber (UK), firstName, lastName, mobile, dob, passwordHash, role, **verified**, medicalId (UK) | doctorProfile?, pharmacyProfile?, prescriptionsAsPatient[], prescriptionsAsDoctor[], dispensedItems[] |
 | **DoctorProfile** | id, userId (UK FK), slmcRegNo (UK), specialization, hospitalName | user (cascade delete) |
 | **PharmacyProfile** | id, userId (UK FK), pharmacyName, licenseNumber (UK), pharmacyAddress | user (cascade delete) |
 | **Prescription** | id, patientId (FK), doctorId (FK), dateIssued, diagnosis, status | patient, doctor, items[] |
 | **PrescriptionItem** | id, prescriptionId (FK), drugName, dosage, frequency, duration, instructions, dispensed, dispensedAt?, dispensedById? (FK) | prescription (cascade), dispensedBy? |
+
+**3 Transactional Functions (RPC):** `create_user_with_profile` · `create_prescription_with_items` · `dispense_prescription_item` (row-locking, status recompute, 15-minute window enforcement)
+
+**Security:** Row Level Security enabled on all tables with **no policies** (deny-all) — only the server's service role key can access data. `updatedAt` maintained by triggers. All IDs are UUIDs stored as text.
+
+Schema source of truth: [`supabase/migrations/20260719000000_init.sql`](../supabase/migrations/20260719000000_init.sql)
 
 ---
 
@@ -551,18 +563,23 @@ AyuLink envisions a future where:
 |-------------|---------|
 | Node.js | 18.17+ |
 | npm | 9+ |
-| PostgreSQL | 14+ |
+| Supabase project | Free tier or above |
 
 ### 6.2 Tech Stack
 
-Next.js 15.1+ · React 19 · TypeScript 5.7+ · Tailwind CSS v4 · PostgreSQL 14+ · Prisma 6.3 · NextAuth 4.24 · bcryptjs · qrcode.react · html5-qrcode · lucide-react · Turbopack
+Next.js 15.1+ · React 19 · TypeScript 5.7+ · Tailwind CSS v4 · Supabase (PostgreSQL) · @supabase/supabase-js 2.x · NextAuth 4.24 · zod 4 · bcryptjs · qrcode.react · html5-qrcode · lucide-react · Turbopack
 
 ### 6.3 Security Requirements
 
-- Passwords: bcrypt with 12 salt rounds
+- Passwords: bcrypt with 12 salt rounds; 8-character minimum enforced server-side
 - Sessions: JWT, 24-hour expiry, HTTP-only cookies
-- Access control: Role-based guards on every API endpoint and dashboard layout
-- Unique constraints: NIC, SLMC, License Number
+- Access control: role guards on every API endpoint **and** object-level ownership checks on prescription reads
+- Provider gating: unverified doctors/pharmacists cannot issue or dispense
+- Rate limiting: login 5/15min per IP+identifier; registration 10/hour per IP
+- Anti-enumeration: generic "Invalid credentials" for all login failures
+- Input validation: zod schemas on all mutating routes
+- Database: RLS deny-all; service role key kept server-side only; atomic multi-table writes via SQL functions
+- Unique constraints: NIC, SLMC, License Number, Medical ID (race-safe, mapped to 409)
 - Seed endpoint: blocked in production
 - Camera access: requires HTTPS (except localhost)
 
@@ -576,12 +593,12 @@ Next.js 15.1+ · React 19 · TypeScript 5.7+ · Tailwind CSS v4 · PostgreSQL 14
 Patient registers → Gets Digital Medical ID (QR)
   → Patient visits Doctor → Shows QR code
   → Doctor scans QR → Patient info loaded
-  → Doctor creates Rx → Status: NOT_DISPENSED
+  → Doctor (verified) creates Rx → Status: NOT_DISPENSED
   → Patient sees Rx in dashboard
   → Patient visits Pharmacy → Shows QR
   → Pharmacist scans QR → Active prescriptions listed
-  → Pharmacist dispenses items one by one
-    → Status auto-computes: NOT_DISPENSED → PARTIALLY → FULLY_DISPENSED
+  → Pharmacist (verified) dispenses items one by one
+    → Status auto-computes atomically: NOT_DISPENSED → PARTIALLY → FULLY_DISPENSED
     → 15-minute revert window for errors
 ```
 
@@ -589,11 +606,24 @@ Patient registers → Gets Digital Medical ID (QR)
 
 ```
 Credentials submitted → NextAuth CredentialsProvider
-  → NIC mode: User.findUnique(nicNumber)
-  → Pharmacy mode: PharmacyProfile.findUnique(licenseNumber) → User
+  → Rate limit check (5 tries / 15 min per IP + identifier)
+  → NIC mode: User lookup by nicNumber (Supabase)
+  → Pharmacy mode: PharmacyProfile lookup by licenseNumber → embedded User
   → bcrypt.compare(password, passwordHash)
+  → Any failure → generic "Invalid credentials"
   → JWT issued (id, role, medicalId, firstName, lastName, nicNumber)
   → Cookie set (24h) → Redirect to role dashboard
+```
+
+### 7.3 Provider Verification Flow
+
+```
+Doctor/Pharmacist registers → account created with verified = false
+  → Can log in and browse their dashboard
+  → Issue/dispense attempts → 403 "pending verification"
+  → Administrator reviews credentials (SLMC / pharmacy license)
+  → Sets verified = true in the User table (Supabase Table Editor)
+  → Provider can now issue/dispense
 ```
 
 ---
@@ -606,6 +636,8 @@ Credentials submitted → NextAuth CredentialsProvider
 | 🩺 Doctor | NIC | `199812345678` | `password123` |
 | 💊 Pharmacist | NIC | `199512345678` | `password123` |
 
+All demo accounts are created pre-verified by `/api/seed`.
+
 ---
 
-> **Version:** 0.1.0 · **Last Updated:** May 2026 · **License:** Private
+> **Version:** 0.1.0 · **Last Updated:** July 2026 · **License:** Private
