@@ -5,22 +5,21 @@
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { supabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/api-auth";
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ medicalId: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         // Only doctors and pharmacists can look up patients
-        if (session.user.role === "PATIENT") {
+        if (user.role === "PATIENT") {
             return NextResponse.json(
                 { error: "Patients cannot look up other patients" },
                 { status: 403 }
@@ -29,46 +28,32 @@ export async function GET(
 
         const { medicalId } = await params;
 
-        const patient = await prisma.user.findUnique({
-            where: { medicalId },
-            select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                nicNumber: true,
-                medicalId: true,
-                dob: true,
-                mobileNumber: true,
-                role: true,
-                prescriptionsAsPatient: {
-                    include: {
-                        items: {
-                            include: {
-                                dispensedBy: {
-                                    select: {
-                                        firstName: true,
-                                        lastName: true,
-                                        pharmacyProfile: {
-                                            select: { pharmacyName: true, licenseNumber: true },
-                                        },
-                                    },
-                                },
-                            },
-                        },
-                        doctor: {
-                            select: {
-                                firstName: true,
-                                lastName: true,
-                                doctorProfile: {
-                                    select: { specialization: true, hospitalName: true, slmcRegNo: true },
-                                },
-                            },
-                        },
-                    },
-                    orderBy: { dateIssued: "desc" },
-                },
-            },
-        });
+        const { data: patient, error } = await supabase
+            .from("User")
+            .select(`
+                id, firstName, lastName, nicNumber, medicalId, dob, mobileNumber, role,
+                prescriptionsAsPatient:Prescription!Prescription_patientId_fkey (
+                    *,
+                    items:PrescriptionItem (
+                        *,
+                        dispensedBy:User!PrescriptionItem_dispensedById_fkey (
+                            firstName, lastName,
+                            pharmacyProfile:PharmacyProfile ( pharmacyName, licenseNumber )
+                        )
+                    ),
+                    doctor:User!Prescription_doctorId_fkey (
+                        firstName, lastName,
+                        doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                    )
+                )
+            `)
+            .eq("medicalId", medicalId)
+            .order("dateIssued", {
+                ascending: false,
+                referencedTable: "prescriptionsAsPatient",
+            })
+            .maybeSingle();
+        if (error) throw error;
 
         if (!patient || patient.role !== "PATIENT") {
             return NextResponse.json(

@@ -6,8 +6,8 @@
 
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
+import { verifyCredentials } from "@/lib/credentials";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -18,7 +18,7 @@ export const authOptions: NextAuthOptions = {
                 licenseNumber: { label: "License Number", type: "text" },
                 password: { label: "Password", type: "password" },
             },
-            async authorize(credentials) {
+            async authorize(credentials, req) {
                 if (!credentials?.password) {
                     throw new Error("Please enter your password");
                 }
@@ -31,51 +31,20 @@ export const authOptions: NextAuthOptions = {
                     throw new Error("Please enter your NIC number or License Number");
                 }
 
-                let user;
-
-                if (hasLicense) {
-                    // Pharmacy login via license number
-                    const pharmacyProfile = await prisma.pharmacyProfile.findUnique({
-                        where: { licenseNumber: credentials.licenseNumber },
-                        include: { user: true },
-                    });
-
-                    if (!pharmacyProfile) {
-                        throw new Error("No pharmacy found with this license number");
-                    }
-
-                    user = pharmacyProfile.user;
-                } else {
-                    // Patient / Doctor login via NIC
-                    user = await prisma.user.findUnique({
-                        where: { nicNumber: credentials.nicNumber },
-                        include: { doctorProfile: true },
-                    });
-
-                    if (!user) {
-                        throw new Error("No account found with this NIC number");
-                    }
+                // Throttle attempts per IP + identifier
+                const identifier = credentials.nicNumber || credentials.licenseNumber;
+                const ip = clientIp(req?.headers ?? {});
+                if (!rateLimit(`login:${ip}:${identifier}`, 5, 15 * 60 * 1000)) {
+                    throw new Error("Too many login attempts. Please try again in 15 minutes");
                 }
 
-                // Verify password
-                const isValid = await bcrypt.compare(
-                    credentials.password,
-                    user.passwordHash
+                // Shared with /api/mobile/login; throws a single generic
+                // "Invalid credentials" error on any failure
+                return await verifyCredentials(
+                    credentials.nicNumber,
+                    credentials.licenseNumber,
+                    credentials.password
                 );
-
-                if (!isValid) {
-                    throw new Error("Invalid password");
-                }
-
-                // Return user data (will be available in JWT)
-                return {
-                    id: user.id,
-                    nicNumber: user.nicNumber,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    role: user.role,
-                    medicalId: user.medicalId,
-                };
             },
         }),
     ],
