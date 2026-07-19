@@ -29,7 +29,7 @@ export async function GET(
 
         const { medicalId } = await params;
 
-        const { data: patient } = await supabase
+        const { data: patient, error } = await supabase
             .from("User")
             .select(`
                 id, firstName, lastName, nicNumber, medicalId, dob, mobileNumber, role,
@@ -54,6 +54,7 @@ export async function GET(
                 referencedTable: "prescriptionsAsPatient",
             })
             .maybeSingle();
+        if (error) throw error;
 
         if (!patient || patient.role !== "PATIENT") {
             return NextResponse.json(

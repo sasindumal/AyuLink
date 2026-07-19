@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { createPrescriptionSchema, firstError } from "@/lib/validation";
 
 // Nested select shared by prescription queries.
 // FK hints (User!Prescription_patientId_fkey) disambiguate the two
@@ -66,9 +67,12 @@ export async function GET(req: NextRequest) {
                     .select("id")
                     .eq("medicalId", medicalId)
                     .maybeSingle();
-                if (patient) {
-                    query = query.eq("patientId", patient.id);
+                if (!patient) {
+                    // Unknown medical ID must not fall through to an
+                    // unfiltered query returning every prescription
+                    return NextResponse.json({ prescriptions: [] });
                 }
+                query = query.eq("patientId", patient.id);
             } else {
                 // Default: only show prescriptions where this pharmacist dispensed items
                 const { data: dispensedItems } = await supabase
@@ -116,14 +120,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const body = await req.json();
-        const { patientId, diagnosis, items } = body;
+        const parsed = createPrescriptionSchema.safeParse(await req.json());
+        if (!parsed.success) {
+            return NextResponse.json({ error: firstError(parsed) }, { status: 400 });
+        }
+        const { patientId, diagnosis, items } = parsed.data;
 
-        // Validation
-        if (!patientId || !diagnosis || !items || items.length === 0) {
+        // Unverified doctors cannot issue prescriptions
+        const { data: doctor, error: doctorError } = await supabase
+            .from("User")
+            .select("verified")
+            .eq("id", session.user.id)
+            .single();
+        if (doctorError) throw doctorError;
+        if (!doctor.verified) {
             return NextResponse.json(
-                { error: "Patient, diagnosis, and at least one prescription item are required" },
-                { status: 400 }
+                { error: "Your account is pending verification. You cannot issue prescriptions yet" },
+                { status: 403 }
             );
         }
 
@@ -141,49 +154,31 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // Create prescription
-        const { data: created, error: createError } = await supabase
-            .from("Prescription")
-            .insert({
-                patientId,
-                doctorId: session.user.id,
-                diagnosis,
-            })
-            .select()
-            .single();
+        // Atomic prescription + items creation (Postgres function)
+        const { data: prescriptionId, error: createError } = await supabase.rpc(
+            "create_prescription_with_items",
+            {
+                p_patient_id: patientId,
+                p_doctor_id: session.user.id,
+                p_diagnosis: diagnosis,
+                p_items: items,
+            }
+        );
 
-        if (createError || !created) {
+        if (createError || !prescriptionId) {
             throw createError ?? new Error("Failed to create prescription");
         }
 
-        // Create items; roll back the prescription if it fails
-        const { error: itemsError } = await supabase
-            .from("PrescriptionItem")
-            .insert(
-                items.map((item: any) => ({
-                    prescriptionId: created.id,
-                    drugName: item.drugName,
-                    dosage: item.dosage,
-                    frequency: item.frequency,
-                    duration: item.duration,
-                    instructions: item.instructions || "",
-                }))
-            );
-
-        if (itemsError) {
-            await supabase.from("Prescription").delete().eq("id", created.id);
-            throw itemsError;
-        }
-
-        const { data: prescription } = await supabase
+        const { data: prescription, error: fetchError } = await supabase
             .from("Prescription")
             .select(`
                 *,
                 items:PrescriptionItem (*),
                 patient:User!Prescription_patientId_fkey ( firstName, lastName, nicNumber, medicalId )
             `)
-            .eq("id", created.id)
+            .eq("id", prescriptionId)
             .single();
+        if (fetchError) throw fetchError;
 
         return NextResponse.json(
             { message: "Prescription issued successfully", prescription },

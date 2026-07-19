@@ -18,6 +18,7 @@ async function upsertUser(user: {
     passwordHash: string;
     role: Role;
     medicalId: string;
+    verified: boolean;
 }) {
     const { data: existing } = await supabase
         .from("User")
@@ -61,6 +62,7 @@ export async function GET() {
             passwordHash,
             role: Role.PATIENT,
             medicalId: "med-patient-demo-001",
+            verified: true,
         });
 
         // 2. Demo Doctor
@@ -73,6 +75,7 @@ export async function GET() {
             passwordHash,
             role: Role.DOCTOR,
             medicalId: "med-doctor-demo-001",
+            verified: true,
         });
 
         const { data: doctorProfile } = await supabase
@@ -101,6 +104,7 @@ export async function GET() {
             passwordHash,
             role: Role.PHARMACIST,
             medicalId: "med-pharmacist-demo-001",
+            verified: true,
         });
 
         // 4. Sample Prescriptions (skip if already exist)

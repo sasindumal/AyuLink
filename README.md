@@ -215,6 +215,11 @@ supabase db push
 
 To seed demo accounts, start the dev server and visit `http://localhost:3000/api/seed`.
 
+> **Provider verification:** doctors and pharmacists who self-register start
+> unverified and cannot issue or dispense prescriptions. Approve them by
+> setting `verified = true` on their row in the `User` table (Supabase
+> Dashboard -> Table Editor). Seeded demo accounts are pre-verified.
+
 ### 5. Start the development server
 
 ```bash

@@ -25,6 +25,10 @@ create table "User" (
     "dob"          timestamptz not null,
     "passwordHash" text not null,
     "role"         "Role" not null default 'PATIENT',
+    -- Patients are auto-verified; doctors and pharmacists must be
+    -- verified manually (set to true in the Supabase dashboard)
+    -- before they can issue or dispense prescriptions.
+    "verified"     boolean not null default false,
     "medicalId"    text not null unique default gen_random_uuid()::text,
     "createdAt"    timestamptz not null default now(),
     "updatedAt"    timestamptz not null default now()
@@ -110,6 +114,158 @@ create trigger "User_updatedAt"
 create trigger "Prescription_updatedAt"
     before update on "Prescription"
     for each row execute function set_updated_at();
+
+-- ----- Transactional functions (called via supabase.rpc) -----
+-- Multi-table writes go through these so they are atomic; the
+-- supabase-js client cannot open transactions on its own.
+
+-- Create a user together with an optional doctor/pharmacy profile.
+create or replace function create_user_with_profile(
+    p_user jsonb,
+    p_doctor jsonb default null,
+    p_pharmacy jsonb default null
+) returns "User" as $$
+declare
+    v_user "User";
+begin
+    insert into "User" (
+        "nicNumber", "firstName", "lastName", "mobileNumber",
+        "dob", "passwordHash", "role", "verified"
+    )
+    values (
+        p_user->>'nicNumber',
+        p_user->>'firstName',
+        p_user->>'lastName',
+        p_user->>'mobileNumber',
+        (p_user->>'dob')::timestamptz,
+        p_user->>'passwordHash',
+        (p_user->>'role')::"Role",
+        (p_user->>'role')::"Role" = 'PATIENT'
+    )
+    returning * into v_user;
+
+    if p_doctor is not null then
+        insert into "DoctorProfile" ("userId", "slmcRegNo", "specialization", "hospitalName")
+        values (
+            v_user."id",
+            p_doctor->>'slmcRegNo',
+            p_doctor->>'specialization',
+            p_doctor->>'hospitalName'
+        );
+    end if;
+
+    if p_pharmacy is not null then
+        insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "pharmacyAddress")
+        values (
+            v_user."id",
+            p_pharmacy->>'pharmacyName',
+            p_pharmacy->>'licenseNumber',
+            p_pharmacy->>'pharmacyAddress'
+        );
+    end if;
+
+    return v_user;
+end;
+$$ language plpgsql;
+
+-- Create a prescription with its items in one transaction.
+create or replace function create_prescription_with_items(
+    p_patient_id text,
+    p_doctor_id text,
+    p_diagnosis text,
+    p_items jsonb
+) returns text as $$
+declare
+    v_id text;
+    item jsonb;
+begin
+    insert into "Prescription" ("patientId", "doctorId", "diagnosis")
+    values (p_patient_id, p_doctor_id, p_diagnosis)
+    returning "id" into v_id;
+
+    for item in select * from jsonb_array_elements(p_items) loop
+        insert into "PrescriptionItem" (
+            "prescriptionId", "drugName", "dosage", "frequency", "duration", "instructions"
+        )
+        values (
+            v_id,
+            item->>'drugName',
+            item->>'dosage',
+            item->>'frequency',
+            item->>'duration',
+            coalesce(item->>'instructions', '')
+        );
+    end loop;
+
+    return v_id;
+end;
+$$ language plpgsql;
+
+-- Dispense or revert one item and recompute the prescription status
+-- atomically. Locks the prescription row so concurrent dispenses
+-- cannot compute a stale status.
+create or replace function dispense_prescription_item(
+    p_prescription_id text,
+    p_item_id text,
+    p_dispensed boolean,
+    p_pharmacist_id text
+) returns jsonb as $$
+declare
+    v_item "PrescriptionItem";
+    v_all boolean;
+    v_any boolean;
+    v_status "PrescriptionStatus";
+begin
+    perform 1 from "Prescription" where "id" = p_prescription_id for update;
+    if not found then
+        raise exception 'PRESCRIPTION_NOT_FOUND';
+    end if;
+
+    select * into v_item
+    from "PrescriptionItem"
+    where "id" = p_item_id and "prescriptionId" = p_prescription_id
+    for update;
+
+    if not found then
+        raise exception 'ITEM_NOT_FOUND';
+    end if;
+
+    if not p_dispensed then
+        if not v_item."dispensed" or v_item."dispensedAt" is null then
+            raise exception 'NOT_DISPENSED';
+        end if;
+        if v_item."dispensedAt" < now() - interval '15 minutes' then
+            raise exception 'REVERT_WINDOW_EXPIRED';
+        end if;
+    end if;
+
+    update "PrescriptionItem" set
+        "dispensed"     = p_dispensed,
+        "dispensedAt"   = case when p_dispensed then now() else null end,
+        "dispensedById" = case when p_dispensed then p_pharmacist_id else null end
+    where "id" = p_item_id
+    returning * into v_item;
+
+    select bool_and("dispensed"), bool_or("dispensed")
+    into v_all, v_any
+    from "PrescriptionItem"
+    where "prescriptionId" = p_prescription_id;
+
+    v_status := case
+        when v_all then 'FULLY_DISPENSED'
+        when v_any then 'PARTIALLY_DISPENSED'
+        else 'NOT_DISPENSED'
+    end;
+
+    update "Prescription" set "status" = v_status where "id" = p_prescription_id;
+
+    return jsonb_build_object(
+        'itemId', v_item."id",
+        'drugName', v_item."drugName",
+        'allDispensed', v_all
+    );
+end;
+$$ language plpgsql;
 
 -- ----- Row Level Security -----
 -- All access goes through Next.js API routes using the

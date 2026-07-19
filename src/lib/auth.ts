@@ -8,6 +8,11 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+// One generic message for every credential failure so responses
+// don't reveal whether an NIC / license number is registered.
+const INVALID_CREDENTIALS = "Invalid credentials";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -18,7 +23,7 @@ export const authOptions: NextAuthOptions = {
                 licenseNumber: { label: "License Number", type: "text" },
                 password: { label: "Password", type: "password" },
             },
-            async authorize(credentials) {
+            async authorize(credentials, req) {
                 if (!credentials?.password) {
                     throw new Error("Please enter your password");
                 }
@@ -29,6 +34,13 @@ export const authOptions: NextAuthOptions = {
 
                 if (!hasNic && !hasLicense) {
                     throw new Error("Please enter your NIC number or License Number");
+                }
+
+                // Throttle attempts per IP + identifier
+                const identifier = credentials.nicNumber || credentials.licenseNumber;
+                const ip = clientIp(req?.headers ?? {});
+                if (!rateLimit(`login:${ip}:${identifier}`, 5, 15 * 60 * 1000)) {
+                    throw new Error("Too many login attempts. Please try again in 15 minutes");
                 }
 
                 let user;
@@ -42,7 +54,7 @@ export const authOptions: NextAuthOptions = {
                         .maybeSingle();
 
                     if (!pharmacyProfile?.user) {
-                        throw new Error("No pharmacy found with this license number");
+                        throw new Error(INVALID_CREDENTIALS);
                     }
 
                     user = pharmacyProfile.user;
@@ -55,7 +67,7 @@ export const authOptions: NextAuthOptions = {
                         .maybeSingle();
 
                     if (!data) {
-                        throw new Error("No account found with this NIC number");
+                        throw new Error(INVALID_CREDENTIALS);
                     }
 
                     user = data;
@@ -68,7 +80,7 @@ export const authOptions: NextAuthOptions = {
                 );
 
                 if (!isValid) {
-                    throw new Error("Invalid password");
+                    throw new Error(INVALID_CREDENTIALS);
                 }
 
                 // Return user data (will be available in JWT)

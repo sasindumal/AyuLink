@@ -1,157 +1,92 @@
 // ==============================================
 // AyuLink - User Registration API
 // POST /api/auth/register
-// Creates a new user with hashed password
+// Creates a new user with hashed password.
+// Doctors and pharmacists start unverified and
+// must be approved before issuing/dispensing.
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
 import { Role } from "@/types/db";
+import { registerSchema, firstError } from "@/lib/validation";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+// Postgres unique constraint -> user-facing 409 message
+const UNIQUE_VIOLATIONS: Record<string, string> = {
+    User_nicNumber_key: "An account with this NIC number already exists",
+    DoctorProfile_slmcRegNo_key: "This SLMC registration number is already registered",
+    PharmacyProfile_licenseNumber_key: "This pharmacy license number is already registered",
+};
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const {
-            nicNumber,
-            firstName,
-            lastName,
-            mobileNumber,
-            dob,
-            password,
-            role,
-            // Doctor-specific fields
-            slmcRegNo,
-            specialization,
-            hospitalName,
-            // Pharmacist-specific fields
-            pharmacyName,
-            pharmacyLicense,
-            pharmacyAddress,
-        } = body;
-
-        // --- Validation ---
-        if (!nicNumber || !firstName || !lastName || !mobileNumber || !dob || !password) {
+        if (!rateLimit(`register:${clientIp(req.headers)}`, 10, 60 * 60 * 1000)) {
             return NextResponse.json(
-                { error: "All required fields must be provided" },
-                { status: 400 }
+                { error: "Too many registration attempts. Please try again later" },
+                { status: 429 }
             );
         }
 
-        // Check if NIC already registered
-        const { data: existingUser } = await supabase
-            .from("User")
-            .select("id")
-            .eq("nicNumber", nicNumber)
-            .maybeSingle();
-
-        if (existingUser) {
-            return NextResponse.json(
-                { error: "An account with this NIC number already exists" },
-                { status: 409 }
-            );
+        const parsed = registerSchema.safeParse(await req.json());
+        if (!parsed.success) {
+            return NextResponse.json({ error: firstError(parsed) }, { status: 400 });
         }
 
-        // Validate doctor-specific fields
-        if (role === Role.DOCTOR) {
-            if (!slmcRegNo || !specialization || !hospitalName) {
-                return NextResponse.json(
-                    { error: "Doctor registration requires SLMC number, specialization, and hospital name" },
-                    { status: 400 }
-                );
-            }
+        const data = parsed.data;
+        const passwordHash = await bcrypt.hash(data.password, 12);
 
-            const { data: existingDoctor } = await supabase
-                .from("DoctorProfile")
-                .select("id")
-                .eq("slmcRegNo", slmcRegNo)
-                .maybeSingle();
-            if (existingDoctor) {
-                return NextResponse.json(
-                    { error: "This SLMC registration number is already registered" },
-                    { status: 409 }
-                );
-            }
-        }
-
-        // Validate pharmacist-specific fields
-        if (role === Role.PHARMACIST) {
-            if (!pharmacyName || !pharmacyLicense || !pharmacyAddress) {
-                return NextResponse.json(
-                    { error: "Pharmacist registration requires pharmacy name, license number, and address" },
-                    { status: 400 }
-                );
-            }
-
-            const { data: existingPharmacy } = await supabase
-                .from("PharmacyProfile")
-                .select("id")
-                .eq("licenseNumber", pharmacyLicense)
-                .maybeSingle();
-            if (existingPharmacy) {
-                return NextResponse.json(
-                    { error: "This pharmacy license number is already registered" },
-                    { status: 409 }
-                );
-            }
-        }
-
-        // --- Create User ---
-        const passwordHash = await bcrypt.hash(password, 12);
-
-        const { data: user, error: userError } = await supabase
-            .from("User")
-            .insert({
-                nicNumber,
-                firstName,
-                lastName,
-                mobileNumber,
-                dob: new Date(dob).toISOString(),
+        // Atomic user + profile creation (Postgres function)
+        const { data: user, error } = await supabase.rpc("create_user_with_profile", {
+            p_user: {
+                nicNumber: data.nicNumber,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                mobileNumber: data.mobileNumber,
+                dob: new Date(data.dob).toISOString(),
                 passwordHash,
-                role: role || Role.PATIENT,
-            })
-            .select()
-            .single();
+                role: data.role,
+            },
+            p_doctor:
+                data.role === Role.DOCTOR
+                    ? {
+                          slmcRegNo: data.slmcRegNo,
+                          specialization: data.specialization,
+                          hospitalName: data.hospitalName,
+                      }
+                    : null,
+            p_pharmacy:
+                data.role === Role.PHARMACIST
+                    ? {
+                          pharmacyName: data.pharmacyName,
+                          licenseNumber: data.pharmacyLicense,
+                          pharmacyAddress: data.pharmacyAddress,
+                      }
+                    : null,
+        });
 
-        if (userError || !user) {
-            throw userError ?? new Error("Failed to create user");
+        if (error) {
+            // Unique violation -> 409 with a specific message
+            if (error.code === "23505") {
+                const constraint = Object.keys(UNIQUE_VIOLATIONS).find((name) =>
+                    `${error.message} ${error.details ?? ""}`.includes(name)
+                );
+                return NextResponse.json(
+                    { error: constraint ? UNIQUE_VIOLATIONS[constraint] : "Already registered" },
+                    { status: 409 }
+                );
+            }
+            throw error;
         }
 
-        // Create role-specific profile; roll back the user if it fails
-        if (role === Role.DOCTOR) {
-            const { error: profileError } = await supabase
-                .from("DoctorProfile")
-                .insert({
-                    userId: user.id,
-                    slmcRegNo,
-                    specialization,
-                    hospitalName,
-                });
+        const isProvider = data.role === Role.DOCTOR || data.role === Role.PHARMACIST;
 
-            if (profileError) {
-                await supabase.from("User").delete().eq("id", user.id);
-                throw profileError;
-            }
-        } else if (role === Role.PHARMACIST) {
-            const { error: profileError } = await supabase
-                .from("PharmacyProfile")
-                .insert({
-                    userId: user.id,
-                    pharmacyName,
-                    licenseNumber: pharmacyLicense,
-                    pharmacyAddress,
-                });
-
-            if (profileError) {
-                await supabase.from("User").delete().eq("id", user.id);
-                throw profileError;
-            }
-        }
-
-        // Return user without sensitive data
         return NextResponse.json(
             {
-                message: "Registration successful",
+                message: isProvider
+                    ? "Registration successful. Your account is pending verification — you can log in, but issuing or dispensing prescriptions is enabled once your credentials are approved."
+                    : "Registration successful",
                 user: {
                     id: user.id,
                     nicNumber: user.nicNumber,

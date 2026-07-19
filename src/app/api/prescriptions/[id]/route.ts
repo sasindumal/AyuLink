@@ -1,14 +1,14 @@
 // ==============================================
 // AyuLink - Single Prescription API
-// GET   /api/prescriptions/[id] - Get prescription details
-// PATCH /api/prescriptions/[id] - Update prescription status
-// PUT   /api/prescriptions/[id] - Dispense/revert individual item
+// GET /api/prescriptions/[id] - Get prescription details
+// PUT /api/prescriptions/[id] - Dispense/revert individual item
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { dispenseItemSchema, firstError } from "@/lib/validation";
 
 // GET: Fetch a specific prescription by ID
 export async function GET(
@@ -23,7 +23,7 @@ export async function GET(
 
         const { id } = await params;
 
-        const { data: prescription } = await supabase
+        const { data: prescription, error } = await supabase
             .from("Prescription")
             .select(`
                 *,
@@ -38,8 +38,20 @@ export async function GET(
             `)
             .eq("id", id)
             .maybeSingle();
+        if (error) throw error;
 
-        if (!prescription) {
+        // Ownership: patients may only view their own prescriptions,
+        // doctors those they issued; pharmacists may view any (needed
+        // to dispense scanned prescriptions). 404 (not 403) so the
+        // response doesn't confirm the prescription exists.
+        const role = session.user.role;
+        const allowed =
+            prescription &&
+            (role === "PHARMACIST" ||
+                (role === "PATIENT" && prescription.patientId === session.user.id) ||
+                (role === "DOCTOR" && prescription.doctorId === session.user.id));
+
+        if (!allowed) {
             return NextResponse.json(
                 { error: "Prescription not found" },
                 { status: 404 }
@@ -56,62 +68,13 @@ export async function GET(
     }
 }
 
-// PATCH: Update full prescription status (legacy — keep for compatibility)
-export async function PATCH(
-    req: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
-    try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
-            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
-
-        if (session.user.role !== "PHARMACIST") {
-            return NextResponse.json(
-                { error: "Only pharmacists can update prescription status" },
-                { status: 403 }
-            );
-        }
-
-        const { id } = await params;
-        const body = await req.json();
-        const { status } = body;
-
-        if (!status || !["NOT_DISPENSED", "PARTIALLY_DISPENSED", "FULLY_DISPENSED"].includes(status)) {
-            return NextResponse.json(
-                { error: "Invalid status. Must be NOT_DISPENSED, PARTIALLY_DISPENSED, or FULLY_DISPENSED" },
-                { status: 400 }
-            );
-        }
-
-        const { data: prescription, error } = await supabase
-            .from("Prescription")
-            .update({ status })
-            .eq("id", id)
-            .select(`
-                *,
-                items:PrescriptionItem (*),
-                patient:User!Prescription_patientId_fkey ( firstName, lastName )
-            `)
-            .single();
-
-        if (error || !prescription) {
-            throw error ?? new Error("Prescription not found");
-        }
-
-        return NextResponse.json({
-            message: `Prescription marked as ${status.toLowerCase()}`,
-            prescription,
-        });
-    } catch (error) {
-        console.error("Update prescription error:", error);
-        return NextResponse.json(
-            { error: "Failed to update prescription" },
-            { status: 500 }
-        );
-    }
-}
+// Errors raised by the dispense_prescription_item Postgres function
+const DISPENSE_ERRORS: Record<string, { message: string; status: number }> = {
+    PRESCRIPTION_NOT_FOUND: { message: "Prescription not found", status: 404 },
+    ITEM_NOT_FOUND: { message: "Item not found in this prescription", status: 404 },
+    NOT_DISPENSED: { message: "This item has not been dispensed yet", status: 400 },
+    REVERT_WINDOW_EXPIRED: { message: "Cannot revert — 15-minute window has expired", status: 400 },
+};
 
 // PUT: Dispense or revert an individual prescription item
 export async function PUT(
@@ -132,92 +95,49 @@ export async function PUT(
         }
 
         const { id: prescriptionId } = await params;
-        const body = await req.json();
-        const { itemId, dispensed } = body;
 
-        if (!itemId || typeof dispensed !== "boolean") {
-            return NextResponse.json(
-                { error: "itemId and dispensed (boolean) are required" },
-                { status: 400 }
-            );
+        const parsed = dispenseItemSchema.safeParse(await req.json());
+        if (!parsed.success) {
+            return NextResponse.json({ error: firstError(parsed) }, { status: 400 });
         }
+        const { itemId, dispensed } = parsed.data;
 
-        // Verify the item belongs to this prescription
-        const { data: item } = await supabase
-            .from("PrescriptionItem")
-            .select("*")
-            .eq("id", itemId)
-            .eq("prescriptionId", prescriptionId)
-            .maybeSingle();
-
-        if (!item) {
-            return NextResponse.json(
-                { error: "Item not found in this prescription" },
-                { status: 404 }
-            );
-        }
-
-        // If reverting (dispensed = false), check 15-minute window
-        if (!dispensed) {
-            if (!item.dispensed || !item.dispensedAt) {
-                return NextResponse.json(
-                    { error: "This item has not been dispensed yet" },
-                    { status: 400 }
-                );
-            }
-
-            const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
-            if (new Date(item.dispensedAt) < fifteenMinutesAgo) {
-                return NextResponse.json(
-                    { error: "Cannot revert — 15-minute window has expired" },
-                    { status: 400 }
-                );
-            }
-        }
-
-        // Update the individual item with pharmacist info
-        const { data: updatedItem, error: updateError } = await supabase
-            .from("PrescriptionItem")
-            .update({
-                dispensed,
-                dispensedAt: dispensed ? new Date().toISOString() : null,
-                dispensedById: dispensed ? session.user.id : null,
-            })
-            .eq("id", itemId)
-            .select()
+        // Unverified pharmacists cannot dispense
+        const { data: pharmacist, error: pharmacistError } = await supabase
+            .from("User")
+            .select("verified")
+            .eq("id", session.user.id)
             .single();
-
-        if (updateError || !updatedItem) {
-            throw updateError ?? new Error("Failed to update item");
+        if (pharmacistError) throw pharmacistError;
+        if (!pharmacist.verified) {
+            return NextResponse.json(
+                { error: "Your account is pending verification. You cannot dispense medications yet" },
+                { status: 403 }
+            );
         }
 
-        // Check if ALL items in this prescription are now dispensed
-        const { data: allItems } = await supabase
-            .from("PrescriptionItem")
-            .select("id, dispensed")
-            .eq("prescriptionId", prescriptionId);
+        // Atomic dispense/revert + status recompute (Postgres function
+        // locks the prescription row, so concurrent dispenses serialize)
+        const { data: result, error: dispenseError } = await supabase.rpc(
+            "dispense_prescription_item",
+            {
+                p_prescription_id: prescriptionId,
+                p_item_id: itemId,
+                p_dispensed: dispensed,
+                p_pharmacist_id: session.user.id,
+            }
+        );
 
-        const allDispensed = (allItems ?? []).every((i) => i.id === itemId ? dispensed : i.dispensed);
-        const anyDispensed = (allItems ?? []).some((i) => i.id === itemId ? dispensed : i.dispensed);
-
-        // Compute three-state status
-        let newStatus: "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
-        if (allDispensed) {
-            newStatus = "FULLY_DISPENSED";
-        } else if (anyDispensed) {
-            newStatus = "PARTIALLY_DISPENSED";
-        } else {
-            newStatus = "NOT_DISPENSED";
+        if (dispenseError) {
+            const known = DISPENSE_ERRORS[dispenseError.message];
+            if (known) {
+                return NextResponse.json({ error: known.message }, { status: known.status });
+            }
+            throw dispenseError;
         }
-
-        // Auto-update prescription status
-        await supabase
-            .from("Prescription")
-            .update({ status: newStatus })
-            .eq("id", prescriptionId);
 
         // Return updated prescription with all items and pharmacy info
-        const { data: updatedPrescription } = await supabase
+        const { data: prescription, error: fetchError } = await supabase
             .from("Prescription")
             .select(`
                 *,
@@ -238,13 +158,14 @@ export async function PUT(
             `)
             .eq("id", prescriptionId)
             .single();
+        if (fetchError) throw fetchError;
 
         return NextResponse.json({
             message: dispensed
-                ? `${updatedItem.drugName} dispensed`
-                : `${updatedItem.drugName} reverted`,
-            prescription: updatedPrescription,
-            allDispensed,
+                ? `${result.drugName} dispensed`
+                : `${result.drugName} reverted`,
+            prescription,
+            allDispensed: result.allDispensed,
         });
     } catch (error) {
         console.error("Dispense item error:", error);
