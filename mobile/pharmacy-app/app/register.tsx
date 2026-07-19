@@ -16,13 +16,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
-import { api } from "../src/lib/api";
 import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, Input } from "../src/components/ui";
 
 export default function Register() {
-    const { login } = useAuth();
+    const { register } = useAuth();
     const [form, setForm] = useState({
         nicNumber: "",
         firstName: "",
@@ -62,25 +61,20 @@ export default function Register() {
         setError(null);
         setLoading(true);
         try {
-            await api("/api/auth/register", {
-                method: "POST",
-                body: {
+            await register(
+                {
                     nicNumber: form.nicNumber.trim(),
                     firstName: form.firstName.trim(),
                     lastName: form.lastName.trim(),
                     mobileNumber: form.mobileNumber.trim(),
                     dob: form.dob.trim(),
-                    password: form.password,
                     role: "PHARMACIST",
                     pharmacyName: form.pharmacyName.trim(),
                     pharmacyLicense: form.pharmacyLicense.trim(),
                     pharmacyAddress: form.pharmacyAddress.trim(),
                 },
-            });
-            await login({
-                licenseNumber: form.pharmacyLicense.trim(),
-                password: form.password,
-            });
+                form.password
+            );
             Alert.alert(
                 "Welcome to AyuLink",
                 "Your pharmacy was registered and is pending verification. You can explore the app now; dispensing is enabled once your license is approved."

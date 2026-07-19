@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../src/lib/api";
+import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, radius, shadow, spacing } from "../../src/theme";
 import {
@@ -33,7 +33,7 @@ import type { PatientLookup, Prescription } from "../../src/types";
 const REVERT_WINDOW_MS = 15 * 60 * 1000;
 
 export default function Dispense() {
-    const { user, token } = useAuth();
+    const { user } = useAuth();
     const [scannerOpen, setScannerOpen] = useState(false);
     const [manualId, setManualId] = useState("");
     const [lookupLoading, setLookupLoading] = useState(false);
@@ -48,12 +48,11 @@ export default function Dispense() {
         setError(null);
         setLookupLoading(true);
         try {
-            const data = await api<{ patient: PatientLookup }>(
-                `/api/patients/${encodeURIComponent(medicalId.trim())}`,
-                { token }
-            );
-            setPatient(data.patient);
-            setPrescriptions(data.patient.prescriptionsAsPatient ?? []);
+            const data = await rpc<PatientLookup>("app_lookup_patient", {
+                p_medical_id: medicalId.trim(),
+            });
+            setPatient(data);
+            setPrescriptions(data.prescriptionsAsPatient ?? []);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Patient not found");
         } finally {
@@ -69,9 +68,13 @@ export default function Dispense() {
         setBusyItem(itemId);
         setError(null);
         try {
-            const data = await api<{ prescription: Prescription }>(
-                `/api/prescriptions/${prescriptionId}`,
-                { method: "PUT", token, body: { itemId, dispensed } }
+            const data = await rpc<{ prescription: Prescription }>(
+                "app_dispense_item",
+                {
+                    p_prescription_id: prescriptionId,
+                    p_item_id: itemId,
+                    p_dispensed: dispensed,
+                }
             );
             setPrescriptions((list) =>
                 list.map((p) => (p.id === prescriptionId ? data.prescription : p))

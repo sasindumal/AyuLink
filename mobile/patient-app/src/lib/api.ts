@@ -1,52 +1,27 @@
 // ==============================================
-// AyuLink Mobile - API Client
-// Thin JSON fetch wrapper with Bearer auth
+// AyuLink Mobile - Data Access
+// All reads/writes go through role-checked
+// database functions (supabase.rpc).
 // ==============================================
 
-import { API_URL } from "./config";
+import { supabase } from "./supabase";
 
-export class ApiError extends Error {
-    status: number;
-    constructor(message: string, status: number) {
-        super(message);
-        this.status = status;
+export class ApiError extends Error {}
+
+function friendlyMessage(message: string): string {
+    if (/Failed to fetch|Network request failed|fetch failed/i.test(message)) {
+        return "Cannot reach Supabase. Check your connection and the keys in src/lib/config.ts.";
     }
+    return message;
 }
 
-interface RequestOptions {
-    method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-    body?: unknown;
-    token?: string | null;
-}
-
-export async function api<T>(
-    path: string,
-    { method = "GET", body, token }: RequestOptions = {}
+export async function rpc<T>(
+    fn: string,
+    args?: Record<string, unknown>
 ): Promise<T> {
-    let res: Response;
-    try {
-        res = await fetch(`${API_URL}${path}`, {
-            method,
-            headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: body === undefined ? undefined : JSON.stringify(body),
-        });
-    } catch {
-        throw new ApiError(
-            "Cannot reach the AyuLink server. Check your connection and the API URL in src/lib/config.ts.",
-            0
-        );
-    }
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-        const message =
-            typeof (data as { error?: string })?.error === "string"
-                ? (data as { error: string }).error
-                : `Request failed (${res.status})`;
-        throw new ApiError(message, res.status);
+    const { data, error } = await supabase.rpc(fn, args);
+    if (error) {
+        throw new ApiError(friendlyMessage(error.message));
     }
     return data as T;
 }

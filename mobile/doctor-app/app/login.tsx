@@ -21,7 +21,7 @@ import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, Input } from "../src/components/ui";
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, logout } = useAuth();
     const [nicNumber, setNicNumber] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -38,6 +38,7 @@ export default function Login() {
         try {
             const user = await login({ nicNumber: nicNumber.trim(), password });
             if (user.role !== "DOCTOR") {
+                await logout();
                 setError("This app is for doctors. Please use the AyuLink app for your role.");
                 setLoading(false);
                 return;

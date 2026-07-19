@@ -15,13 +15,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
-import { api } from "../src/lib/api";
 import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, Input } from "../src/components/ui";
 
 export default function Register() {
-    const { login } = useAuth();
+    const { register } = useAuth();
     const [form, setForm] = useState({
         nicNumber: "",
         firstName: "",
@@ -55,20 +54,18 @@ export default function Register() {
         setError(null);
         setLoading(true);
         try {
-            await api("/api/auth/register", {
-                method: "POST",
-                body: {
+            // Registers with Supabase Auth and signs straight in
+            await register(
+                {
                     nicNumber: nicNumber.trim(),
                     firstName: firstName.trim(),
                     lastName: lastName.trim(),
                     mobileNumber: mobileNumber.trim(),
                     dob: dob.trim(),
-                    password,
                     role: "PATIENT",
                 },
-            });
-            // Sign straight in for a smooth first-run experience
-            await login({ nicNumber: nicNumber.trim(), password });
+                password
+            );
             router.replace("/(tabs)/home");
         } catch (e) {
             setError(e instanceof Error ? e.message : "Registration failed");

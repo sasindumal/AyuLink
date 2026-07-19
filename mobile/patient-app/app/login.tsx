@@ -21,7 +21,7 @@ import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, Input } from "../src/components/ui";
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, logout } = useAuth();
     const [nicNumber, setNicNumber] = useState("");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
@@ -36,7 +36,12 @@ export default function Login() {
         setError(null);
         setLoading(true);
         try {
-            await login({ nicNumber: nicNumber.trim(), password });
+            const user = await login({ nicNumber: nicNumber.trim(), password });
+            if (user.role !== "PATIENT") {
+                await logout();
+                setError("This app is for patients. Please use the AyuLink app for your role.");
+                return;
+            }
             router.replace("/(tabs)/home");
         } catch (e) {
             setError(e instanceof Error ? e.message : "Login failed");

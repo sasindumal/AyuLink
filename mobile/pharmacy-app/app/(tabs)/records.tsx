@@ -14,7 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../src/lib/api";
+import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing } from "../../src/theme";
 import {
@@ -27,7 +27,7 @@ import { PrescriptionCard } from "../../src/components/PrescriptionCard";
 import type { Prescription } from "../../src/types";
 
 export default function Records() {
-    const { user, token } = useAuth();
+    const { user } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [search, setSearch] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -36,13 +36,10 @@ export default function Records() {
 
     const load = useCallback(async () => {
         try {
-            // Default pharmacist filter: prescriptions containing items
+            // Server-side filter: prescriptions containing items
             // this pharmacist dispensed
-            const data = await api<{ prescriptions: Prescription[] }>(
-                "/api/prescriptions",
-                { token }
-            );
-            setPrescriptions(data.prescriptions ?? []);
+            const data = await rpc<Prescription[]>("app_list_prescriptions");
+            setPrescriptions(data ?? []);
             setError(null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load records");
@@ -50,11 +47,11 @@ export default function Records() {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [token]);
+    }, []);
 
     useEffect(() => {
-        if (token) load();
-    }, [token, load]);
+        if (user) load();
+    }, [user, load]);
 
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();

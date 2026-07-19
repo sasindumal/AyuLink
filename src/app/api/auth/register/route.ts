@@ -1,14 +1,14 @@
 // ==============================================
-// AyuLink - User Registration API
+// AyuLink - User Registration API (web)
 // POST /api/auth/register
-// Creates a new user with hashed password.
+// Creates a Supabase Auth user + profile row.
 // Doctors and pharmacists start unverified and
 // must be approved before issuing/dispensing.
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
+import { nicToEmail } from "@/lib/credentials";
 import { Role } from "@/types/db";
 import { registerSchema, firstError } from "@/lib/validation";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -35,17 +35,33 @@ export async function POST(req: NextRequest) {
         }
 
         const data = parsed.data;
-        const passwordHash = await bcrypt.hash(data.password, 12);
 
-        // Atomic user + profile creation (Postgres function)
+        // 1. Create the Supabase Auth user (holds the password)
+        const { data: created, error: authError } = await supabase.auth.admin.createUser({
+            email: nicToEmail(data.nicNumber),
+            password: data.password,
+            email_confirm: true,
+        });
+
+        if (authError || !created?.user) {
+            if (authError && /already/i.test(authError.message)) {
+                return NextResponse.json(
+                    { error: "An account with this NIC number already exists" },
+                    { status: 409 }
+                );
+            }
+            throw authError ?? new Error("Failed to create auth user");
+        }
+
+        // 2. Create the profile row atomically; delete the auth user on failure
         const { data: user, error } = await supabase.rpc("create_user_with_profile", {
+            p_user_id: created.user.id,
             p_user: {
                 nicNumber: data.nicNumber,
                 firstName: data.firstName,
                 lastName: data.lastName,
                 mobileNumber: data.mobileNumber,
                 dob: new Date(data.dob).toISOString(),
-                passwordHash,
                 role: data.role,
             },
             p_doctor:
@@ -67,7 +83,7 @@ export async function POST(req: NextRequest) {
         });
 
         if (error) {
-            // Unique violation -> 409 with a specific message
+            await supabase.auth.admin.deleteUser(created.user.id);
             if (error.code === "23505") {
                 const constraint = Object.keys(UNIQUE_VIOLATIONS).find((name) =>
                     `${error.message} ${error.details ?? ""}`.includes(name)

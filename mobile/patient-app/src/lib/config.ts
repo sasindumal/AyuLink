@@ -1,13 +1,15 @@
 // ==============================================
 // AyuLink Mobile - Configuration
 //
-// API_URL must point at the machine running the
-// Next.js server (npm run dev in the repo root).
+// The apps talk DIRECTLY to Supabase — no Next.js
+// server needed. Fill in your project's URL and
+// anon (public) key from the Supabase Dashboard:
+//   Project Settings -> API
 //
-//  - iOS simulator:      http://localhost:3000
-//  - Android emulator:   http://10.0.2.2:3000
-//  - Real device:        http://<your-computer-LAN-IP>:3000
-//                        (e.g. http://192.168.1.50:3000 — same Wi-Fi)
+// The anon key is safe to ship in the app: all data
+// access goes through role-checked database functions
+// and every table is locked down with RLS.
 // ==============================================
 
-export const API_URL = "http://localhost:3000";
+export const SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
+export const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";

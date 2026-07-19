@@ -1,6 +1,8 @@
 // ==============================================
-// AyuLink Mobile - Auth Context
-// Persists the Bearer token + user in SecureStore
+// AyuLink Mobile - Auth Context (Supabase Auth)
+// NIC maps to a synthetic email:
+//   <nic-lowercase>@nic.ayulink.app
+// Session persistence is handled by supabase-js.
 // ==============================================
 
 import React, {
@@ -10,12 +12,13 @@ import React, {
     useEffect,
     useState,
 } from "react";
-import * as SecureStore from "expo-secure-store";
-import { api } from "./api";
+import { supabase } from "./supabase";
+import { rpc } from "./api";
 import type { User } from "../types";
 
-const TOKEN_KEY = "ayulink.token";
-const USER_KEY = "ayulink.user";
+export function nicToEmail(nicNumber: string): string {
+    return `${nicNumber.trim().toLowerCase()}@nic.ayulink.app`;
+}
 
 export interface LoginFields {
     nicNumber?: string;
@@ -23,12 +26,15 @@ export interface LoginFields {
     password: string;
 }
 
+/** Registration fields; role plus the role-specific extras. */
+export type RegisterProfile = Record<string, string>;
+
 interface AuthState {
     user: User | null;
-    token: string | null;
     /** True while the persisted session is being restored */
     loading: boolean;
     login: (fields: LoginFields) => Promise<User>;
+    register: (profile: RegisterProfile, password: string) => Promise<User>;
     logout: () => Promise<void>;
 }
 
@@ -36,22 +42,19 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         (async () => {
             try {
-                const [storedToken, storedUser] = await Promise.all([
-                    SecureStore.getItemAsync(TOKEN_KEY),
-                    SecureStore.getItemAsync(USER_KEY),
-                ]);
-                if (storedToken && storedUser) {
-                    setToken(storedToken);
-                    setUser(JSON.parse(storedUser));
+                const { data } = await supabase.auth.getSession();
+                if (data.session) {
+                    const profile = await rpc<User>("app_get_my_profile");
+                    setUser(profile);
                 }
             } catch {
-                // Corrupt storage — start signed out
+                // Stale or profile-less session — start signed out
+                await supabase.auth.signOut().catch(() => {});
             } finally {
                 setLoading(false);
             }
@@ -59,31 +62,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     const login = useCallback(async (fields: LoginFields): Promise<User> => {
-        const { token: newToken, user: newUser } = await api<{
-            token: string;
-            user: User;
-        }>("/api/mobile/login", { method: "POST", body: fields });
+        let email: string;
+        if (fields.licenseNumber) {
+            const resolved = await rpc<string | null>("app_login_email_for_license", {
+                p_license: fields.licenseNumber,
+            });
+            if (!resolved) throw new Error("Invalid credentials");
+            email = resolved;
+        } else if (fields.nicNumber) {
+            email = nicToEmail(fields.nicNumber);
+        } else {
+            throw new Error("Please enter your NIC or license number");
+        }
 
-        setToken(newToken);
-        setUser(newUser);
-        await Promise.all([
-            SecureStore.setItemAsync(TOKEN_KEY, newToken),
-            SecureStore.setItemAsync(USER_KEY, JSON.stringify(newUser)),
-        ]);
-        return newUser;
+        const { error } = await supabase.auth.signInWithPassword({
+            email,
+            password: fields.password,
+        });
+        if (error) {
+            throw new Error(
+                /rate limit/i.test(error.message)
+                    ? "Too many login attempts. Please try again shortly"
+                    : "Invalid credentials"
+            );
+        }
+
+        try {
+            const profile = await rpc<User>("app_get_my_profile");
+            setUser(profile);
+            return profile;
+        } catch (e) {
+            await supabase.auth.signOut().catch(() => {});
+            throw e;
+        }
     }, []);
 
+    const register = useCallback(
+        async (profile: RegisterProfile, password: string): Promise<User> => {
+            const { data, error } = await supabase.auth.signUp({
+                email: nicToEmail(profile.nicNumber),
+                password,
+            });
+            if (error) {
+                throw new Error(
+                    /already/i.test(error.message)
+                        ? "An account with this NIC number already exists"
+                        : error.message
+                );
+            }
+            if (!data.session) {
+                throw new Error(
+                    'Sign-ups need email confirmation disabled: in the Supabase Dashboard open Authentication -> Sign In / Up -> Email and turn off "Confirm email"'
+                );
+            }
+
+            try {
+                const created = await rpc<User>("app_register_profile", {
+                    p_profile: profile,
+                });
+                setUser(created);
+                return created;
+            } catch (e) {
+                await supabase.auth.signOut().catch(() => {});
+                throw e;
+            }
+        },
+        []
+    );
+
     const logout = useCallback(async () => {
-        setToken(null);
         setUser(null);
-        await Promise.all([
-            SecureStore.deleteItemAsync(TOKEN_KEY),
-            SecureStore.deleteItemAsync(USER_KEY),
-        ]);
+        await supabase.auth.signOut().catch(() => {});
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, token, loading, login, logout }}>
+        <AuthContext.Provider value={{ user, loading, login, register, logout }}>
             {children}
         </AuthContext.Provider>
     );

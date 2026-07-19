@@ -4,18 +4,19 @@
 // ==============================================
 
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 import { supabase } from "@/lib/supabase";
+import { nicToEmail } from "@/lib/credentials";
 import { Role, PrescriptionStatus } from "@/types/db";
 
-// Insert the user if the NIC isn't registered yet, then return the row
+// Create the Supabase Auth user + profile row if the NIC isn't
+// registered yet, then return the profile row
 async function upsertUser(user: {
     nicNumber: string;
     firstName: string;
     lastName: string;
     mobileNumber: string;
     dob: string;
-    passwordHash: string;
+    password: string;
     role: Role;
     medicalId: string;
     verified: boolean;
@@ -28,13 +29,29 @@ async function upsertUser(user: {
 
     if (existing) return existing;
 
+    const { data: auth, error: authError } = await supabase.auth.admin.createUser({
+        email: nicToEmail(user.nicNumber),
+        password: user.password,
+        email_confirm: true,
+    });
+    if (authError || !auth?.user) {
+        throw (
+            authError ??
+            new Error(
+                `Failed to create auth user for ${user.nicNumber} — if seeding previously half-completed, delete the user in Supabase Auth and retry`
+            )
+        );
+    }
+
+    const { password: _password, ...profile } = user;
     const { data: created, error } = await supabase
         .from("User")
-        .insert(user)
+        .insert({ id: auth.user.id, ...profile })
         .select()
         .single();
 
     if (error || !created) {
+        await supabase.auth.admin.deleteUser(auth.user.id);
         throw error ?? new Error(`Failed to create user ${user.nicNumber}`);
     }
     return created;
@@ -50,7 +67,6 @@ export async function GET() {
     }
 
     try {
-        const passwordHash = await bcrypt.hash("password123", 12);
 
         // 1. Demo Patient
         const patient = await upsertUser({
@@ -59,7 +75,7 @@ export async function GET() {
             lastName: "Malhara",
             mobileNumber: "0771234567",
             dob: new Date("2000-05-15").toISOString(),
-            passwordHash,
+            password: "password123",
             role: Role.PATIENT,
             medicalId: "AYU-200012345678",
             verified: true,
@@ -72,7 +88,7 @@ export async function GET() {
             lastName: "Perera",
             mobileNumber: "0779876543",
             dob: new Date("1998-03-22").toISOString(),
-            passwordHash,
+            password: "password123",
             role: Role.DOCTOR,
             medicalId: "AYU-199812345678",
             verified: true,
@@ -101,7 +117,7 @@ export async function GET() {
             lastName: "Fernando",
             mobileNumber: "0765551234",
             dob: new Date("1995-11-08").toISOString(),
-            passwordHash,
+            password: "password123",
             role: Role.PHARMACIST,
             medicalId: "AYU-199512345678",
             verified: true,

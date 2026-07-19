@@ -23,7 +23,7 @@ import { Banner, Button, Input } from "../src/components/ui";
 type Mode = "license" | "nic";
 
 export default function Login() {
-    const { login } = useAuth();
+    const { login, logout } = useAuth();
     const [mode, setMode] = useState<Mode>("license");
     const [identifier, setIdentifier] = useState("");
     const [password, setPassword] = useState("");
@@ -55,6 +55,7 @@ export default function Login() {
                     : { nicNumber: identifier.trim(), password };
             const user = await login(fields);
             if (user.role !== "PHARMACIST") {
+                await logout();
                 setError(
                     "This app is for pharmacies. Please use the AyuLink app for your role."
                 );

@@ -15,8 +15,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../src/lib/api";
-import { useAuth } from "../../src/lib/auth";
+import { rpc } from "../../src/lib/api";
 import { colors, radius, spacing } from "../../src/theme";
 import { Banner, Button, Card, Input, ScreenHeader } from "../../src/components/ui";
 import { QRScannerModal } from "../../src/components/QRScannerModal";
@@ -39,7 +38,6 @@ const emptyMed = (): MedInput => ({
 });
 
 export default function Scan() {
-    const { token } = useAuth();
     const [scannerOpen, setScannerOpen] = useState(false);
     const [manualId, setManualId] = useState("");
     const [lookupLoading, setLookupLoading] = useState(false);
@@ -58,11 +56,10 @@ export default function Scan() {
         setSuccess(null);
         setLookupLoading(true);
         try {
-            const data = await api<{ patient: PatientLookup }>(
-                `/api/patients/${encodeURIComponent(medicalId.trim())}`,
-                { token }
-            );
-            setPatient(data.patient);
+            const data = await rpc<PatientLookup>("app_lookup_patient", {
+                p_medical_id: medicalId.trim(),
+            });
+            setPatient(data);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Patient not found");
         } finally {
@@ -102,20 +99,16 @@ export default function Scan() {
         setError(null);
         setSubmitting(true);
         try {
-            await api("/api/prescriptions", {
-                method: "POST",
-                token,
-                body: {
-                    patientId: patient.id,
-                    diagnosis: diagnosis.trim(),
-                    items: cleaned.map((m) => ({
-                        drugName: m.drugName.trim(),
-                        dosage: m.dosage.trim(),
-                        frequency: m.frequency.trim(),
-                        duration: m.duration.trim(),
-                        instructions: m.instructions.trim(),
-                    })),
-                },
+            await rpc("app_create_prescription", {
+                p_patient_id: patient.id,
+                p_diagnosis: diagnosis.trim(),
+                p_items: cleaned.map((m) => ({
+                    drugName: m.drugName.trim(),
+                    dosage: m.dosage.trim(),
+                    frequency: m.frequency.trim(),
+                    duration: m.duration.trim(),
+                    instructions: m.instructions.trim(),
+                })),
             });
             setSuccess(
                 `Prescription issued for ${patient.firstName} ${patient.lastName}`

@@ -131,7 +131,7 @@ Three native mobile apps (React Native + Expo) live in [`mobile/`](mobile/), sha
 | **AyuLink Doctor** (`mobile/doctor-app`) | Doctors | Camera QR scanning, prescription builder |
 | **AyuLink Pharmacy** (`mobile/pharmacy-app`) | Pharmacies | Scan & dispense with 15-minute undo |
 
-Mobile clients authenticate via `POST /api/mobile/login`, which returns a 30-day Bearer JWT accepted by every API endpoint. See [mobile/README.md](mobile/README.md) for setup.
+The apps are **fully standalone** — they talk directly to Supabase (Supabase Auth + role-checked database functions over RLS-locked tables) and do not need the Next.js server running. See [mobile/README.md](mobile/README.md) for setup.
 
 ---
 

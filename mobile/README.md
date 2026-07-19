@@ -1,6 +1,6 @@
 # AyuLink Mobile Apps
 
-Three React Native (Expo) apps that talk to the AyuLink Next.js API:
+Three React Native (Expo) apps that talk **directly to Supabase** — no Next.js server needed. Each app is fully standalone:
 
 | App | Directory | For | Highlights |
 |-----|-----------|-----|-----------|
@@ -8,31 +8,35 @@ Three React Native (Expo) apps that talk to the AyuLink Next.js API:
 | **AyuLink Doctor** | `doctor-app/` | Doctors | QR patient scanning, prescription builder |
 | **AyuLink Pharmacy** | `pharmacy-app/` | Pharmacies | QR scanning, per-item dispensing with 15-min undo |
 
-All three share the same design system (brand green palette), auth flow (Bearer
-JWT from `POST /api/mobile/login`, stored in SecureStore), and API client.
+## How it works
 
-## Prerequisites
+- **Auth**: Supabase Auth. The NIC maps to a synthetic email (`<nic>@nic.ayulink.app`) behind the scenes — users only ever see NIC (or pharmacy license) + password. Sessions persist across app restarts.
+- **Data**: every read/write calls a role-checked database function (`app_*`) via `supabase.rpc()`. All tables are locked with RLS, so the anon key shipped in the app can't touch data directly — permissions are enforced inside Postgres.
+- The Next.js web app is optional and shares the same database and accounts.
 
-- Node.js 18.17+
-- The AyuLink backend running (`npm run dev` in the repo root) with Supabase configured
-- **Expo Go** app on your phone (or an iOS simulator / Android emulator)
+## One-time Supabase setup
 
-## Setup (per app)
+1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
+2. Run [`supabase/migrations/20260719000000_init.sql`](../supabase/migrations/20260719000000_init.sql) in the **SQL Editor** (or `supabase db push`).
+3. **Disable email confirmation**: Dashboard → **Authentication → Sign In / Up → Email** → turn off **"Confirm email"**. (The synthetic NIC emails can't receive mail; sign-ups fail without this.)
+4. From **Project Settings → API**, copy the **Project URL** and **anon public key**.
+
+## Per-app setup
 
 ```bash
 cd mobile/patient-app       # or doctor-app / pharmacy-app
-npm install
+npm install --legacy-peer-deps
 ```
 
-**Point the app at your API** — edit `src/lib/config.ts`:
+Edit `src/lib/config.ts` and paste your values:
 
-| Where the app runs | API_URL |
-|--------------------|---------|
-| iOS simulator | `http://localhost:3000` (default) |
-| Android emulator | `http://10.0.2.2:3000` |
-| Real device (Expo Go) | `http://<your-computer-LAN-IP>:3000` — same Wi-Fi network |
+```ts
+export const SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
+export const SUPABASE_ANON_KEY = "eyJ...";
+```
 
-Find your LAN IP with `ipconfig getifaddr en0` (macOS).
+> The anon key is designed to be shipped in clients — it's not a secret the way
+> the service role key is. Never put the service role key in an app.
 
 ## Run
 
@@ -42,9 +46,11 @@ npm run ios        # iOS simulator
 npm run android    # Android emulator
 ```
 
-If Expo warns about dependency versions, run `npx expo install --fix` inside the app.
+No backend to start — the apps work anywhere with internet access.
 
-## Demo accounts (after seeding via http://localhost:3000/api/seed)
+## Demo accounts
+
+Seed demo data either by visiting `/api/seed` on the web app once, or simply register fresh accounts from the apps themselves. Demo credentials after seeding:
 
 | App | Login | Credential | Password |
 |-----|-------|-----------|----------|
@@ -56,7 +62,7 @@ Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345
 
 ## Try the full flow
 
-1. **Patient app** — sign in, open the *Medical ID* tab: your QR code.
+1. **Patient app** — register or sign in; open the *Medical ID* tab: your QR code.
 2. **Doctor app** — sign in, *Scan & Prescribe*, scan the patient's QR (or type the Medical ID), build a prescription, issue it.
 3. **Patient app** — pull to refresh: the new prescription appears as *Active*.
 4. **Pharmacy app** — sign in, *Dispense*, scan the same QR, dispense items one by one (undo available for 15 minutes).
@@ -64,6 +70,6 @@ Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345
 
 ## Notes
 
-- Camera QR scanning (doctor/pharmacy apps) works in Expo Go; grant camera permission when prompted.
-- Self-registered doctors/pharmacies start **unverified** — the home screen shows a pending banner, and issuing/dispensing is blocked until `verified = true` is set on their row in the Supabase `User` table.
-- The apps use the same rate-limited, validated API as the web app; a lost token simply requires signing in again (tokens last 30 days).
+- Self-registered doctors/pharmacies start **unverified** — a pending banner shows on their home screen, and issuing/dispensing is blocked until `verified = true` is set on their row in the Supabase `User` table (Table Editor).
+- Camera QR scanning works in Expo Go; grant camera permission when prompted.
+- Supabase Auth applies its own sign-in rate limits; failed logins always show a generic "Invalid credentials".

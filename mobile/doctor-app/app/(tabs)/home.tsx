@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api } from "../../src/lib/api";
+import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing } from "../../src/theme";
 import {
@@ -35,7 +35,7 @@ function greeting(): string {
 }
 
 export default function Home() {
-    const { user, token, logout } = useAuth();
+    const { user, logout } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
@@ -43,11 +43,8 @@ export default function Home() {
 
     const load = useCallback(async () => {
         try {
-            const data = await api<{ prescriptions: Prescription[] }>(
-                "/api/prescriptions",
-                { token }
-            );
-            setPrescriptions(data.prescriptions ?? []);
+            const data = await rpc<Prescription[]>("app_list_prescriptions");
+            setPrescriptions(data ?? []);
             setError(null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load prescriptions");
@@ -55,11 +52,11 @@ export default function Home() {
             setLoaded(true);
             setRefreshing(false);
         }
-    }, [token]);
+    }, []);
 
     useEffect(() => {
-        if (token) load();
-    }, [token, load]);
+        if (user) load();
+    }, [user, load]);
 
     const active = prescriptions.filter((p) => p.status !== "FULLY_DISPENSED");
     const done = prescriptions.filter((p) => p.status === "FULLY_DISPENSED");

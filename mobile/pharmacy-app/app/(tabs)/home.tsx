@@ -14,14 +14,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { api, ApiError } from "../../src/lib/api";
+import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing } from "../../src/theme";
 import { Banner, Card, ScreenHeader, StatCard } from "../../src/components/ui";
 import type { PharmacyProfile, Prescription } from "../../src/types";
 
 export default function Home() {
-    const { user, token, logout } = useAuth();
+    const { user, logout } = useAuth();
     const [profile, setProfile] = useState<PharmacyProfile | null>(null);
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [error, setError] = useState<string | null>(null);
@@ -30,13 +30,11 @@ export default function Home() {
     const load = useCallback(async () => {
         try {
             const [rxResult, profileResult] = await Promise.allSettled([
-                api<{ prescriptions: Prescription[] }>("/api/prescriptions", { token }),
-                api<{ pharmacyProfile: PharmacyProfile }>("/api/pharmacy/profile", {
-                    token,
-                }),
+                rpc<Prescription[]>("app_list_prescriptions"),
+                rpc<PharmacyProfile | null>("app_get_pharmacy_profile"),
             ]);
             if (rxResult.status === "fulfilled") {
-                setPrescriptions(rxResult.value.prescriptions ?? []);
+                setPrescriptions(rxResult.value ?? []);
                 setError(null);
             } else {
                 setError(
@@ -46,21 +44,17 @@ export default function Home() {
                 );
             }
             if (profileResult.status === "fulfilled") {
-                setProfile(profileResult.value.pharmacyProfile);
-            } else if (
-                !(profileResult.reason instanceof ApiError) ||
-                profileResult.reason.status !== 404
-            ) {
-                // 404 just means no pharmacy profile on file — not an error
+                // null just means no pharmacy profile on file
+                setProfile(profileResult.value);
             }
         } finally {
             setRefreshing(false);
         }
-    }, [token]);
+    }, []);
 
     useEffect(() => {
-        if (token) load();
-    }, [token, load]);
+        if (user) load();
+    }, [user, load]);
 
     const myId = user?.id;
     const myItems = prescriptions.flatMap((p) =>
