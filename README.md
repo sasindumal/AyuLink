@@ -61,7 +61,7 @@ AyuLink connects three key stakeholders through one unified platform:
 ## ✨ Features
 
 ### 🪪 Digital Medical ID
-- Every patient receives a unique UUID-based Medical ID at registration
+- Every patient receives a unique Medical ID derived from their NIC (`AYU-<NIC>`) at registration
 - SVG QR code rendered with brand-green color (`#25671E`)
 - Copyable Medical ID with clipboard feedback
 - "Verified by AyuLink" pulsing badge
@@ -121,6 +121,20 @@ AyuLink connects three key stakeholders through one unified platform:
 
 ---
 
+## 📱 Mobile Apps
+
+Three native mobile apps (React Native + Expo) live in [`mobile/`](mobile/), sharing the same API and design language:
+
+| App | For | Highlights |
+|-----|-----|-----------|
+| **AyuLink** (`mobile/patient-app`) | Patients | Digital Medical ID QR, prescription history |
+| **AyuLink Doctor** (`mobile/doctor-app`) | Doctors | Camera QR scanning, prescription builder |
+| **AyuLink Pharmacy** (`mobile/pharmacy-app`) | Pharmacies | Scan & dispense with 15-minute undo |
+
+Mobile clients authenticate via `POST /api/mobile/login`, which returns a 30-day Bearer JWT accepted by every API endpoint. See [mobile/README.md](mobile/README.md) for setup.
+
+---
+
 ## 🛠️ Tech Stack
 
 | Layer | Technology |
@@ -146,7 +160,7 @@ User ─────────────────────────
   id, nicNumber (unique), firstName, lastName
   mobileNumber, dob, passwordHash, role
   verified (bool — providers need approval)
-  medicalId (unique UUID)
+  medicalId (unique, AYU-<NIC>)
   
   ├── DoctorProfile (optional)
   │     slmcRegNo, specialization, hospitalName
@@ -258,7 +272,9 @@ After seeding, use these credentials to explore all three roles:
 | Method | Endpoint | Access | Description |
 |--------|----------|--------|-------------|
 | `POST` | `/api/auth/register` | Public (rate-limited) | Register a new user (providers start unverified) |
-| `POST/GET` | `/api/auth/[...nextauth]` | Public (rate-limited) | NextAuth sign-in / sign-out / session |
+| `POST/GET` | `/api/auth/[...nextauth]` | Public (rate-limited) | NextAuth sign-in / sign-out / session (web) |
+| `POST` | `/api/mobile/login` | Public (rate-limited) | Mobile login — returns a Bearer JWT |
+| `POST` | `/api/auth/otp/send` · `/verify` | Public (rate-limited) | Mobile-number OTP verification |
 | `GET` | `/api/patients/[medicalId]` | Doctor, Pharmacist | Look up a patient by Medical ID |
 | `GET` | `/api/prescriptions` | All roles | List prescriptions (role-filtered) |
 | `POST` | `/api/prescriptions` | Verified Doctor | Create a new prescription (atomic) |
@@ -311,7 +327,7 @@ Patient registers
 | **Input validation** | zod schemas on all mutating routes (NIC/mobile format, past DOB, item shape) |
 | **Database** | RLS deny-all; service-role access from the server only; atomic writes via SQL functions |
 | **Unique identifiers** | NIC, SLMC registration, pharmacy license (race-safe, mapped to 409) |
-| **QR code safety** | Contains only a UUID — no health data embedded |
+| **QR code safety** | Contains only the Medical ID (`AYU-<NIC>`) — no health data embedded |
 | **Camera access** | Requires HTTPS (except localhost) |
 | **Seed protection** | `/api/seed` blocked in production (`NODE_ENV`) |
 
@@ -383,6 +399,10 @@ ayulink/
 │   │   ├── validation.ts      # zod request schemas
 │   │   └── utils.ts           # cn() utility (clsx + tailwind-merge)
 │   └── types/                 # Role/status enums + NextAuth augmentations
+├── mobile/                    # React Native (Expo) apps
+│   ├── patient-app/           # Patient app (Medical ID QR, prescriptions)
+│   ├── doctor-app/            # Doctor app (scan & prescribe)
+│   └── pharmacy-app/          # Pharmacy app (scan & dispense)
 ├── public/                    # Static assets
 ├── docs/                      # Project documentation
 ├── next.config.ts
@@ -407,7 +427,7 @@ ayulink/
 
 ## 🔮 Roadmap (Future)
 
-- [ ] Mobile native apps (iOS / Android)
+- [x] Mobile apps for patients, doctors, and pharmacies (React Native / Expo)
 - [ ] Integration with Sri Lanka's national health information system (HIS)
 - [ ] Telemedicine / video consultations
 - [ ] Lab results and diagnostic imaging

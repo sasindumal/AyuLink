@@ -33,7 +33,7 @@ AyuLink is a **digital healthcare platform** built for Sri Lanka's healthcare ec
 
 | Feature | Description |
 |---------|-------------|
-| **Digital Medical ID** | UUID-based QR code identity for every patient |
+| **Digital Medical ID** | NIC-derived QR code identity (`AYU-<NIC>`) for every patient |
 | **Role-Based Dashboards** | Tailored UIs for Patient, Doctor, and Pharmacist |
 | **Digital Prescriptions** | Doctors create structured prescriptions with medication items |
 | **QR Code Scanning** | Doctors/Pharmacists scan patient QR codes to look up records |
@@ -527,7 +527,7 @@ Look up a patient by their Medical ID (after QR scan). **Doctor/Pharmacist only.
     "firstName": "Sasindu",
     "lastName": "Malhara",
     "nicNumber": "200012345678",
-    "medicalId": "med-patient-demo-001",
+    "medicalId": "AYU-200012345678",
     "dob": "2000-05-15T00:00:00.000Z",
     "mobileNumber": "0771234567",
     "prescriptionsAsPatient": [...]
@@ -723,13 +723,13 @@ Visit `http://localhost:3000/api/seed` with the dev server running.
 **Step 3: Test the Doctor flow**
 1. Login with NIC `199812345678` / `password123`
 2. Verify dashboard stats and quick-action cards
-3. Go to **Scan & Prescribe** — enter Medical ID `med-patient-demo-001`
+3. Go to **Scan & Prescribe** — enter Medical ID `AYU-200012345678`
 4. Build and submit a prescription with multiple medications
 5. Go to **My Prescriptions** — verify the new Rx appears
 
 **Step 4: Test the Pharmacist flow**
 1. Login with NIC `199512345678` / `password123`
-2. Navigate to **Scan & Dispense** — look up Medical ID `med-patient-demo-001`
+2. Navigate to **Scan & Dispense** — look up Medical ID `AYU-200012345678`
 3. Dispense individual items — verify status updates and the Undo window
 4. Navigate to **Records** — verify dispensing history
 

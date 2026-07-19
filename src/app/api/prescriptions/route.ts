@@ -5,9 +5,8 @@
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/api-auth";
 import { createPrescriptionSchema, firstError } from "@/lib/validation";
 
 // Nested select shared by prescription queries.
@@ -32,8 +31,8 @@ const PRESCRIPTION_SELECT = `
 // GET: Fetch prescriptions (filtered by role)
 export async function GET(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -47,16 +46,16 @@ export async function GET(req: NextRequest) {
             .order("dateIssued", { ascending: false });
 
         // Role-based filtering
-        if (session.user.role === "PATIENT") {
-            query = query.eq("patientId", session.user.id);
-        } else if (session.user.role === "DOCTOR") {
+        if (user.role === "PATIENT") {
+            query = query.eq("patientId", user.id);
+        } else if (user.role === "DOCTOR") {
             // Doctors can see their own prescriptions or search by patient
             if (patientId) {
                 query = query.eq("patientId", patientId);
             } else {
-                query = query.eq("doctorId", session.user.id);
+                query = query.eq("doctorId", user.id);
             }
-        } else if (session.user.role === "PHARMACIST") {
+        } else if (user.role === "PHARMACIST") {
             // Pharmacists can look up any prescription by patient
             if (patientId) {
                 query = query.eq("patientId", patientId);
@@ -78,7 +77,7 @@ export async function GET(req: NextRequest) {
                 const { data: dispensedItems } = await supabase
                     .from("PrescriptionItem")
                     .select("prescriptionId")
-                    .eq("dispensedById", session.user.id);
+                    .eq("dispensedById", user.id);
 
                 const prescriptionIds = [
                     ...new Set((dispensedItems ?? []).map((i) => i.prescriptionId)),
@@ -108,12 +107,12 @@ export async function GET(req: NextRequest) {
 // POST: Create a new prescription (Doctor only)
 export async function POST(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        if (session.user.role !== "DOCTOR") {
+        if (user.role !== "DOCTOR") {
             return NextResponse.json(
                 { error: "Only doctors can issue prescriptions" },
                 { status: 403 }
@@ -130,7 +129,7 @@ export async function POST(req: NextRequest) {
         const { data: doctor, error: doctorError } = await supabase
             .from("User")
             .select("verified")
-            .eq("id", session.user.id)
+            .eq("id", user.id)
             .single();
         if (doctorError) throw doctorError;
         if (!doctor.verified) {
@@ -159,7 +158,7 @@ export async function POST(req: NextRequest) {
             "create_prescription_with_items",
             {
                 p_patient_id: patientId,
-                p_doctor_id: session.user.id,
+                p_doctor_id: user.id,
                 p_diagnosis: diagnosis,
                 p_items: items,
             }

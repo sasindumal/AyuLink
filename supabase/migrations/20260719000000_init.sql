@@ -90,12 +90,23 @@ create table "PrescriptionItem" (
         foreign key ("dispensedById") references "User" ("id")
 );
 
+-- One-time codes for verifying mobile numbers from the mobile apps
+create table "MobileOtp" (
+    "id"           text primary key default gen_random_uuid()::text,
+    "mobileNumber" text not null,
+    "codeHash"     text not null,
+    "createdAt"    timestamptz not null default now(),
+    "expiresAt"    timestamptz not null,
+    "verifiedAt"   timestamptz
+);
+
 -- ----- Indexes -----
 
 create index "Prescription_patientId_idx" on "Prescription" ("patientId");
 create index "Prescription_doctorId_idx" on "Prescription" ("doctorId");
 create index "PrescriptionItem_prescriptionId_idx" on "PrescriptionItem" ("prescriptionId");
 create index "PrescriptionItem_dispensedById_idx" on "PrescriptionItem" ("dispensedById");
+create index "MobileOtp_mobileNumber_idx" on "MobileOtp" ("mobileNumber");
 
 -- ----- updatedAt trigger -----
 
@@ -130,7 +141,7 @@ declare
 begin
     insert into "User" (
         "nicNumber", "firstName", "lastName", "mobileNumber",
-        "dob", "passwordHash", "role", "verified"
+        "dob", "passwordHash", "role", "verified", "medicalId"
     )
     values (
         p_user->>'nicNumber',
@@ -140,7 +151,10 @@ begin
         (p_user->>'dob')::timestamptz,
         p_user->>'passwordHash',
         (p_user->>'role')::"Role",
-        (p_user->>'role')::"Role" = 'PATIENT'
+        (p_user->>'role')::"Role" = 'PATIENT',
+        -- Medical ID is derived from the NIC so it is stable and
+        -- human-checkable (NIC is unique, so this is too)
+        'AYU-' || upper(p_user->>'nicNumber')
     )
     returning * into v_user;
 
@@ -277,3 +291,4 @@ alter table "DoctorProfile" enable row level security;
 alter table "PharmacyProfile" enable row level security;
 alter table "Prescription" enable row level security;
 alter table "PrescriptionItem" enable row level security;
+alter table "MobileOtp" enable row level security;

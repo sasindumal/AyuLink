@@ -3,26 +3,25 @@
 // GET /api/pharmacy/profile - Fetch pharmacy info
 // ==============================================
 
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/api-auth";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        if ((session.user as any).role !== "PHARMACIST") {
+        if (user.role !== "PHARMACIST") {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
         const { data: pharmacyProfile, error } = await supabase
             .from("PharmacyProfile")
             .select("*")
-            .eq("userId", (session.user as any).id)
+            .eq("userId", user.id)
             .maybeSingle();
         if (error) throw error;
 

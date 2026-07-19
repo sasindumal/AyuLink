@@ -61,7 +61,7 @@ export async function GET() {
             dob: new Date("2000-05-15").toISOString(),
             passwordHash,
             role: Role.PATIENT,
-            medicalId: "med-patient-demo-001",
+            medicalId: "AYU-200012345678",
             verified: true,
         });
 
@@ -74,7 +74,7 @@ export async function GET() {
             dob: new Date("1998-03-22").toISOString(),
             passwordHash,
             role: Role.DOCTOR,
-            medicalId: "med-doctor-demo-001",
+            medicalId: "AYU-199812345678",
             verified: true,
         });
 
@@ -103,7 +103,7 @@ export async function GET() {
             dob: new Date("1995-11-08").toISOString(),
             passwordHash,
             role: Role.PHARMACIST,
-            medicalId: "med-pharmacist-demo-001",
+            medicalId: "AYU-199512345678",
             verified: true,
         });
 

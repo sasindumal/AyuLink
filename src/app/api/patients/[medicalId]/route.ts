@@ -5,22 +5,21 @@
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/api-auth";
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ medicalId: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         // Only doctors and pharmacists can look up patients
-        if (session.user.role === "PATIENT") {
+        if (user.role === "PATIENT") {
             return NextResponse.json(
                 { error: "Patients cannot look up other patients" },
                 { status: 403 }

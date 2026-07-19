@@ -5,9 +5,8 @@
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { getAuthUser } from "@/lib/api-auth";
 import { dispenseItemSchema, firstError } from "@/lib/validation";
 
 // GET: Fetch a specific prescription by ID
@@ -16,8 +15,8 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -44,12 +43,12 @@ export async function GET(
         // doctors those they issued; pharmacists may view any (needed
         // to dispense scanned prescriptions). 404 (not 403) so the
         // response doesn't confirm the prescription exists.
-        const role = session.user.role;
+        const role = user.role;
         const allowed =
             prescription &&
             (role === "PHARMACIST" ||
-                (role === "PATIENT" && prescription.patientId === session.user.id) ||
-                (role === "DOCTOR" && prescription.doctorId === session.user.id));
+                (role === "PATIENT" && prescription.patientId === user.id) ||
+                (role === "DOCTOR" && prescription.doctorId === user.id));
 
         if (!allowed) {
             return NextResponse.json(
@@ -82,12 +81,12 @@ export async function PUT(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const session = await getServerSession(authOptions);
-        if (!session?.user) {
+        const user = await getAuthUser(req);
+        if (!user) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
-        if (session.user.role !== "PHARMACIST") {
+        if (user.role !== "PHARMACIST") {
             return NextResponse.json(
                 { error: "Only pharmacists can dispense medications" },
                 { status: 403 }
@@ -106,7 +105,7 @@ export async function PUT(
         const { data: pharmacist, error: pharmacistError } = await supabase
             .from("User")
             .select("verified")
-            .eq("id", session.user.id)
+            .eq("id", user.id)
             .single();
         if (pharmacistError) throw pharmacistError;
         if (!pharmacist.verified) {
@@ -124,7 +123,7 @@ export async function PUT(
                 p_prescription_id: prescriptionId,
                 p_item_id: itemId,
                 p_dispensed: dispensed,
-                p_pharmacist_id: session.user.id,
+                p_pharmacist_id: user.id,
             }
         );
 

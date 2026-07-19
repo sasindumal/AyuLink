@@ -58,7 +58,7 @@ Sri Lanka's current healthcare system relies heavily on **paper prescriptions**,
 
 AyuLink envisions a future where:
 
-1. **Every Sri Lankan citizen** has a unique Digital Medical ID accessible via QR code
+1. **Every Sri Lankan citizen** has a unique NIC-derived Digital Medical ID accessible via QR code
 2. **Every prescription** is digital, structured, and instantly verifiable
 3. **Every pharmacy visit** is a simple scan-and-dispense workflow with full audit trails
 4. **Medical history** follows the patient across any doctor or pharmacy in the country
@@ -81,7 +81,7 @@ AyuLink envisions a future where:
 | # | Aim | How It's Achieved |
 |---|-----|-------------------|
 | 1 | **Eliminate paper prescriptions** | Doctors create structured digital prescriptions via the web app |
-| 2 | **Provide universal patient identity** | Every patient gets a UUID-based QR Medical ID at registration |
+| 2 | **Provide universal patient identity** | Every patient gets an NIC-derived QR Medical ID (`AYU-<NIC>`) at registration |
 | 3 | **Enable instant verification** | QR scanning allows doctors/pharmacists to look up patients in seconds |
 | 4 | **Track medication dispensing** | Per-item dispensing with pharmacist identity and timestamp recording |
 | 5 | **Ensure data security** | Role/object-level access control, password hashing, JWT tokens, RLS, rate limiting, HTTPS |

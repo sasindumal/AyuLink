@@ -49,7 +49,7 @@ Log in with the patient NIC above.
 Log in with the doctor NIC.
 
 1. **Dashboard** (`/doctor/dashboard`) — time-based greeting, stats, quick-action cards, and the five most recent prescriptions.
-2. **Scan & Prescribe** (`/doctor/scan`) — scan a patient's QR with the camera, or type Medical ID `med-patient-demo-001` and press *Look Up*. The patient card appears, then the prescription builder: diagnosis plus any number of medications (drug, dosage, frequency, duration, optional instructions). Submit with *Sign & Issue Digital Prescription*.
+2. **Scan & Prescribe** (`/doctor/scan`) — scan a patient's QR with the camera, or type Medical ID `AYU-200012345678` and press *Look Up*. The patient card appears, then the prescription builder: diagnosis plus any number of medications (drug, dosage, frequency, duration, optional instructions). Submit with *Sign & Issue Digital Prescription*.
 3. **My Prescriptions** (`/doctor/prescriptions`) — everything this doctor has issued, with stats, filters, and search by patient or diagnosis.
 
 > Newly self-registered doctors are **unverified** and receive a "pending verification" error when issuing. Approve them by setting `verified = true` on their `User` row in the Supabase Table Editor.
@@ -59,7 +59,7 @@ Log in with the doctor NIC.
 Log in with the pharmacist NIC (pharmacists can also log in with their pharmacy license number).
 
 1. **Dashboard** (`/pharmacy/dashboard`) — pharmacy identity card (name, license, address), stats, and quick actions.
-2. **Scan & Dispense** (`/pharmacy/dispense`) — scan the patient QR or enter `med-patient-demo-001`. Active prescriptions appear expanded, each with a dispensing progress bar. Dispense items one by one; each dispense is recorded with the pharmacist's identity and timestamp, and the prescription status recomputes automatically (Not → Partially → Fully Dispensed). An **Undo** button is available for 15 minutes after each dispense.
+2. **Scan & Dispense** (`/pharmacy/dispense`) — scan the patient QR or enter `AYU-200012345678`. Active prescriptions appear expanded, each with a dispensing progress bar. Dispense items one by one; each dispense is recorded with the pharmacist's identity and timestamp, and the prescription status recomputes automatically (Not → Partially → Fully Dispensed). An **Undo** button is available for 15 minutes after each dispense.
 3. **Records** (`/pharmacy/records`) — history of everything this pharmacist has dispensed, with patient/diagnosis/ID search and stats (prescriptions, meds dispensed, patients served).
 
 ### 4. End-to-End Check

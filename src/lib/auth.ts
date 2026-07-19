@@ -6,13 +6,8 @@
 
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
-import { supabase } from "@/lib/supabase";
+import { verifyCredentials } from "@/lib/credentials";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
-
-// One generic message for every credential failure so responses
-// don't reveal whether an NIC / license number is registered.
-const INVALID_CREDENTIALS = "Invalid credentials";
 
 export const authOptions: NextAuthOptions = {
     providers: [
@@ -43,55 +38,13 @@ export const authOptions: NextAuthOptions = {
                     throw new Error("Too many login attempts. Please try again in 15 minutes");
                 }
 
-                let user;
-
-                if (hasLicense) {
-                    // Pharmacy login via license number
-                    const { data: pharmacyProfile } = await supabase
-                        .from("PharmacyProfile")
-                        .select("*, user:User(*)")
-                        .eq("licenseNumber", credentials.licenseNumber)
-                        .maybeSingle();
-
-                    if (!pharmacyProfile?.user) {
-                        throw new Error(INVALID_CREDENTIALS);
-                    }
-
-                    user = pharmacyProfile.user;
-                } else {
-                    // Patient / Doctor login via NIC
-                    const { data } = await supabase
-                        .from("User")
-                        .select("*")
-                        .eq("nicNumber", credentials.nicNumber)
-                        .maybeSingle();
-
-                    if (!data) {
-                        throw new Error(INVALID_CREDENTIALS);
-                    }
-
-                    user = data;
-                }
-
-                // Verify password
-                const isValid = await bcrypt.compare(
-                    credentials.password,
-                    user.passwordHash
+                // Shared with /api/mobile/login; throws a single generic
+                // "Invalid credentials" error on any failure
+                return await verifyCredentials(
+                    credentials.nicNumber,
+                    credentials.licenseNumber,
+                    credentials.password
                 );
-
-                if (!isValid) {
-                    throw new Error(INVALID_CREDENTIALS);
-                }
-
-                // Return user data (will be available in JWT)
-                return {
-                    id: user.id,
-                    nicNumber: user.nicNumber,
-                    firstName: user.firstName,
-                    lastName: user.lastName,
-                    role: user.role,
-                    medicalId: user.medicalId,
-                };
             },
         }),
     ],
