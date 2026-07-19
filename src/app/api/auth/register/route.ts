@@ -1,138 +1,108 @@
 // ==============================================
-// AyuLink - User Registration API
+// AyuLink - User Registration API (web)
 // POST /api/auth/register
-// Creates a new user with hashed password
+// Creates a Supabase Auth user + profile row.
+// Doctors and pharmacists start unverified and
+// must be approved before issuing/dispensing.
 // ==============================================
 
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
-import { prisma } from "@/lib/prisma";
-import { Role } from "@prisma/client";
+import { supabase } from "@/lib/supabase";
+import { nicToEmail } from "@/lib/credentials";
+import { Role } from "@/types/db";
+import { registerSchema, firstError } from "@/lib/validation";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
+
+// Postgres unique constraint -> user-facing 409 message
+const UNIQUE_VIOLATIONS: Record<string, string> = {
+    User_nicNumber_key: "An account with this NIC number already exists",
+    DoctorProfile_slmcRegNo_key: "This SLMC registration number is already registered",
+    PharmacyProfile_licenseNumber_key: "This pharmacy license number is already registered",
+};
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const {
-            nicNumber,
-            firstName,
-            lastName,
-            mobileNumber,
-            dob,
-            password,
-            role,
-            // Doctor-specific fields
-            slmcRegNo,
-            specialization,
-            hospitalName,
-            // Pharmacist-specific fields
-            pharmacyName,
-            pharmacyLicense,
-            pharmacyAddress,
-        } = body;
-
-        // --- Validation ---
-        if (!nicNumber || !firstName || !lastName || !mobileNumber || !dob || !password) {
+        if (!rateLimit(`register:${clientIp(req.headers)}`, 10, 60 * 60 * 1000)) {
             return NextResponse.json(
-                { error: "All required fields must be provided" },
-                { status: 400 }
+                { error: "Too many registration attempts. Please try again later" },
+                { status: 429 }
             );
         }
 
-        // Check if NIC already registered
-        const existingUser = await prisma.user.findUnique({
-            where: { nicNumber },
-        });
-
-        if (existingUser) {
-            return NextResponse.json(
-                { error: "An account with this NIC number already exists" },
-                { status: 409 }
-            );
+        const parsed = registerSchema.safeParse(await req.json());
+        if (!parsed.success) {
+            return NextResponse.json({ error: firstError(parsed) }, { status: 400 });
         }
 
-        // Validate doctor-specific fields
-        if (role === Role.DOCTOR) {
-            if (!slmcRegNo || !specialization || !hospitalName) {
-                return NextResponse.json(
-                    { error: "Doctor registration requires SLMC number, specialization, and hospital name" },
-                    { status: 400 }
-                );
-            }
+        const data = parsed.data;
 
-            const existingDoctor = await prisma.doctorProfile.findUnique({
-                where: { slmcRegNo },
-            });
-            if (existingDoctor) {
+        // 1. Create the Supabase Auth user (holds the password)
+        const { data: created, error: authError } = await supabase.auth.admin.createUser({
+            email: nicToEmail(data.nicNumber),
+            password: data.password,
+            email_confirm: true,
+        });
+
+        if (authError || !created?.user) {
+            if (authError && /already/i.test(authError.message)) {
                 return NextResponse.json(
-                    { error: "This SLMC registration number is already registered" },
+                    { error: "An account with this NIC number already exists" },
                     { status: 409 }
                 );
             }
+            throw authError ?? new Error("Failed to create auth user");
         }
 
-        // Validate pharmacist-specific fields
-        if (role === Role.PHARMACIST) {
-            if (!pharmacyName || !pharmacyLicense || !pharmacyAddress) {
-                return NextResponse.json(
-                    { error: "Pharmacist registration requires pharmacy name, license number, and address" },
-                    { status: 400 }
-                );
-            }
+        // 2. Create the profile row atomically; delete the auth user on failure
+        const { data: user, error } = await supabase.rpc("create_user_with_profile", {
+            p_user_id: created.user.id,
+            p_user: {
+                nicNumber: data.nicNumber,
+                firstName: data.firstName,
+                lastName: data.lastName,
+                mobileNumber: data.mobileNumber,
+                dob: new Date(data.dob).toISOString(),
+                role: data.role,
+            },
+            p_doctor:
+                data.role === Role.DOCTOR
+                    ? {
+                          slmcRegNo: data.slmcRegNo,
+                          specialization: data.specialization,
+                          hospitalName: data.hospitalName,
+                      }
+                    : null,
+            p_pharmacy:
+                data.role === Role.PHARMACIST
+                    ? {
+                          pharmacyName: data.pharmacyName,
+                          licenseNumber: data.pharmacyLicense,
+                          pharmacyAddress: data.pharmacyAddress,
+                      }
+                    : null,
+        });
 
-            const existingPharmacy = await prisma.pharmacyProfile.findUnique({
-                where: { licenseNumber: pharmacyLicense },
-            });
-            if (existingPharmacy) {
+        if (error) {
+            await supabase.auth.admin.deleteUser(created.user.id);
+            if (error.code === "23505") {
+                const constraint = Object.keys(UNIQUE_VIOLATIONS).find((name) =>
+                    `${error.message} ${error.details ?? ""}`.includes(name)
+                );
                 return NextResponse.json(
-                    { error: "This pharmacy license number is already registered" },
+                    { error: constraint ? UNIQUE_VIOLATIONS[constraint] : "Already registered" },
                     { status: 409 }
                 );
             }
+            throw error;
         }
 
-        // --- Create User ---
-        const passwordHash = await bcrypt.hash(password, 12);
+        const isProvider = data.role === Role.DOCTOR || data.role === Role.PHARMACIST;
 
-        const user = await prisma.user.create({
-            data: {
-                nicNumber,
-                firstName,
-                lastName,
-                mobileNumber,
-                dob: new Date(dob),
-                passwordHash,
-                role: role || Role.PATIENT,
-                // Create doctor profile if role is DOCTOR
-                ...(role === Role.DOCTOR && {
-                    doctorProfile: {
-                        create: {
-                            slmcRegNo,
-                            specialization,
-                            hospitalName,
-                        },
-                    },
-                }),
-                // Create pharmacy profile if role is PHARMACIST
-                ...(role === Role.PHARMACIST && {
-                    pharmacyProfile: {
-                        create: {
-                            pharmacyName,
-                            licenseNumber: pharmacyLicense,
-                            pharmacyAddress,
-                        },
-                    },
-                }),
-            },
-            include: {
-                doctorProfile: true,
-                pharmacyProfile: true,
-            },
-        });
-
-        // Return user without sensitive data
         return NextResponse.json(
             {
-                message: "Registration successful",
+                message: isProvider
+                    ? "Registration successful. Your account is pending verification — you can log in, but issuing or dispensing prescriptions is enabled once your credentials are approved."
+                    : "Registration successful",
                 user: {
                     id: user.id,
                     nicNumber: user.nicNumber,

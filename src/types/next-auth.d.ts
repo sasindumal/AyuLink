@@ -4,7 +4,7 @@
 // ==============================================
 
 import "next-auth";
-import { Role } from "@prisma/client";
+import { Role } from "@/types/db";
 
 declare module "next-auth" {
     interface User {
