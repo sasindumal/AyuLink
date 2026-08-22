@@ -40,24 +40,6 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
-                name="medical-id"
-                options={{
-                    title: "Medical ID",
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="qr-code" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="prescriptions"
-                options={{
-                    title: "Prescriptions",
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="document-text" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
                 name="appointments"
                 options={{
                     title: "Appointments",

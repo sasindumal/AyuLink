@@ -3,12 +3,14 @@
 // Shapes match the Next.js API responses
 // ==============================================
 
-export type Role = "PATIENT" | "DOCTOR" | "PHARMACIST";
+export type Role = "PATIENT" | "DOCTOR" | "PHARMACIST" | "CHANNELING_CENTER";
 
 export type PrescriptionStatus =
     | "NOT_DISPENSED"
     | "PARTIALLY_DISPENSED"
     | "FULLY_DISPENSED";
+
+export type AppointmentStatus = "BOOKED" | "COMPLETED" | "CANCELLED";
 
 export interface User {
     id: string;
@@ -80,4 +82,68 @@ export interface PatientLookup {
     dob: string;
     mobileNumber: string;
     prescriptionsAsPatient: Prescription[];
+}
+
+// ----- Appointment booking -----
+
+export interface AppointmentPerson {
+    id: string;
+    firstName: string;
+    lastName: string;
+    mobileNumber?: string;
+    medicalId?: string;
+    specialty?: string;
+    rating?: number | null;
+}
+
+export interface AppointmentCenter {
+    id: string;
+    name: string;
+    address: string;
+    district: string | null;
+    contactNumber: string;
+}
+
+// Raw shape returned by appointment_json() — top-level keys are the
+// literal Appointment column names (snake_case); nested objects are
+// hand-built (camelCase) by the same function.
+export interface Appointment {
+    id: string;
+    order_number: string;
+    patient_id: string;
+    doctor_id: string;
+    channeling_center_id: string;
+    doctor_schedule_id: string;
+    appointment_date: string;
+    start_time: string;
+    end_time: string;
+    status: AppointmentStatus;
+    reason: string | null;
+    cancelled_by: string | null;
+    cancelled_reason: string | null;
+    cancelled_at: string | null;
+    created_at: string;
+    updated_at: string;
+    patient: AppointmentPerson;
+    doctor: AppointmentPerson;
+    channelingCenter: AppointmentCenter;
+}
+
+// Shape returned by app_search_doctor_slots()
+export interface DoctorSlot {
+    doctorScheduleId: string;
+    doctorId: string;
+    doctorFirstName: string;
+    doctorLastName: string;
+    specialty: string;
+    rating: number | null;
+    channelingCenterId: string;
+    channelingCenterName: string;
+    address: string;
+    district: string | null;
+    contactNumber: string;
+    nextAvailableDate: string;
+    startTime: string;
+    endTime: string;
+    distanceKm: number | null;
 }

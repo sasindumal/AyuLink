@@ -3,7 +3,7 @@
 // Mirrors the web app's brand palette
 // ==============================================
 
-import type { AppointmentStatus, PrescriptionStatus } from "./types";
+import type { AppointmentStatus } from "./types";
 
 export const colors = {
     background: "#F7F0F0",
@@ -48,15 +48,6 @@ export const shadow = {
 };
 
 export const statusMeta: Record<
-    PrescriptionStatus,
-    { label: string; color: string; bg: string }
-> = {
-    NOT_DISPENSED: { label: "Not Dispensed", color: colors.primaryDark, bg: colors.primarySoft },
-    PARTIALLY_DISPENSED: { label: "Partial", color: "#9A6F00", bg: colors.warningSoft },
-    FULLY_DISPENSED: { label: "Dispensed", color: colors.neutral, bg: colors.neutralSoft },
-};
-
-export const appointmentStatusMeta: Record<
     AppointmentStatus,
     { label: string; color: string; bg: string }
 > = {
