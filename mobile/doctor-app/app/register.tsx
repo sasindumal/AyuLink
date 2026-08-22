@@ -30,7 +30,6 @@ export default function Register() {
         dob: "",
         slmcRegNo: "",
         specialization: "",
-        hospitalName: "",
         password: "",
         confirm: "",
     });
@@ -43,7 +42,7 @@ export default function Register() {
     const submit = async () => {
         const required = [
             form.nicNumber, form.firstName, form.lastName, form.mobileNumber,
-            form.dob, form.slmcRegNo, form.specialization, form.hospitalName,
+            form.dob, form.slmcRegNo, form.specialization,
             form.password,
         ];
         if (required.some((v) => !v.trim())) {
@@ -71,7 +70,6 @@ export default function Register() {
                     role: "DOCTOR",
                     slmcRegNo: form.slmcRegNo.trim(),
                     specialization: form.specialization.trim(),
-                    hospitalName: form.hospitalName.trim(),
                 },
                 form.password
             );
@@ -161,12 +159,6 @@ export default function Register() {
                             placeholder="Cardiology"
                             value={form.specialization}
                             onChangeText={set("specialization")}
-                        />
-                        <Input
-                            label="Hospital / Clinic"
-                            placeholder="National Hospital Colombo"
-                            value={form.hospitalName}
-                            onChangeText={set("hospitalName")}
                         />
 
                         <Text style={styles.section}>Security</Text>

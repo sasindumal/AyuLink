@@ -56,7 +56,7 @@ interface PrescriptionDetail {
     doctor: {
         firstName: string;
         lastName: string;
-        doctorProfile?: { specialization: string; hospitalName: string };
+        doctorProfile?: { specialization: string };
     };
 }
 

@@ -30,7 +30,8 @@ export default function Register() {
         dob: "",
         pharmacyName: "",
         pharmacyLicense: "",
-        pharmacyAddress: "",
+        pharmacyLatitude: "",
+        pharmacyLongitude: "",
         password: "",
         confirm: "",
     });
@@ -43,7 +44,8 @@ export default function Register() {
     const submit = async () => {
         const required = [
             form.nicNumber, form.firstName, form.lastName, form.mobileNumber,
-            form.dob, form.pharmacyName, form.pharmacyLicense, form.pharmacyAddress,
+            form.dob, form.pharmacyName, form.pharmacyLicense,
+            form.pharmacyLatitude, form.pharmacyLongitude,
             form.password,
         ];
         if (required.some((v) => !v.trim())) {
@@ -71,7 +73,8 @@ export default function Register() {
                     role: "PHARMACIST",
                     pharmacyName: form.pharmacyName.trim(),
                     pharmacyLicense: form.pharmacyLicense.trim(),
-                    pharmacyAddress: form.pharmacyAddress.trim(),
+                    pharmacyLatitude: form.pharmacyLatitude.trim(),
+                    pharmacyLongitude: form.pharmacyLongitude.trim(),
                 },
                 form.password
             );
@@ -161,12 +164,26 @@ export default function Register() {
                             onChangeText={set("pharmacyLicense")}
                             autoCapitalize="characters"
                         />
-                        <Input
-                            label="Pharmacy Address"
-                            placeholder="45 Galle Road, Colombo"
-                            value={form.pharmacyAddress}
-                            onChangeText={set("pharmacyAddress")}
-                        />
+                        <View style={styles.row}>
+                            <View style={{ flex: 1 }}>
+                                <Input
+                                    label="Latitude"
+                                    placeholder="6.9101"
+                                    value={form.pharmacyLatitude}
+                                    onChangeText={set("pharmacyLatitude")}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Input
+                                    label="Longitude"
+                                    placeholder="79.8475"
+                                    value={form.pharmacyLongitude}
+                                    onChangeText={set("pharmacyLongitude")}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                        </View>
 
                         <Text style={styles.section}>Security</Text>
                         <Input

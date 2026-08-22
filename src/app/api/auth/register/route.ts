@@ -16,7 +16,7 @@ import { rateLimit, clientIp } from "@/lib/rate-limit";
 // Postgres unique constraint -> user-facing 409 message
 const UNIQUE_VIOLATIONS: Record<string, string> = {
     User_nicNumber_key: "An account with this NIC number already exists",
-    DoctorProfile_slmcRegNo_key: "This SLMC registration number is already registered",
+    DoctorProfile_slmc_id_key: "This SLMC registration number is already registered",
     PharmacyProfile_licenseNumber_key: "This pharmacy license number is already registered",
 };
 
@@ -69,7 +69,6 @@ export async function POST(req: NextRequest) {
                     ? {
                           slmcRegNo: data.slmcRegNo,
                           specialization: data.specialization,
-                          hospitalName: data.hospitalName,
                       }
                     : null,
             p_pharmacy:
@@ -77,7 +76,8 @@ export async function POST(req: NextRequest) {
                     ? {
                           pharmacyName: data.pharmacyName,
                           licenseNumber: data.pharmacyLicense,
-                          pharmacyAddress: data.pharmacyAddress,
+                          latitude: data.pharmacyLatitude,
+                          longitude: data.pharmacyLongitude,
                       }
                     : null,
         });

@@ -24,7 +24,6 @@ interface PrescriptionCardProps {
     dateIssued: string;
     doctorName?: string;
     doctorSpecialization?: string;
-    hospitalName?: string;
     slmcRegNo?: string;
     patientName?: string;
     items: PrescriptionItem[];
@@ -41,7 +40,6 @@ export default function PrescriptionCard({
     dateIssued,
     doctorName,
     doctorSpecialization,
-    hospitalName,
     slmcRegNo,
     patientName,
     items,
@@ -114,11 +112,9 @@ export default function PrescriptionCard({
             </div>
 
             {/* Doctor / Hospital Info */}
-            {(doctorSpecialization || hospitalName || slmcRegNo) && (
+            {(doctorSpecialization || slmcRegNo) && (
                 <div className="text-xs text-text-muted mb-4">
                     {doctorSpecialization && <span>{doctorSpecialization}</span>}
-                    {doctorSpecialization && hospitalName && <span> • </span>}
-                    {hospitalName && <span>{hospitalName}</span>}
                     {slmcRegNo && <span> • SLMC: {slmcRegNo}</span>}
                 </div>
             )}

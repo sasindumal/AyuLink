@@ -23,12 +23,11 @@ export interface User {
 export interface PharmacyProfile {
     pharmacyName: string;
     licenseNumber: string;
-    pharmacyAddress?: string;
+    location?: string;
 }
 
 export interface DoctorProfile {
     specialization: string;
-    hospitalName: string;
     slmcRegNo: string;
 }
 

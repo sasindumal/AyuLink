@@ -24,7 +24,7 @@ const PRESCRIPTION_SELECT = `
     patient:User!Prescription_patientId_fkey ( id, firstName, lastName, nicNumber, medicalId ),
     doctor:User!Prescription_doctorId_fkey (
         id, firstName, lastName,
-        doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+        doctorProfile:DoctorProfile ( specialization:specialty, slmcRegNo:slmc_id )
     )
 `;
 

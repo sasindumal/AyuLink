@@ -32,7 +32,7 @@ export async function GET(
                 ),
                 doctor:User!Prescription_doctorId_fkey (
                     id, firstName, lastName,
-                    doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                    doctorProfile:DoctorProfile ( specialization:specialty, slmcRegNo:slmc_id )
                 )
             `)
             .eq("id", id)
@@ -152,7 +152,7 @@ export async function PUT(
                 ),
                 doctor:User!Prescription_doctorId_fkey (
                     id, firstName, lastName,
-                    doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                    doctorProfile:DoctorProfile ( specialization:specialty, slmcRegNo:slmc_id )
                 )
             `)
             .eq("id", prescriptionId)
