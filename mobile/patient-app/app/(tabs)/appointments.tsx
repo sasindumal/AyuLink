@@ -1,8 +1,17 @@
 // ==============================================
 // AyuLink Patient - Appointments
-// Find & Book a doctor slot, or manage existing
-// appointments. Rescheduling reuses the same search
-// flow: pick a new slot for an existing appointment.
+// Three ways to find a slot (kept side by side):
+//   - Quick Search: filter by specialty/city/rating/
+//     nearest, shows the soonest slot per doctor.
+//   - By Doctor: search doctors, pick one, see every
+//     upcoming slot they hold over the next 14 days.
+//   - By Center: browse channeling centers, pick one,
+//     see every doctor available there over the next
+//     14 days.
+// Plus My Appointments to manage existing bookings.
+// Rescheduling reuses whichever browse mode is active:
+// selecting a slot calls app_reschedule_appointment
+// instead of app_book_appointment.
 // ==============================================
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -11,6 +20,7 @@ import {
     Alert,
     FlatList,
     RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -24,13 +34,15 @@ import { Banner, Button, EmptyState, FilterChips, ScreenHeader } from "../../src
 import { DoctorSlotCard } from "../../src/components/DoctorSlotCard";
 import { AppointmentCard } from "../../src/components/AppointmentCard";
 import { SearchFilters, type SearchFilterState } from "../../src/components/SearchFilters";
+import { DoctorBrowseView } from "../../src/components/DoctorBrowseView";
+import { CenterBrowseView } from "../../src/components/CenterBrowseView";
 import type { Appointment, DoctorSlot } from "../../src/types";
 
-type TabView = "find" | "mine";
+type Mode = "quick" | "byDoctor" | "byCenter" | "mine";
 
 const DEFAULT_FILTERS: SearchFilterState = {
     specialty: "",
-    district: "",
+    city: "",
     sort: "soonest",
     minRating: 0,
     lat: null,
@@ -39,7 +51,7 @@ const DEFAULT_FILTERS: SearchFilterState = {
 
 export default function Appointments() {
     const { user } = useAuth();
-    const [view, setView] = useState<TabView>("mine");
+    const [mode, setMode] = useState<Mode>("mine");
     const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_FILTERS);
     const [slots, setSlots] = useState<DoctorSlot[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -48,7 +60,7 @@ export default function Appointments() {
     const [searching, setSearching] = useState(false);
     const [loadingMine, setLoadingMine] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [busyId, setBusyId] = useState<string | null>(null);
+    const [busyKey, setBusyKey] = useState<string | null>(null);
 
     const loadMine = useCallback(async () => {
         try {
@@ -73,7 +85,7 @@ export default function Appointments() {
         try {
             const data = await rpc<DoctorSlot[]>("app_search_doctor_slots", {
                 p_specialty: filters.specialty.trim() || null,
-                p_district: filters.district.trim() || null,
+                p_city: filters.city.trim() || null,
                 p_near_lat: filters.lat,
                 p_near_lng: filters.lng,
                 p_min_rating: filters.minRating || null,
@@ -88,52 +100,59 @@ export default function Appointments() {
     }, [filters]);
 
     useEffect(() => {
-        if (view === "find" && user) search();
-    }, [view, user]); // eslint-disable-line react-hooks/exhaustive-deps
+        if (mode === "quick" && user) search();
+    }, [mode, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const startReschedule = (appointment: Appointment) => {
         setRescheduleTarget(appointment);
         setFilters({ ...DEFAULT_FILTERS, specialty: appointment.doctor.specialty ?? "" });
-        setView("find");
+        setMode("quick");
     };
 
-    const book = async (slot: DoctorSlot) => {
-        setBusyId(slot.doctorScheduleId);
+    const book = async (scheduleId: string, date: string) => {
+        const key = `${scheduleId}-${date}`;
+        setBusyKey(key);
+        setError(null);
         try {
             if (rescheduleTarget) {
                 await rpc("app_reschedule_appointment", {
                     p_appointment_id: rescheduleTarget.id,
-                    p_new_doctor_schedule_id: slot.doctorScheduleId,
-                    p_new_date: slot.nextAvailableDate,
+                    p_new_doctor_schedule_id: scheduleId,
+                    p_new_date: date,
                 });
                 Alert.alert("Rescheduled", `Your appointment ${rescheduleTarget.order_number} was moved.`);
                 setRescheduleTarget(null);
             } else {
                 const booked = await rpc<Appointment>("app_book_appointment", {
-                    p_doctor_schedule_id: slot.doctorScheduleId,
-                    p_appointment_date: slot.nextAvailableDate,
+                    p_doctor_schedule_id: scheduleId,
+                    p_appointment_date: date,
                 });
                 Alert.alert("Booked!", `Your order number is ${booked.order_number}.`);
             }
-            setView("mine");
+            setMode("mine");
             await loadMine();
         } catch (e) {
             setError(e instanceof Error ? e.message : "Booking failed");
         } finally {
-            setBusyId(null);
+            setBusyKey(null);
         }
     };
 
     const cancel = async (id: string, reason: string) => {
-        setBusyId(id);
+        setBusyKey(id);
         try {
             await rpc("app_cancel_appointment", { p_appointment_id: id, p_reason: reason || null });
             await loadMine();
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to cancel appointment");
         } finally {
-            setBusyId(null);
+            setBusyKey(null);
         }
+    };
+
+    const cancelReschedule = () => {
+        setRescheduleTarget(null);
+        setMode("mine");
     };
 
     return (
@@ -141,7 +160,11 @@ export default function Appointments() {
             <View style={styles.container}>
                 <ScreenHeader
                     title="Appointments"
-                    subtitle={rescheduleTarget ? `Choose a new slot for ${rescheduleTarget.order_number}` : "Find, book, and manage your visits"}
+                    subtitle={
+                        rescheduleTarget
+                            ? `Choose a new slot for ${rescheduleTarget.order_number}`
+                            : "Find, book, and manage your visits"
+                    }
                 />
 
                 {error && <Banner kind="error" message={error} />}
@@ -152,30 +175,26 @@ export default function Appointments() {
                         <Text style={styles.rescheduleText}>
                             Rescheduling {rescheduleTarget.order_number}
                         </Text>
-                        <Text
-                            style={styles.rescheduleCancel}
-                            onPress={() => {
-                                setRescheduleTarget(null);
-                                setView("mine");
-                            }}
-                        >
+                        <Text style={styles.rescheduleCancel} onPress={cancelReschedule}>
                             Cancel
                         </Text>
                     </View>
                 )}
 
                 {!rescheduleTarget && (
-                    <FilterChips<TabView>
-                        value={view}
-                        onChange={setView}
+                    <FilterChips<Mode>
+                        value={mode}
+                        onChange={setMode}
                         options={[
-                            { key: "find", label: "Find & Book" },
+                            { key: "quick", label: "Quick Search" },
+                            { key: "byDoctor", label: "By Doctor" },
+                            { key: "byCenter", label: "By Center" },
                             { key: "mine", label: "My Appointments", count: appointments.length },
                         ]}
                     />
                 )}
 
-                {view === "find" ? (
+                {mode === "quick" && (
                     <FlatList
                         data={slots}
                         keyExtractor={(s) => s.doctorScheduleId}
@@ -186,7 +205,11 @@ export default function Appointments() {
                             </View>
                         }
                         renderItem={({ item }) => (
-                            <DoctorSlotCard slot={item} onBook={book} booking={busyId === item.doctorScheduleId} />
+                            <DoctorSlotCard
+                                slot={item}
+                                onBook={(s) => book(s.doctorScheduleId, s.nextAvailableDate)}
+                                booking={busyKey === `${item.doctorScheduleId}-${item.nextAvailableDate}`}
+                            />
                         )}
                         contentContainerStyle={{ paddingBottom: spacing.xl }}
                         showsVerticalScrollIndicator={false}
@@ -195,46 +218,61 @@ export default function Appointments() {
                                 <EmptyState
                                     icon="search-outline"
                                     title="No availability found"
-                                    message="Try a different specialty, district, or rating filter."
+                                    message="Try a different specialty, city, or rating filter."
                                 />
                             ) : null
                         }
                     />
-                ) : loadingMine ? (
-                    <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginTop: spacing.xl }} />
-                ) : (
-                    <FlatList
-                        data={appointments}
-                        keyExtractor={(a) => a.id}
-                        renderItem={({ item }) => (
-                            <AppointmentCard
-                                appointment={item}
-                                onCancel={cancel}
-                                onReschedule={startReschedule}
-                                cancelling={busyId === item.id}
-                            />
-                        )}
-                        contentContainerStyle={{ paddingBottom: spacing.xl }}
-                        showsVerticalScrollIndicator={false}
-                        refreshControl={
-                            <RefreshControl
-                                refreshing={refreshing}
-                                onRefresh={() => {
-                                    setRefreshing(true);
-                                    loadMine();
-                                }}
-                                tintColor={colors.primaryDark}
-                            />
-                        }
-                        ListEmptyComponent={
-                            <EmptyState
-                                icon="calendar-outline"
-                                title="No appointments yet"
-                                message="Search and book a doctor's slot to see it here."
-                            />
-                        }
-                    />
                 )}
+
+                {mode === "byDoctor" && (
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+                        <DoctorBrowseView onBook={book} bookingKey={busyKey} />
+                    </ScrollView>
+                )}
+
+                {mode === "byCenter" && (
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
+                        <CenterBrowseView onBook={book} bookingKey={busyKey} />
+                    </ScrollView>
+                )}
+
+                {mode === "mine" &&
+                    (loadingMine ? (
+                        <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginTop: spacing.xl }} />
+                    ) : (
+                        <FlatList
+                            data={appointments}
+                            keyExtractor={(a) => a.id}
+                            renderItem={({ item }) => (
+                                <AppointmentCard
+                                    appointment={item}
+                                    onCancel={cancel}
+                                    onReschedule={startReschedule}
+                                    cancelling={busyKey === item.id}
+                                />
+                            )}
+                            contentContainerStyle={{ paddingBottom: spacing.xl }}
+                            showsVerticalScrollIndicator={false}
+                            refreshControl={
+                                <RefreshControl
+                                    refreshing={refreshing}
+                                    onRefresh={() => {
+                                        setRefreshing(true);
+                                        loadMine();
+                                    }}
+                                    tintColor={colors.primaryDark}
+                                />
+                            }
+                            ListEmptyComponent={
+                                <EmptyState
+                                    icon="calendar-outline"
+                                    title="No appointments yet"
+                                    message="Search and book a doctor's slot to see it here."
+                                />
+                            }
+                        />
+                    ))}
             </View>
         </SafeAreaView>
     );

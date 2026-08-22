@@ -1,7 +1,7 @@
 -- ==============================================
 -- AyuLink - Demo Appointment-Booking Data
--- Adds 2 demo channeling centers (different districts,
--- so district/nearest search has something to filter),
+-- Adds 2 demo channeling centers (different cities,
+-- so city/nearest search has something to filter),
 -- 2 recurring DoctorSchedule slots for the existing demo
 -- doctor, and 1 demo Appointment for the existing demo
 -- patient.
@@ -72,7 +72,7 @@ insert into "User" (
      '0812345001', '1991-01-01', 'CHANNELING_CENTER', true, 'AYU-199112345678')
 on conflict ("id") do nothing;
 
-insert into "ChannelingCenter" ("id", "user_id", "name", "address", "contact_number", "location", "district")
+insert into "ChannelingCenter" ("id", "user_id", "name", "address", "contact_number", "location", "city")
 values
     ('c0000000-0000-4000-8000-000000000001', 'a0000000-0000-4000-8000-000000000004',
      'Colombo Central Channeling Center', '100 Galle Road, Colombo 03', '+94112345001',

@@ -100,7 +100,7 @@ export interface AppointmentCenter {
     id: string;
     name: string;
     address: string;
-    district: string | null;
+    city: string | null;
     contactNumber: string;
 }
 
@@ -129,7 +129,8 @@ export interface Appointment {
     channelingCenter: AppointmentCenter;
 }
 
-// Shape returned by app_search_doctor_slots()
+// Shape returned by app_search_doctor_slots() — quick "soonest
+// slot" search.
 export interface DoctorSlot {
     doctorScheduleId: string;
     doctorId: string;
@@ -140,10 +141,57 @@ export interface DoctorSlot {
     channelingCenterId: string;
     channelingCenterName: string;
     address: string;
-    district: string | null;
+    city: string | null;
     contactNumber: string;
     nextAvailableDate: string;
     startTime: string;
     endTime: string;
     distanceKm: number | null;
+}
+
+// Shape returned by app_search_doctors()
+export interface DoctorSummary {
+    doctorId: string;
+    doctorFirstName: string;
+    doctorLastName: string;
+    specialty: string;
+    rating: number | null;
+}
+
+// Shape returned by app_get_doctor_availability() — every upcoming
+// slot for one doctor, across all their centers.
+export interface DoctorAvailabilitySlot {
+    doctorScheduleId: string;
+    channelingCenterId: string;
+    channelingCenterName: string;
+    address: string;
+    city: string | null;
+    contactNumber: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+}
+
+// Shape returned by app_get_center_availability() — every upcoming
+// slot at one center, across all doctors there.
+export interface CenterAvailabilitySlot {
+    doctorScheduleId: string;
+    doctorId: string;
+    doctorFirstName: string;
+    doctorLastName: string;
+    specialty: string;
+    rating: number | null;
+    date: string;
+    startTime: string;
+    endTime: string;
+}
+
+// Shape returned by app_list_channeling_centers()
+export interface ChannelingCenterSummary {
+    id: string;
+    name: string;
+    address: string;
+    city: string | null;
+    contact_number: string;
+    location: string;
 }

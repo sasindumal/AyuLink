@@ -22,7 +22,7 @@ export interface ChannelingCenterProfile {
     user_id: string;
     name: string;
     address: string;
-    district: string | null;
+    city: string | null;
     contact_number: string;
     location: string;
 }
@@ -41,7 +41,7 @@ export interface AppointmentCenter {
     id: string;
     name: string;
     address: string;
-    district: string | null;
+    city: string | null;
     contactNumber: string;
 }
 

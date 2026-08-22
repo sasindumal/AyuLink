@@ -13,7 +13,7 @@ export type MinRating = 0 | 3 | 4 | 4.5;
 
 export interface SearchFilterState {
     specialty: string;
-    district: string;
+    city: string;
     sort: SortOption;
     minRating: MinRating;
     lat: number | null;
@@ -64,10 +64,10 @@ export function SearchFilters({
                 onChangeText={(specialty) => onChange({ ...value, specialty })}
             />
             <Input
-                label="District"
+                label="City"
                 placeholder="e.g. Colombo"
-                value={value.district}
-                onChangeText={(district) => onChange({ ...value, district })}
+                value={value.city}
+                onChangeText={(city) => onChange({ ...value, city })}
             />
 
             <View style={styles.locationRow}>

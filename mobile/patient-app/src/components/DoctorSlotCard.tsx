@@ -43,7 +43,7 @@ export function DoctorSlotCard({
                 <Ionicons name="location" size={15} color={colors.textMuted} />
                 <Text style={styles.infoText}>
                     {slot.address}
-                    {slot.district ? `  ·  ${slot.district}` : ""}
+                    {slot.city ? `  ·  ${slot.city}` : ""}
                     {slot.distanceKm != null ? `  ·  ${slot.distanceKm.toFixed(1)} km` : ""}
                 </Text>
             </View>

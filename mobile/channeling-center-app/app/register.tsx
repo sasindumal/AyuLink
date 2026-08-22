@@ -20,7 +20,7 @@ import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, FilterChips, Input } from "../src/components/ui";
 
-const DISTRICTS = [
+const CITIES = [
     "Colombo", "Gampaha", "Kalutara", "Kandy", "Matale", "Nuwara Eliya",
     "Galle", "Matara", "Hambantota", "Jaffna", "Kilinochchi", "Mannar",
     "Vavuniya", "Mullaitivu", "Batticaloa", "Ampara", "Trincomalee",
@@ -39,7 +39,7 @@ export default function Register() {
         centerName: "",
         centerAddress: "",
         centerContactNumber: "",
-        centerDistrict: "",
+        centerCity: "",
         centerLatitude: "",
         centerLongitude: "",
         password: "",
@@ -55,7 +55,7 @@ export default function Register() {
         const required = [
             form.nicNumber, form.firstName, form.lastName, form.mobileNumber,
             form.dob, form.centerName, form.centerAddress, form.centerContactNumber,
-            form.centerDistrict, form.centerLatitude, form.centerLongitude,
+            form.centerCity, form.centerLatitude, form.centerLongitude,
             form.password,
         ];
         if (required.some((v) => !v.trim())) {
@@ -84,7 +84,7 @@ export default function Register() {
                     centerName: form.centerName.trim(),
                     centerAddress: form.centerAddress.trim(),
                     centerContactNumber: form.centerContactNumber.trim(),
-                    centerDistrict: form.centerDistrict.trim(),
+                    centerCity: form.centerCity.trim(),
                     centerLatitude: form.centerLatitude.trim(),
                     centerLongitude: form.centerLongitude.trim(),
                 },
@@ -182,12 +182,12 @@ export default function Register() {
                             onChangeText={set("centerContactNumber")}
                             keyboardType="phone-pad"
                         />
-                        <Text style={styles.inputLabel}>District</Text>
-                        <View style={styles.districtWrap}>
+                        <Text style={styles.inputLabel}>City</Text>
+                        <View style={styles.cityWrap}>
                             <FilterChips
-                                value={form.centerDistrict}
-                                onChange={set("centerDistrict")}
-                                options={DISTRICTS.map((d) => ({ key: d, label: d }))}
+                                value={form.centerCity}
+                                onChange={set("centerCity")}
+                                options={CITIES.map((c) => ({ key: c, label: c }))}
                             />
                         </View>
                         <View style={styles.row}>
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
         color: colors.text,
         marginBottom: 6,
     },
-    districtWrap: { marginBottom: spacing.md },
+    cityWrap: { marginBottom: spacing.md },
     row: { flexDirection: "row", gap: 12 },
     footer: {
         flexDirection: "row",
