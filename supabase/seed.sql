@@ -75,8 +75,8 @@ insert into "DoctorProfile" ("user_id", "slmc_id", "specialty", "rating")
 values ('a0000000-0000-4000-8000-000000000002', 'SLMC-12345', 'Cardiology', 4.8)
 on conflict ("user_id") do nothing;
 
-insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "pharmacyAddress")
-values ('a0000000-0000-4000-8000-000000000003', 'MediCare Pharmacy', 'PL-2024-001', '45 Galle Road, Colombo 03')
+insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "location")
+values ('a0000000-0000-4000-8000-000000000003', 'MediCare Pharmacy', 'PL-2024-001', point(79.8475, 6.9101))
 on conflict ("userId") do nothing;
 
 -- ----- 3. Sample prescriptions -----
