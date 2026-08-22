@@ -50,14 +50,15 @@ create table "User" (
 );
 
 create table "DoctorProfile" (
-    "id"             uuid primary key default gen_random_uuid(),
-    "userId"         uuid not null unique,
-    "slmcRegNo"      text not null unique,
-    "specialization" text not null,
-    "hospitalName"   text not null,
+    "id"        uuid primary key default gen_random_uuid(),
+    "user_id"   uuid not null unique,
+    "slmc_id"   text not null unique,
+    "specialty" text not null,
+    -- Optional 0-5 rating; also mirrored on the Neo4j (:Doctor) node.
+    "rating"    real check ("rating" is null or ("rating" >= 0 and "rating" <= 5)),
 
-    constraint "DoctorProfile_userId_fkey"
-        foreign key ("userId") references "User" ("id") on delete cascade
+    constraint "DoctorProfile_user_id_fkey"
+        foreign key ("user_id") references "User" ("id") on delete cascade
 );
 
 create table "PharmacyProfile" (
@@ -176,8 +177,8 @@ begin
     returning * into v_user;
 
     if p_doctor is not null then
-        insert into "DoctorProfile" ("userId", "slmcRegNo", "specialization", "hospitalName")
-        values (p_user_id, p_doctor->>'slmcRegNo', p_doctor->>'specialization', p_doctor->>'hospitalName');
+        insert into "DoctorProfile" ("user_id", "slmc_id", "specialty")
+        values (p_user_id, p_doctor->>'slmcRegNo', p_doctor->>'specialization');
     end if;
 
     if p_pharmacy is not null then
@@ -330,11 +331,11 @@ language sql stable security definer set search_path = public as $$
                 'id', u."id", 'firstName', u."firstName", 'lastName', u."lastName",
                 'doctorProfile', (
                     select jsonb_build_object(
-                        'specialization', dp."specialization",
-                        'hospitalName', dp."hospitalName",
-                        'slmcRegNo', dp."slmcRegNo"
+                        'specialization', dp."specialty",
+                        'slmcRegNo', dp."slmc_id",
+                        'rating', dp."rating"
                     )
-                    from "DoctorProfile" dp where dp."userId" = u."id"
+                    from "DoctorProfile" dp where dp."user_id" = u."id"
                 )
             )
             from "User" u where u."id" = p."doctorId"
@@ -408,9 +409,8 @@ begin
     if v_role = 'DOCTOR' and (
         coalesce(trim(p_profile->>'slmcRegNo'), '') = ''
         or coalesce(trim(p_profile->>'specialization'), '') = ''
-        or coalesce(trim(p_profile->>'hospitalName'), '') = ''
     ) then
-        raise exception 'Doctor registration requires SLMC number, specialization, and hospital name';
+        raise exception 'Doctor registration requires SLMC number and specialization';
     end if;
     if v_role = 'PHARMACIST' and (
         coalesce(trim(p_profile->>'pharmacyName'), '') = ''
@@ -437,8 +437,8 @@ begin
     );
 
     if v_role = 'DOCTOR' then
-        insert into "DoctorProfile" ("userId", "slmcRegNo", "specialization", "hospitalName")
-        values (v_uid, trim(p_profile->>'slmcRegNo'), trim(p_profile->>'specialization'), trim(p_profile->>'hospitalName'));
+        insert into "DoctorProfile" ("user_id", "slmc_id", "specialty")
+        values (v_uid, trim(p_profile->>'slmcRegNo'), trim(p_profile->>'specialization'));
     elsif v_role = 'PHARMACIST' then
         insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "pharmacyAddress")
         values (v_uid, trim(p_profile->>'pharmacyName'), trim(p_profile->>'pharmacyLicense'), trim(p_profile->>'pharmacyAddress'));

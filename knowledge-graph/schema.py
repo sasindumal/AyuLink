@@ -4,6 +4,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, field_validator
 
 
+
 # ============================================================
 # NODE SCHEMAS
 # ============================================================
@@ -12,6 +13,9 @@ class DoctorNode(BaseModel):
     """
     Neo4j Node:
     (:Doctor)
+
+    `id` must equal the PostgreSQL "User".id (== "DoctorProfile".user_id)
+    for the same doctor — the two stores share one UUID per doctor.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -28,6 +32,7 @@ class DoctorNode(BaseModel):
             raise ValueError("Value must not be empty")
 
         return value
+
 
 
 class SpecialtyNode(BaseModel):
