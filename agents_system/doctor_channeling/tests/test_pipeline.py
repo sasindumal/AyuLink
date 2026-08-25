@@ -158,14 +158,47 @@ async def test_manage_booking_without_existing_booking(client):
     )
 
 
-async def test_clinical_matched_symptom(client):
-    thread = new_thread()
-    sse = await chat(client, thread, "I have chest pain and shortness of breath")
-    ok = "offer_doctor" in sse.interrupt_types() and not sse.has("error")
+async def test_single_vague_symptom_asks_before_concluding(client):
+    """The reported bug: "I have a fever" alone used to jump straight to a
+    named disease (trivial 100% match ratio off exactly one symptom).
+    It must now ask at least one clarifying question first, never
+    conclude off a single vague symptom."""
+    sse = await chat(client, new_thread(), "I have a fever")
+    ok = "ask_followup" in sse.interrupt_types() and "offer_doctor" not in sse.interrupt_types()
     record(
-        "clinical path: matched symptoms reach offer_doctor",
+        "single vague symptom triggers a follow-up question, not an instant diagnosis",
         ok,
         f"interrupts={sse.interrupt_types()} events={[e['event'] for e in sse.events]}",
+    )
+
+
+async def test_clinical_matched_symptom(client):
+    """Multiple real symptoms, walked through follow-up rounds like a real
+    triage conversation, should eventually reach offer_doctor without
+    erroring or looping past MAX_FOLLOWUP_ROUNDS. Exact round count isn't
+    asserted — the local LLM's symptom-normalization wording varies run to
+    run (e.g. "fainting spells" vs "fainting"), which affects how many
+    rounds the fuzzy Neo4j match needs to become confident."""
+    thread = new_thread()
+    answers = [
+        "I have chest pain, shortness of breath, and fainting spells",
+        "yes, also heart palpitations and dizziness",
+        "it's been going on for about 3 days and feels worse when I stand up",
+    ]
+    sse = await chat(client, thread, answers[0])
+    interrupts = sse.interrupt_types()
+    rounds = 0
+    while interrupts and interrupts[0] == "ask_followup" and rounds < 5:
+        answer = answers[min(rounds + 1, len(answers) - 1)]
+        sse = await resume(client, thread, answer)
+        interrupts = sse.interrupt_types()
+        rounds += 1
+
+    ok = bool(interrupts) and interrupts[0] == "offer_doctor" and not sse.has("error")
+    record(
+        "clinical path: matched symptoms eventually reach offer_doctor",
+        ok,
+        f"rounds={rounds} interrupts={interrupts} events={[e['event'] for e in sse.events]}",
     )
     return thread, ok
 
@@ -351,6 +384,8 @@ async def main():
         await test_missing_auth_header(client)
         await test_ambiguous_message_defaults_to_clinical(client)
         await test_manage_booking_without_existing_booking(client)
+
+        await test_single_vague_symptom_asks_before_concluding(client)
 
         thread, matched_ok = await test_clinical_matched_symptom(client)
         if matched_ok:

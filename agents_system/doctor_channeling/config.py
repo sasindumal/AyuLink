@@ -33,3 +33,9 @@ LM_STUDIO_VISION_MODEL = os.environ.get("LM_STUDIO_VISION_MODEL", "local-vision-
 
 CONFIDENCE_THRESHOLD = 0.6
 MAX_FOLLOWUP_ROUNDS = 3
+# A doctor never diagnoses off a single mentioned symptom — always ask at
+# least this many follow-up questions first, regardless of how confident
+# the raw symptom match looks (a single common symptom like "fever" can
+# trivially hit 100% match against whichever disease the graph returns
+# first, which isn't the same as actually being confident).
+MIN_SYMPTOMS_BEFORE_DIAGNOSIS = 3

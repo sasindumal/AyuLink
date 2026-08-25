@@ -10,7 +10,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
-from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS
+from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS, MIN_SYMPTOMS_BEFORE_DIAGNOSIS
 from llm import text_llm
 from schemas import FollowupQuestion
 from state import GraphState
@@ -24,8 +24,14 @@ def disease_agent(state: GraphState) -> dict:
 
     confidence = 0.0
     if candidates and symptoms:
-        top = candidates[0]
-        confidence = min(1.0, top.get("matches", 0) / max(1, len(symptoms)))
+        top_matches = candidates[0].get("matches", 0)
+        raw_ratio = min(1.0, top_matches / max(1, len(symptoms)))
+        # A handful of common symptoms (e.g. "fever") match many diseases
+        # equally — that tie is itself a sign of low confidence, even
+        # though the raw ratio alone would say 100%. Penalize by how many
+        # candidates are tied at the top match count.
+        tied_at_top = sum(1 for c in candidates if c.get("matches", 0) == top_matches)
+        confidence = raw_ratio / tied_at_top
 
     return {"candidate_diseases": candidates, "confidence": confidence}
 
@@ -33,14 +39,32 @@ def disease_agent(state: GraphState) -> dict:
 def should_ask_followup(state: GraphState) -> str:
     confidence = state.get("confidence", 0.0)
     round_ = state.get("round", 0)
-    if confidence < CONFIDENCE_THRESHOLD and round_ < MAX_FOLLOWUP_ROUNDS:
+    symptoms = state.get("symptoms", [])
+
+    if round_ >= MAX_FOLLOWUP_ROUNDS:
+        return "explain_condition_node"
+    # Like a real triage conversation: never conclude off just one or two
+    # mentioned symptoms, no matter how "confident" the raw match looks.
+    if len(symptoms) < MIN_SYMPTOMS_BEFORE_DIAGNOSIS:
+        return "ask_followup"
+    if confidence < CONFIDENCE_THRESHOLD:
         return "ask_followup"
     return "explain_condition_node"
+
+
+FOLLOWUP_SYSTEM_PROMPT = """You are a doctor doing a triage interview. Never jump to a \
+diagnosis from a single vague symptom — ask about OTHER SYMPTOMS the patient may also \
+have, one at a time, specifically the kind that would help tell apart the possible \
+conditions listed below (e.g. "do you also have X?" or "have you noticed Y?"). Do NOT \
+ask about duration, severity, or what makes it better/worse — only ask whether another \
+specific symptom is present. Ask ONE question only, in plain everyday language, not \
+clinical jargon."""
 
 
 def ask_followup(state: GraphState) -> dict:
     candidates = state.get("candidate_diseases", [])
     names = ", ".join(c.get("disease_name", "") for c in candidates[:3]) or "your condition"
+    round_ = state.get("round", 0)
 
     try:
         structured = text_llm.with_structured_output(FollowupQuestion, method="json_schema")
@@ -49,18 +73,20 @@ def ask_followup(state: GraphState) -> dict:
                 {
                     "role": "system",
                     "content": (
-                        "You are a medical triage assistant. The patient's symptoms so far "
-                        f"suggest possible conditions: {names}. Ask ONE short, specific "
-                        "follow-up question to help narrow this down (e.g. about another "
-                        "symptom, duration, or severity)."
+                        f"{FOLLOWUP_SYSTEM_PROMPT}\n\nPossible conditions given the symptoms "
+                        f"so far: {names}."
                     ),
                 },
-                {"role": "user", "content": f"Symptoms so far: {', '.join(state.get('symptoms', []))}"},
+                {
+                    "role": "user",
+                    "content": f"Symptoms mentioned so far: {', '.join(state.get('symptoms', []))}. "
+                    f"This is follow-up question #{round_ + 1}.",
+                },
             ]
         )
         question = result.question
     except Exception:  # noqa: BLE001 - graceful fallback if structured output fails
-        question = "Can you tell me more about your symptoms — any other discomfort, or how long you've had them?"
+        question = "Are you noticing any other symptoms alongside this?"
 
     answer = interrupt({"type": "ask_followup", "question": question})
 
