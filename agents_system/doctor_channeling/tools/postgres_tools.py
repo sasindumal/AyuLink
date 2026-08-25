@@ -100,3 +100,32 @@ async def link_treatment_appointment(jwt: str, treatment_id: str, appointment_id
         {"p_treatment_id": treatment_id, "p_appointment_id": appointment_id},
     )
     return data
+
+
+async def unlink_treatment_appointment(jwt: str, treatment_id: str) -> dict:
+    data = await _call(jwt, "app_unlink_treatment_appointment", {"p_treatment_id": treatment_id})
+    return data
+
+
+async def cancel_appointment(jwt: str, appointment_id: str, reason: str | None = None) -> dict:
+    data = await _call(
+        jwt,
+        "app_cancel_appointment",
+        {"p_appointment_id": appointment_id, "p_reason": reason},
+    )
+    return data
+
+
+async def reschedule_appointment(
+    jwt: str, appointment_id: str, new_doctor_schedule_id: str, new_date: str
+) -> dict:
+    data = await _call(
+        jwt,
+        "app_reschedule_appointment",
+        {
+            "p_appointment_id": appointment_id,
+            "p_new_doctor_schedule_id": new_doctor_schedule_id,
+            "p_new_date": new_date,
+        },
+    )
+    return data

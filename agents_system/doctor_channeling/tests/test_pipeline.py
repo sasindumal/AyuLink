@@ -132,16 +132,30 @@ async def test_missing_auth_header(client):
         record("missing Authorization header -> 401", ok, f"got {resp.status_code}")
 
 
-async def test_general_question(client):
+async def test_ambiguous_message_defaults_to_clinical(client):
+    """No "general" catch-all anymore — an ambiguous greeting should still
+    route through the clinical path (symptom_agent finds nothing, so it
+    should land on ask_followup) rather than erroring or hanging."""
     sse = await chat(client, new_thread(), "Hello, what can you help me with?")
-    ok = sse.has("token") and sse.has("done") and not sse.has("error") and len(sse.tokens_text()) > 0
-    record("general question streams and completes", ok, f"events={[e['event'] for e in sse.events]}")
+    ok = "ask_followup" in sse.interrupt_types() and not sse.has("error")
+    record(
+        "ambiguous message defaults to clinical path (no general route)",
+        ok,
+        f"interrupts={sse.interrupt_types()} events={[e['event'] for e in sse.events]}",
+    )
 
 
-async def test_general_needs_web_search(client):
-    sse = await chat(client, new_thread(), "What's the latest news today?")
-    ok = sse.has("done") and not sse.has("__parse_error__")
-    record("general question triggering web-search branch doesn't crash", ok, f"events={[e['event'] for e in sse.events]}")
+async def test_manage_booking_without_existing_booking(client):
+    """cancel/reschedule language with no prior booking_result in state
+    must degrade gracefully, same as the no-selection booking message."""
+    sse = await chat(client, new_thread(), "cancel my appointment")
+    ok = sse.has("done") and not sse.has("error")
+    text = sse.tokens_text()
+    record(
+        "cancel intent with no existing booking replies gracefully",
+        ok,
+        f"reply={text!r} events={[e['event'] for e in sse.events]}",
+    )
 
 
 async def test_clinical_matched_symptom(client):
@@ -174,8 +188,7 @@ async def test_clinical_unmatched_loops_then_terminates(client):
         record(
             "clinical path: low-confidence symptoms produce an interrupt",
             False,
-            f"no interrupt at all (may have been classified as general — not necessarily a bug); "
-            f"reply={sse.tokens_text()!r} events={[e['event'] for e in sse.events]}",
+            f"no interrupt at all; reply={sse.tokens_text()!r} events={[e['event'] for e in sse.events]}",
         )
         return
 
@@ -336,8 +349,8 @@ async def main():
     async with httpx.AsyncClient() as client:
         await test_health(client)
         await test_missing_auth_header(client)
-        await test_general_question(client)
-        await test_general_needs_web_search(client)
+        await test_ambiguous_message_defaults_to_clinical(client)
+        await test_manage_booking_without_existing_booking(client)
 
         thread, matched_ok = await test_clinical_matched_symptom(client)
         if matched_ok:

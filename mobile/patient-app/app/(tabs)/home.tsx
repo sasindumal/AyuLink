@@ -4,10 +4,10 @@
 // and recent treatments
 // ==============================================
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
@@ -40,16 +40,17 @@ export default function Home() {
             .catch(() => {});
     }, []);
 
-    useEffect(() => {
-        if (user) load();
-    }, [user, load]);
+    // useFocusEffect (not useEffect) — tab screens stay mounted when you
+    // switch tabs, so this re-fetches every time Home regains focus (e.g.
+    // after booking/diagnosing via chat), not just on first mount.
+    useFocusEffect(
+        useCallback(() => {
+            if (user) load();
+        }, [user, load])
+    );
 
     const openTreatment = (t: Treatment) => {
-        if (t.status === "DIAGNOSED") {
-            router.push({ pathname: "/diagnosis", params: { threadId: t.thread_id } });
-        } else {
-            router.push("/(tabs)/appointments");
-        }
+        router.push({ pathname: "/diagnosis", params: { threadId: t.thread_id } });
     };
 
     return (

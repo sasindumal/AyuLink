@@ -14,9 +14,11 @@ import type { Treatment } from "../types";
 export function TreatmentCard({
     treatment,
     onPress,
+    onDelete,
 }: {
     treatment: Treatment;
     onPress: (treatment: Treatment) => void;
+    onDelete?: (treatment: Treatment) => void;
 }) {
     const meta = treatmentStatusMeta[treatment.status];
 
@@ -33,6 +35,18 @@ export function TreatmentCard({
                     <View style={[styles.badge, { backgroundColor: meta.bg }]}>
                         <Text style={[styles.badgeText, { color: meta.color }]}>{meta.label}</Text>
                     </View>
+                    {onDelete && (
+                        <Pressable
+                            onPress={(e) => {
+                                e.stopPropagation();
+                                onDelete(treatment);
+                            }}
+                            hitSlop={8}
+                            style={styles.deleteBtn}
+                        >
+                            <Ionicons name="trash-outline" size={16} color={colors.danger} />
+                        </Pressable>
+                    )}
                 </View>
 
                 {treatment.description && (
@@ -63,6 +77,7 @@ const styles = StyleSheet.create({
     specialty: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
     badge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
     badgeText: { fontSize: 11.5, fontWeight: "700" },
+    deleteBtn: { marginLeft: 8, padding: 4 },
     description: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18, marginBottom: 8 },
     footerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
     date: { fontSize: 11.5, color: colors.textMuted, flex: 1 },

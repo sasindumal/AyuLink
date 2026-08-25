@@ -27,11 +27,11 @@ class GraphState(TypedDict):
     image_bytes: Optional[bytes]
     image_mime: Optional[str]
 
-    route: Optional[Literal["general", "clinical", "doctor_search", "booking"]]
+    route: Optional[Literal["clinical", "doctor_search", "booking"]]
     # Set by a HITL node (offer_doctor, present_top5) right before handing
     # control back to manager_agent, so it skips re-classifying the resume
     # value (e.g. "yes") and applies the forced route directly.
-    forced_route: Optional[Literal["general", "clinical", "doctor_search", "booking"]]
+    forced_route: Optional[Literal["clinical", "doctor_search", "booking"]]
 
     symptoms: list[str]
     round: int
@@ -51,3 +51,8 @@ class GraphState(TypedDict):
     selected_slot: Optional[DoctorCard]
 
     booking_result: Optional[dict]
+    # Set when the chat is rescheduling an existing appointment (rather than
+    # making a fresh booking) — booking_agent uses this to call
+    # app_reschedule_appointment instead of app_book_appointment once a new
+    # slot is picked via the normal doctor-search/present_top5 flow.
+    rescheduling_appointment_id: Optional[str]

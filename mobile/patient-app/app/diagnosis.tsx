@@ -245,8 +245,8 @@ export default function Diagnosis() {
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={90}
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
                 <View style={styles.container}>
                     <View style={styles.header}>
@@ -298,13 +298,18 @@ export default function Diagnosis() {
                             <Ionicons name="attach" size={20} color={colors.primaryDark} />
                         </Pressable>
                         <Input
-                            style={{ flex: 1, marginBottom: 0 }}
+                            style={{ flex: 1, marginBottom: 0, color: "#000000" }}
                             placeholder={awaitingInterrupt ? "Respond above first…" : "Describe how you feel…"}
+                            placeholderTextColor={colors.textMuted}
                             value={input}
                             onChangeText={setInput}
                             editable={!busy && !awaitingInterrupt}
                             onSubmitEditing={send}
                             returnKeyType="send"
+                            multiline={false}
+                            textAlignVertical="center"
+                            cursorColor={colors.primaryDark}
+                            selectionColor={colors.primaryDark}
                         />
                         <Pressable
                             style={[styles.sendButton, (busy || !input.trim() || !!awaitingInterrupt) && { opacity: 0.5 }]}
@@ -394,11 +399,13 @@ function InterruptCard({
                 {!resolved && (
                     <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
                         <Input
-                            style={{ flex: 1, marginBottom: 0 }}
+                            style={{ flex: 1, marginBottom: 0, color: "#000000" }}
                             placeholder="Your answer…"
                             value={text}
                             onChangeText={setText}
                             editable={!busy}
+                            textAlignVertical="center"
+                            cursorColor={colors.primaryDark}
                         />
                         <Button
                             title="Send"

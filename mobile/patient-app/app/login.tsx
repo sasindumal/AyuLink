@@ -69,7 +69,7 @@ export default function Login() {
                         />
                         <Text style={styles.title}>AyuLink</Text>
                         <Text style={styles.subtitle}>
-                            Your digital health identity — one scan away
+                            Your personal AI health assistant & digital health ID
                         </Text>
                     </View>
 

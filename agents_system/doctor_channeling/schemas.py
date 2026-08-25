@@ -11,8 +11,17 @@ MAX_ROUNDS = MAX_FOLLOWUP_ROUNDS
 
 
 class RouteDecision(BaseModel):
-    route: Literal["general", "clinical", "doctor_search", "booking"] = Field(
+    route: Literal["clinical", "doctor_search", "booking"] = Field(
         ..., description="Which specialist agent should handle this turn."
+    )
+
+
+class BookingIntent(BaseModel):
+    action: Literal["cancel", "reschedule", "status", "new_booking"] = Field(
+        ...,
+        description="What the patient wants to do about their existing booking: cancel it, "
+        "reschedule it to a different slot, just check its status/details, or none of these "
+        "(treat as wanting a new/different booking).",
     )
 
 

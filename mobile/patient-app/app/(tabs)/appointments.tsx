@@ -26,6 +26,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
@@ -77,9 +78,14 @@ export default function Appointments() {
         }
     }, []);
 
-    useEffect(() => {
-        if (user) loadMine();
-    }, [user, loadMine]);
+    // useFocusEffect (not useEffect) — this tab stays mounted when you
+    // switch away, so this re-fetches every time it regains focus (e.g.
+    // right after booking/cancelling/rescheduling via chat).
+    useFocusEffect(
+        useCallback(() => {
+            if (user) loadMine();
+        }, [user, loadMine])
+    );
 
     const search = useCallback(async () => {
         setSearching(true);

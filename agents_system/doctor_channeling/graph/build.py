@@ -22,7 +22,6 @@ from graph.nodes.doctor_finder import (
     present_top5,
     route_after_doctor_finder,
 )
-from graph.nodes.general import general_answer_agent
 from graph.nodes.input_nodes import (
     document_summarizer,
     image_to_summary,
@@ -34,7 +33,6 @@ from graph.nodes.symptom import symptom_agent
 from state import GraphState
 
 ROUTE_TARGETS = {
-    "general": "general_answer_agent",
     "clinical": "symptom_agent",
     "doctor_search": "doctor_finder_agent",
     "booking": "booking_agent",
@@ -61,7 +59,6 @@ def build_graph_builder() -> StateGraph:
     builder.add_node("image_to_summary", image_to_summary)
     builder.add_node("document_summarizer", document_summarizer)
     builder.add_node("manager_agent", manager_agent)
-    builder.add_node("general_answer_agent", general_answer_agent)
     builder.add_node("symptom_agent", symptom_agent)
     builder.add_node("disease_agent", disease_agent)
     builder.add_node("ask_followup", ask_followup)
@@ -89,8 +86,6 @@ def build_graph_builder() -> StateGraph:
 
     builder.add_conditional_edges("manager_agent", _route_after_manager, ROUTE_TARGETS)
 
-    builder.add_edge("general_answer_agent", END)
-
     builder.add_edge("symptom_agent", "disease_agent")
     builder.add_conditional_edges(
         "disease_agent",
@@ -115,5 +110,7 @@ def build_graph_builder() -> StateGraph:
     # present_top5 returns a Command(goto="manager_agent")
 
     builder.add_edge("booking_agent", END)
+    # booking_agent can also return Command(goto="doctor_finder_agent") when
+    # managing an existing booking turns into a reschedule
 
     return builder
