@@ -51,3 +51,4 @@ next-env.d.ts
 __pycache__/
 *.pyc
 /agents_system/doctor_channeling/.venv
+/graphify-out
