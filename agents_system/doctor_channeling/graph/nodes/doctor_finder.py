@@ -23,7 +23,7 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
         str(getattr(m, "content", "")) for m in state.get("messages", [])[-3:]
     )
     try:
-        structured = text_llm.with_structured_output(DoctorSearchQuery, method="json_mode")
+        structured = text_llm.with_structured_output(DoctorSearchQuery, method="json_schema")
         result: DoctorSearchQuery = structured.invoke(
             [
                 {

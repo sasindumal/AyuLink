@@ -18,7 +18,7 @@ def _decode_sub(jwt: str) -> str:
         return ""
 
 
-async def get_patient_auth(authorization: str = Header(...)) -> tuple[str, str]:
+async def get_patient_auth(authorization: str | None = Header(None)) -> tuple[str, str]:
     """Returns (jwt, patient_id) or raises 401."""
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="Missing or malformed Authorization header")

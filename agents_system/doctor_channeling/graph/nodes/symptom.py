@@ -32,7 +32,7 @@ def symptom_agent(state: GraphState) -> dict:
 
     extracted: list[str] = []
     try:
-        structured = text_llm.with_structured_output(SymptomExtraction, method="json_mode")
+        structured = text_llm.with_structured_output(SymptomExtraction, method="json_schema")
         result: SymptomExtraction = structured.invoke(
             [
                 {"role": "system", "content": EXTRACTION_PROMPT},

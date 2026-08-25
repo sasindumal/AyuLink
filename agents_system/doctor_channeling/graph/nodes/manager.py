@@ -11,14 +11,24 @@ ROUTES = ("general", "clinical", "doctor_search", "booking")
 ROUTER_PROMPT = """You are a routing classifier for a medical assistant chatbot. \
 Given the conversation so far, decide which path handles the user's latest message:
 
-- "clinical": the user describes symptoms, an illness, or wants help figuring out \
-what's wrong with them.
+- "clinical": the user describes ANY physical or mental symptom, sensation, illness, \
+or discomfort — even mild, vague, or unusual ones (tingling, numbness, dizziness, \
+rash, buzzing in the ear, trouble sleeping, feeling off, etc.) — or wants help \
+figuring out what's wrong with them.
 - "doctor_search": the user directly asks to find/search a doctor, specialist, or \
 clinic (not because of symptom triage) — e.g. "find me a cardiologist near Colombo".
 - "booking": the user wants to book, confirm, or select an appointment slot that was \
 already presented to them.
-- "general": anything else — greetings, general health questions, app questions, \
-unrelated chat.
+- "general": anything else — greetings, general health/app questions with no personal \
+symptom mentioned, unrelated chat.
+
+Examples:
+"I've had a tingling in my toe for two days" -> clinical
+"my ear keeps buzzing" -> clinical
+"I feel a bit off today, hard to explain" -> clinical
+"what specialties does AyuLink support?" -> general
+"find me a cardiologist near Colombo" -> doctor_search
+"book the 10am slot" -> booking
 
 Respond with only the route."""
 
@@ -29,7 +39,15 @@ def _keyword_fallback(text: str) -> str:
         return "booking"
     if any(w in t for w in ("find a doctor", "find doctor", "cardiologist", "specialist near", "search doctor", "channeling center")):
         return "doctor_search"
-    if any(w in t for w in ("pain", "fever", "hurt", "symptom", "feel", "sick", "ache", "cough", "cold", "vomit")):
+    clinical_keywords = (
+        "pain", "fever", "hurt", "symptom", "feel", "sick", "ache", "cough", "cold",
+        "vomit", "tingling", "tingle", "numb", "dizz", "nausea", "rash", "swell",
+        "bleed", "bruise", "itch", "burn", "sore", "cramp", "fatigue", "tired",
+        "headache", "migraine", "buzz", "ring", "blurry", "vision", "breath",
+        "chest", "stomach", "diarrhea", "constipat", "insomnia", "sleep", "anxious",
+        "dizzy", "weak", "shiver", "chill", "sweat", "spot", "lump", "discharge",
+    )
+    if any(w in t for w in clinical_keywords):
         return "clinical"
     return "general"
 
@@ -50,7 +68,7 @@ def manager_agent(state: GraphState) -> dict:
 
     route = None
     try:
-        structured = text_llm.with_structured_output(RouteDecision, method="json_mode")
+        structured = text_llm.with_structured_output(RouteDecision, method="json_schema")
         decision: RouteDecision = structured.invoke(
             [
                 {"role": "system", "content": ROUTER_PROMPT},
@@ -65,7 +83,7 @@ def manager_agent(state: GraphState) -> dict:
         )
         if decision.route in ROUTES:
             route = decision.route
-    except Exception:  # noqa: BLE001 - LM Studio may not support strict json_mode for every model
+    except Exception:  # noqa: BLE001 - LM Studio may not support structured output for every model
         route = None
 
     if route is None:

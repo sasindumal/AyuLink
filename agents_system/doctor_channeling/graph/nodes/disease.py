@@ -41,7 +41,7 @@ def ask_followup(state: GraphState) -> dict:
     names = ", ".join(c.get("disease_name", "") for c in candidates[:3]) or "your condition"
 
     try:
-        structured = text_llm.with_structured_output(FollowupQuestion, method="json_mode")
+        structured = text_llm.with_structured_output(FollowupQuestion, method="json_schema")
         result: FollowupQuestion = structured.invoke(
             [
                 {

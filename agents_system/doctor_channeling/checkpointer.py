@@ -23,6 +23,11 @@ async def init_checkpointer() -> AsyncPostgresSaver:
         conninfo=config.AGENTS_CHECKPOINT_DATABASE_URL,
         kwargs={"autocommit": True, "prepare_threshold": None},
         open=False,
+        # Supabase's pooler silently closes idle backend connections; without
+        # a liveness check the pool hands out a dead connection and the
+        # in-flight request fails instead of transparently reconnecting.
+        check=AsyncConnectionPool.check_connection,
+        max_idle=120,
     )
     await _pool.open()
     _checkpointer = AsyncPostgresSaver(_pool)
