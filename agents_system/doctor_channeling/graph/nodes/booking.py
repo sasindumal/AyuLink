@@ -78,11 +78,22 @@ async def booking_agent(state: GraphState):
     slot = state.get("selected_slot") or {}
     doctor_schedule_id = slot.get("doctor_schedule_id")
     date = slot.get("date")
+    existing = state.get("booking_result")
 
-    if doctor_schedule_id and date:
+    # Self-healing guard for threads whose checkpoint predates the fix that
+    # clears selected_slot after a successful booking: if the "fresh" slot
+    # is actually the same slot already reflected in booking_result, it's
+    # stale leftover, not a new pick — don't try to re-book it.
+    is_stale_leftover = bool(
+        existing
+        and doctor_schedule_id
+        and existing.get("doctor_schedule_id") == doctor_schedule_id
+        and str(existing.get("appointment_date")) == str(date)
+    )
+
+    if doctor_schedule_id and date and not is_stale_leftover:
         return await _commit_booking(state, jwt, doctor_schedule_id, date)
 
-    existing = state.get("booking_result")
     if not existing:
         return {"messages": [AIMessage(content="I don't have a slot selected to book yet — please pick a doctor first.")]}
 
@@ -144,6 +155,12 @@ async def _commit_booking(state: GraphState, jwt: str, doctor_schedule_id: str, 
     update = {
         "booking_result": result,
         "rescheduling_appointment_id": None,
+        # Must clear these — otherwise the next message in this thread (e.g.
+        # "cancel my appointment") still finds a "fresh" selected_slot here
+        # and tries to re-book the same already-booked slot instead of
+        # falling through to the manage-existing-booking branch.
+        "selected_slot": None,
+        "top5": [],
         "messages": [AIMessage(content=confirmation)],
     }
 
