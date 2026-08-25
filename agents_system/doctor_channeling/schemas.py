@@ -33,9 +33,20 @@ class SymptomExtraction(BaseModel):
 
 
 class DoctorSearchQuery(BaseModel):
-    specialty: Optional[str] = Field(None, description="Medical specialty mentioned or implied, e.g. 'Cardiology'.")
+    specialty: Optional[str] = Field(
+        None,
+        description="Medical specialty ONLY if the patient explicitly named one or a type of "
+        "doctor, e.g. 'find me a cardiologist' -> 'Cardiology'. Leave null if they only "
+        "described symptoms/a condition without naming a specialty — that goes in 'symptoms' "
+        "instead, so it can be looked up properly.",
+    )
     city: Optional[str] = Field(None, description="City mentioned, if any.")
     doctor_name: Optional[str] = Field(None, description="Specific doctor name mentioned, if any.")
+    symptoms: list[str] = Field(
+        default_factory=list,
+        description="Symptom or condition phrases mentioned (e.g. 'chest pain'), normalized "
+        "toward likely medical catalog terms, if no explicit specialty was named.",
+    )
 
 
 class FollowupQuestion(BaseModel):

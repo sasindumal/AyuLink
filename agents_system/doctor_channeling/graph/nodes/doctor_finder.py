@@ -11,7 +11,23 @@ from langgraph.types import Command, interrupt
 from llm import text_llm
 from schemas import DoctorSearchQuery
 from state import DoctorCard, GraphState
+from tools.neo4j_tools import find_diseases_for_symptoms, match_specialty_name
 from tools.postgres_tools import get_doctor_availability, search_doctors
+
+
+def _specialty_from_graph(symptoms: list[str]) -> str | None:
+    """Same lookup disease_agent uses for the clinical path — Symptom ->
+    Disease -> Specialty — so a direct doctor_search ("find me a doctor,
+    I have chest pain") resolves specialty the same graph-grounded way a
+    full diagnosis would, instead of the LLM guessing a specialty name
+    from its own general knowledge."""
+    if not symptoms:
+        return None
+    try:
+        candidates = find_diseases_for_symptoms(symptoms)
+    except Exception:  # noqa: BLE001 - Neo4j hiccup shouldn't break doctor search
+        return None
+    return candidates[0].get("specialty") if candidates else None
 
 
 def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
@@ -22,21 +38,42 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
     text = " ".join(
         str(getattr(m, "content", "")) for m in state.get("messages", [])[-3:]
     )
+    extracted_specialty: str | None = None
+    doctor_name: str | None = None
+    symptoms: list[str] = []
     try:
         structured = text_llm.with_structured_output(DoctorSearchQuery, method="json_schema")
         result: DoctorSearchQuery = structured.invoke(
             [
                 {
                     "role": "system",
-                    "content": "Extract the medical specialty, city, and/or doctor name the "
-                    "patient is searching for from this message.",
+                    "content": "Extract what the patient is searching for: an explicitly named "
+                    "specialty/type of doctor, a city, a doctor's name, and/or any symptoms or "
+                    "conditions they described (if no specialty was explicitly named).",
                 },
                 {"role": "user", "content": text},
             ]
         )
-        return result.specialty, result.doctor_name
-    except Exception:  # noqa: BLE001 - fall back to an unfiltered search
-        return None, None
+        extracted_specialty = result.specialty
+        doctor_name = result.doctor_name
+        symptoms = result.symptoms
+    except Exception:  # noqa: BLE001 - fall back further down
+        pass
+
+    if extracted_specialty:
+        # Canonicalize against the graph's real Specialty names — a
+        # profession word like "cardiologist" won't ILIKE-match the stored
+        # field name "Cardiology" otherwise. Falls back to the raw LLM
+        # extraction if nothing in the graph resembles it, rather than
+        # dropping the search filter entirely.
+        canonical = match_specialty_name(extracted_specialty)
+        return canonical or extracted_specialty, doctor_name
+
+    graph_specialty = _specialty_from_graph(symptoms)
+    if graph_specialty:
+        return graph_specialty, doctor_name
+
+    return None, doctor_name
 
 
 def _to_doctor_card(record: dict) -> DoctorCard:
