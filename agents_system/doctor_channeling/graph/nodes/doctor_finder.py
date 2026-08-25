@@ -6,13 +6,71 @@ decides which stage comes next based on the location_asked /
 availability_annotated flags.
 """
 
+from typing import Literal
+
+from pydantic import BaseModel, Field, create_model
 from langgraph.types import Command, interrupt
 
 from llm import text_llm
 from schemas import DoctorSearchQuery
 from state import DoctorCard, GraphState
-from tools.neo4j_tools import find_diseases_for_symptoms, match_specialty_name
+from tools.neo4j_tools import find_diseases_for_symptoms, list_specialty_names
 from tools.postgres_tools import get_doctor_availability, search_doctors
+
+_NONE_OF_THESE = "None of these"
+
+
+def _match_specialty_name(query: str) -> str | None:
+    """Fetches every real Specialty name from the graph and has the LLM
+    decide which one (if any) the patient's free-text mention refers to —
+    e.g. "cardiologist" or "heart doctor" -> "Cardiology". A dynamically
+    built Literal schema constrains the model to one of the exact graph
+    values (or "None of these"), so it can't hallucinate a specialty that
+    doesn't actually exist in the graph."""
+    if not query:
+        return None
+
+    names = list_specialty_names()
+    if not names:
+        return None
+
+    options = names + [_NONE_OF_THESE]
+    SpecialtyChoice: type[BaseModel] = create_model(
+        "SpecialtyChoice",
+        specialty=(
+            Literal[tuple(options)],
+            Field(..., description="Which specialty from the list the patient is referring to."),
+        ),
+    )
+
+    try:
+        structured = text_llm.with_structured_output(SpecialtyChoice, method="json_schema")
+        result = structured.invoke(
+            [
+                {
+                    "role": "system",
+                    "content": "The patient mentioned a type of doctor or specialty. Pick which "
+                    "ONE of these real specialties they mean (or 'None of these' if none fit):\n"
+                    + "\n".join(f"- {n}" for n in names),
+                },
+                {"role": "user", "content": query},
+            ]
+        )
+        choice = result.specialty
+        return choice if choice != _NONE_OF_THESE else None
+    except Exception:  # noqa: BLE001 - fall back to a cheap substring/prefix heuristic
+        q = query.lower().strip()
+        for name in names:
+            n = name.lower()
+            if q == n or q in n or n in q:
+                return name
+        prefix_len = min(5, len(q))
+        if prefix_len >= 4:
+            q_prefix = q[:prefix_len]
+            for name in names:
+                if name.lower().startswith(q_prefix):
+                    return name
+        return None
 
 
 def _specialty_from_graph(symptoms: list[str]) -> str | None:
@@ -66,7 +124,7 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
         # field name "Cardiology" otherwise. Falls back to the raw LLM
         # extraction if nothing in the graph resembles it, rather than
         # dropping the search filter entirely.
-        canonical = match_specialty_name(extracted_specialty)
+        canonical = _match_specialty_name(extracted_specialty)
         return canonical or extracted_specialty, doctor_name
 
     graph_specialty = _specialty_from_graph(symptoms)

@@ -79,42 +79,17 @@ def specialty_for_disease(disease_name: str) -> str | None:
         return session.execute_read(_run)
 
 
-def _all_specialty_names() -> list[str]:
+def list_specialty_names() -> list[str]:
+    """Every Specialty node name in the graph (e.g. "Cardiology",
+    "Dermatology", ...) — used to canonicalize a patient's free-text
+    specialty mention against real values before it's passed to
+    Postgres's app_search_doctors ILIKE filter."""
+
     def _run(tx):
         return [record["specialty"] for record in tx.run(_ALL_SPECIALTIES_QUERY)]
 
     with get_driver().session(database=config.NEO4J_DATABASE) as session:
         return session.execute_read(_run)
-
-
-def match_specialty_name(query: str) -> str | None:
-    """Fuzzy-matches a free-text specialty mention (e.g. a patient typing
-    "cardiologist" or "heart doctor") against the graph's real Specialty
-    node names (e.g. "Cardiology"), so whatever gets passed to Postgres's
-    app_search_doctors is a value that can actually ILIKE-match a stored
-    DoctorProfile.specialty — a profession word like "cardiologist" is
-    never a substring of the field name "Cardiology" or vice versa, so
-    plain substring matching alone misses this case."""
-    if not query:
-        return None
-    q = query.lower().strip()
-    names = _all_specialty_names()
-
-    for name in names:
-        n = name.lower()
-        if q == n or q in n or n in q:
-            return name
-
-    # Shared-root fallback for profession-vs-field-name mismatches
-    # (cardiologist/cardiology, dermatologist/dermatology, ...).
-    prefix_len = min(5, len(q))
-    if prefix_len >= 4:
-        q_prefix = q[:prefix_len]
-        for name in names:
-            if name.lower().startswith(q_prefix):
-                return name
-
-    return None
 
 
 def get_symptoms_for_diseases(disease_ids: list[str]) -> dict[str, list[str]]:
