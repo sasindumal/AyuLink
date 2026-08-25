@@ -6,6 +6,8 @@ fuzzy symptom matching; if unconfident it loops through ask_followup
 candidate and offers to find a doctor for it (also an interrupt).
 """
 
+from collections import Counter
+
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
@@ -14,7 +16,7 @@ from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS, MIN_SYMPTOMS_BEFOR
 from llm import text_llm
 from schemas import FollowupQuestion
 from state import GraphState
-from tools.neo4j_tools import find_diseases_for_symptoms
+from tools.neo4j_tools import find_diseases_for_symptoms, get_symptoms_for_diseases
 from tools.postgres_tools import RpcError, create_treatment
 
 
@@ -52,40 +54,81 @@ def should_ask_followup(state: GraphState) -> str:
     return "explain_condition_node"
 
 
-FOLLOWUP_SYSTEM_PROMPT = """You are a doctor doing a triage interview. Never jump to a \
-diagnosis from a single vague symptom — ask about OTHER SYMPTOMS the patient may also \
-have, one at a time, specifically the kind that would help tell apart the possible \
-conditions listed below (e.g. "do you also have X?" or "have you noticed Y?"). Do NOT \
-ask about duration, severity, or what makes it better/worse — only ask whether another \
-specific symptom is present. Ask ONE question only, in plain everyday language, not \
-clinical jargon."""
+FOLLOWUP_SYSTEM_PROMPT = """You are a doctor doing a triage interview. Ask the patient \
+whether they also have ONE specific symptom from the "candidate symptoms" list below — \
+pick whichever one would best help tell apart the possible conditions listed. Phrase it \
+naturally in plain everyday language (e.g. "do you also have X?" or "have you noticed \
+Y?"). Do NOT ask about duration, severity, or what makes it better/worse, and do NOT \
+mention a symptom that isn't in the candidate list — only ask about symptoms from that \
+list."""
+
+
+def _unmentioned_candidate_symptoms(candidates: list[dict], known_symptoms: list[str]) -> list[str]:
+    """Queries Neo4j for the real symptom lists of the current top candidate
+    diseases, drops any the patient has already mentioned, and ranks the
+    rest by how differentiating they are — a symptom shared by every tied
+    top candidate narrows nothing, one that appears in only some of them
+    does. Grounds the follow-up question in actual graph data instead of
+    the LLM's own guesses about the disease."""
+    top_ids = [c["disease_id"] for c in candidates[:3] if c.get("disease_id")]
+    if not top_ids:
+        return []
+
+    symptom_map = get_symptoms_for_diseases(top_ids)
+    known_lower = [s.lower() for s in known_symptoms]
+
+    counts = Counter()
+    for symptom_names in symptom_map.values():
+        seen_this_disease = set()
+        for name in symptom_names:
+            if name in seen_this_disease:
+                continue
+            seen_this_disease.add(name)
+            already_known = any(name.lower() in k or k in name.lower() for k in known_lower)
+            if not already_known:
+                counts[name] += 1
+
+    num_candidates = len(symptom_map) or 1
+    # Symptoms common to every candidate (count == num_candidates) sort last —
+    # they don't help distinguish between the tied options.
+    ranked = sorted(counts.items(), key=lambda kv: (kv[1] == num_candidates, -kv[1]))
+    return [name for name, _ in ranked]
 
 
 def ask_followup(state: GraphState) -> dict:
     candidates = state.get("candidate_diseases", [])
     names = ", ".join(c.get("disease_name", "") for c in candidates[:3]) or "your condition"
+    known_symptoms = state.get("symptoms", [])
     round_ = state.get("round", 0)
 
-    try:
-        structured = text_llm.with_structured_output(FollowupQuestion, method="json_schema")
-        result: FollowupQuestion = structured.invoke(
-            [
-                {
-                    "role": "system",
-                    "content": (
-                        f"{FOLLOWUP_SYSTEM_PROMPT}\n\nPossible conditions given the symptoms "
-                        f"so far: {names}."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Symptoms mentioned so far: {', '.join(state.get('symptoms', []))}. "
-                    f"This is follow-up question #{round_ + 1}.",
-                },
-            ]
-        )
-        question = result.question
-    except Exception:  # noqa: BLE001 - graceful fallback if structured output fails
+    graph_symptoms = _unmentioned_candidate_symptoms(candidates, known_symptoms)[:6]
+
+    if graph_symptoms:
+        try:
+            structured = text_llm.with_structured_output(FollowupQuestion, method="json_schema")
+            result: FollowupQuestion = structured.invoke(
+                [
+                    {
+                        "role": "system",
+                        "content": (
+                            f"{FOLLOWUP_SYSTEM_PROMPT}\n\nPossible conditions given the symptoms "
+                            f"so far: {names}.\nCandidate symptoms to ask about: "
+                            f"{', '.join(graph_symptoms)}."
+                        ),
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Symptoms mentioned so far: {', '.join(known_symptoms)}. "
+                        f"This is follow-up question #{round_ + 1}.",
+                    },
+                ]
+            )
+            question = result.question
+        except Exception:  # noqa: BLE001 - graceful fallback if structured output fails
+            question = f"Do you also have {graph_symptoms[0].lower()}?"
+    else:
+        # No more graph-known symptoms left to ask about for these
+        # candidates — fall back to a generic open question.
         question = "Are you noticing any other symptoms alongside this?"
 
     answer = interrupt({"type": "ask_followup", "question": question})

@@ -47,6 +47,12 @@ RETURN sp.name AS specialty
 LIMIT 1
 """
 
+_SYMPTOMS_FOR_DISEASES_QUERY = """
+MATCH (d:Disease)-[:HAS_SYMPTOM]->(s:Symptom)
+WHERE d.id IN $disease_ids
+RETURN d.id AS disease_id, collect(DISTINCT s.name) AS symptoms
+"""
+
 
 def find_diseases_for_symptoms(symptoms: list[str]) -> list[dict]:
     """For each symptom phrase, fuzzy-match against Symptom.name and
@@ -66,6 +72,23 @@ def specialty_for_disease(disease_name: str) -> str | None:
     def _run(tx):
         record = tx.run(_SPECIALTY_FOR_DISEASE_QUERY, disease_name=disease_name).single()
         return record["specialty"] if record else None
+
+    with get_driver().session(database=config.NEO4J_DATABASE) as session:
+        return session.execute_read(_run)
+
+
+def get_symptoms_for_diseases(disease_ids: list[str]) -> dict[str, list[str]]:
+    """{disease_id: [symptom names]} for the given diseases, via
+    Disease-[:HAS_SYMPTOM]->Symptom — used to ground follow-up questions
+    in the graph's actual symptom data instead of the LLM's own guesses."""
+    if not disease_ids:
+        return {}
+
+    def _run(tx):
+        return {
+            record["disease_id"]: record["symptoms"]
+            for record in tx.run(_SYMPTOMS_FOR_DISEASES_QUERY, disease_ids=disease_ids)
+        }
 
     with get_driver().session(database=config.NEO4J_DATABASE) as session:
         return session.execute_read(_run)
