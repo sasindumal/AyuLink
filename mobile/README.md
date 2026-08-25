@@ -4,7 +4,7 @@ Four React Native (Expo) apps that talk **directly to Supabase** — no Next.js 
 
 | App | Directory | For | Highlights |
 |-----|-----------|-----|-----------|
-| **AyuLink** | `patient-app/` | Patients | Digital Medical ID QR, prescription history, find & book appointments (by specialty/city/rating/soonest, by doctor, or by channeling center) |
+| **AyuLink** | `patient-app/` | Patients | Digital Medical ID QR, prescription history, find & book appointments (by specialty/city/rating/soonest, by doctor, or by channeling center), and an AI **Assistant** tab for symptom triage, doctor search, and booking via chat |
 | **AyuLink Doctor** | `doctor-app/` | Doctors | QR patient scanning, prescription builder |
 | **AyuLink Pharmacy** | `pharmacy-app/` | Pharmacies | QR scanning, per-item dispensing with 15-min undo |
 | **AyuLink Channeling Center** | `channeling-center-app/` | Channeling centers | Manage appointments booked at the center — confirm, reschedule, cancel, mark complete |
@@ -55,7 +55,7 @@ npm run ios        # iOS simulator
 npm run android    # Android emulator
 ```
 
-No backend to start — the apps work anywhere with internet access.
+No backend to start — the apps work anywhere with internet access. **Exception:** the patient app's *Assistant* tab talks to a separate local server — see [Assistant backend](#assistant-backend-patient-app-only) below.
 
 ## Demo accounts
 
@@ -82,6 +82,52 @@ supabase db query --linked -f knowledge-graph/seed_postgres_dataset.sql
 Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345678`
 
 Ran the bulk import? You also get 90 real doctor logins and 53 real channeling-center logins (same password, synthetic NICs) — find one via the Supabase Table Editor (`DoctorProfile` / `ChannelingCenter` → linked `User.nicNumber`).
+
+## Assistant backend (patient app only)
+
+The patient app's *Assistant* tab is a chat front-door (general Q&A, symptom
+triage against a Neo4j knowledge graph, doctor search, and booking) backed by
+a LangGraph + FastAPI server at [`agents_system/doctor_channeling`](../agents_system/doctor_channeling),
+using a local [LM Studio](https://lmstudio.ai) model — not Supabase directly.
+
+**One-time setup:**
+
+1. Root `.env` needs `SUPABASE_ANON_KEY`, `AGENTS_CHECKPOINT_DATABASE_URL` (a
+   Supabase **session pooler** connection string — Dashboard → your project →
+   Settings → Database → Connection string → "Session pooler", *not*
+   "Transaction pooler"), and `NEO4J_*` — see
+   [`agents_system/doctor_channeling/.env.example`](../agents_system/doctor_channeling/.env.example)
+   for the full list and where each value comes from.
+2. Create the venv and install deps:
+   ```bash
+   cd agents_system/doctor_channeling
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. Open [LM Studio](https://lmstudio.ai), load a model, and start its local
+   server (default `http://localhost:1234/v1`). Set `LM_STUDIO_MODEL` in root
+   `.env` to that model's exact name (`curl http://localhost:1234/v1/models`
+   lists what's loaded). A vision-capable model is optional — without one,
+   image-only PDF report pages degrade to "please describe your symptoms"
+   instead of failing.
+
+**Run:**
+
+```bash
+cd agents_system/doctor_channeling
+source .venv/bin/activate
+uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+`--host 0.0.0.0` is required, not optional — a physical phone or the iOS
+Simulator can't reach a server bound only to `127.0.0.1`. Check it's up with
+`curl http://localhost:8000/health` → `{"status":"ok"}`.
+
+Then in `patient-app/src/lib/agentConfig.ts`, set `AGENT_API_URL` to this
+machine's **LAN IP** (find it with `ipconfig getifaddr en0` on macOS), not
+`localhost` — e.g. `http://192.168.1.23:8000`. Your phone/simulator and this
+machine must be on the same Wi-Fi network.
 
 ## Try the full flow
 
