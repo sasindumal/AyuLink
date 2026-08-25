@@ -19,6 +19,7 @@ import type { Treatment } from "../../src/types";
 export default function Home() {
     const { user, logout } = useAuth();
     const [treatments, setTreatments] = useState<Treatment[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -34,6 +35,9 @@ export default function Home() {
             setLoaded(true);
             setRefreshing(false);
         }
+        rpc<number>("app_unread_notification_count")
+            .then(setUnreadCount)
+            .catch(() => {});
     }, []);
 
     useEffect(() => {
@@ -67,13 +71,28 @@ export default function Home() {
                     title={`Hi, ${user?.firstName ?? "there"} 👋`}
                     subtitle="Welcome to AyuLink"
                     right={
-                        <Pressable onPress={logout} style={styles.logout}>
-                            <Ionicons
-                                name="log-out-outline"
-                                size={22}
-                                color={colors.danger}
-                            />
-                        </Pressable>
+                        <View style={styles.headerActions}>
+                            <Pressable
+                                onPress={() => router.push("/notifications")}
+                                style={[styles.iconButton, { backgroundColor: colors.primarySoft }]}
+                            >
+                                <Ionicons name="notifications-outline" size={22} color={colors.primaryDark} />
+                                {unreadCount > 0 && (
+                                    <View style={styles.badge}>
+                                        <Text style={styles.badgeText}>
+                                            {unreadCount > 9 ? "9+" : unreadCount}
+                                        </Text>
+                                    </View>
+                                )}
+                            </Pressable>
+                            <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
+                                <Ionicons
+                                    name="log-out-outline"
+                                    size={22}
+                                    color={colors.danger}
+                                />
+                            </Pressable>
+                        </View>
                     }
                 />
 
@@ -151,14 +170,29 @@ export default function Home() {
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     scroll: { padding: spacing.lg, paddingBottom: spacing.xl },
-    logout: {
+    headerActions: { flexDirection: "row", gap: 8 },
+    iconButton: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: colors.dangerSoft,
         alignItems: "center",
         justifyContent: "center",
     },
+    badge: {
+        position: "absolute",
+        top: -2,
+        right: -2,
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        paddingHorizontal: 3,
+        backgroundColor: colors.danger,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: colors.background,
+    },
+    badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
     diagnosisCard: {
         flexDirection: "row",
         alignItems: "flex-start",

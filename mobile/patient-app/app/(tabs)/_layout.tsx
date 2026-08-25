@@ -40,6 +40,15 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
+                name="treatments"
+                options={{
+                    title: "Treatments",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="pulse" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="medical-id"
                 options={{
                     title: "Medical ID",
@@ -63,24 +72,6 @@ export default function TabsLayout() {
                     title: "Appointments",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="calendar" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="treatments"
-                options={{
-                    title: "Treatments",
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="pulse" size={size} color={color} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="notifications"
-                options={{
-                    title: "Notifications",
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="notifications" size={size} color={color} />
                     ),
                 }}
             />

@@ -443,7 +443,7 @@ function InterruptCard({
                             <Button
                                 title="Use nearest"
                                 variant="secondary"
-                                onPress={() => onResolve({}, "Use nearest available")}
+                                onPress={() => onResolve({ location: null, time: null }, "Use nearest available")}
                                 disabled={busy}
                                 style={{ flex: 1 }}
                             />

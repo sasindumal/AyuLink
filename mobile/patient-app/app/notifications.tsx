@@ -1,19 +1,21 @@
 // ==============================================
 // AyuLink Patient - Notifications
 // Persisted history of appointment events (booked,
-// rescheduled, cancelled, completed).
+// rescheduled, cancelled, completed). Reached from the
+// bell icon in Home's header, not a tab.
 // ==============================================
 
 import React, { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { rpc } from "../../src/lib/api";
-import { useAuth } from "../../src/lib/auth";
-import { colors, spacing } from "../../src/theme";
-import { Banner, EmptyState, ScreenHeader } from "../../src/components/ui";
-import { NotificationCard } from "../../src/components/NotificationCard";
-import type { AppNotification } from "../../src/types";
+import { Ionicons } from "@expo/vector-icons";
+import { rpc } from "../src/lib/api";
+import { useAuth } from "../src/lib/auth";
+import { colors, radius, spacing } from "../src/theme";
+import { Banner, EmptyState } from "../src/components/ui";
+import { NotificationCard } from "../src/components/NotificationCard";
+import type { AppNotification } from "../src/types";
 
 export default function Notifications() {
     const { user } = useAuth();
@@ -65,17 +67,20 @@ export default function Notifications() {
                 keyExtractor={(n) => n.id}
                 ListHeaderComponent={
                     <>
-                        <ScreenHeader
-                            title="Notifications"
-                            subtitle="Appointment updates"
-                            right={
-                                hasUnread ? (
-                                    <Pressable onPress={markAllRead}>
-                                        <Text style={styles.markAllText}>Mark all read</Text>
-                                    </Pressable>
-                                ) : undefined
-                            }
-                        />
+                        <View style={styles.header}>
+                            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                                <Ionicons name="arrow-back" size={22} color={colors.primaryDark} />
+                            </Pressable>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.headerTitle}>Notifications</Text>
+                                <Text style={styles.headerSubtitle}>Appointment updates</Text>
+                            </View>
+                            {hasUnread && (
+                                <Pressable onPress={markAllRead}>
+                                    <Text style={styles.markAllText}>Mark all read</Text>
+                                </Pressable>
+                            )}
+                        </View>
                         {error && <Banner kind="error" message={error} />}
                     </>
                 }
@@ -110,5 +115,16 @@ export default function Notifications() {
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { flex: 1, paddingHorizontal: spacing.lg },
+    header: { flexDirection: "row", alignItems: "center", gap: 10, paddingTop: spacing.lg, marginBottom: spacing.lg },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: radius.sm,
+        backgroundColor: colors.primarySoft,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    headerTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
+    headerSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
     markAllText: { color: colors.primary, fontWeight: "700", fontSize: 12.5 },
 });

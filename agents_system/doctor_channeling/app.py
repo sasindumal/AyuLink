@@ -76,8 +76,14 @@ async def chat(body: ChatRequest, auth=Depends(get_patient_auth)):
 @app.post("/chat/resume")
 async def chat_resume(body: ResumeRequest, auth=Depends(get_patient_auth)):
     config = {"configurable": {"thread_id": body.thread_id}}
+    # LangGraph's Command(resume=...) treats an empty dict as "no writes at
+    # all" (map_command's per-task-id check is vacuously true over zero
+    # keys) and raises EmptyInputError — never forward {} as-is.
+    resume_value = body.value
+    if isinstance(resume_value, dict) and not resume_value:
+        resume_value = {"_default": True}
     return StreamingResponse(
-        stream_graph_events(graph, Command(resume=body.value), config),
+        stream_graph_events(graph, Command(resume=resume_value), config),
         media_type="text/event-stream",
     )
 
