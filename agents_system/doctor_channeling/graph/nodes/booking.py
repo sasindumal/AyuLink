@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage
 from langgraph.types import interrupt
 
 from state import GraphState
-from tools.postgres_tools import RpcError, book_appointment, get_doctor_availability
+from tools.postgres_tools import RpcError, book_appointment, get_doctor_availability, link_treatment_appointment
 
 
 async def booking_agent(state: GraphState) -> dict:
@@ -65,4 +65,13 @@ async def booking_agent(state: GraphState) -> dict:
         if order_number
         else "Your appointment was booked successfully."
     )
+
+    treatment_id = state.get("treatment_id")
+    appointment_id = result.get("id") if isinstance(result, dict) else None
+    if treatment_id and appointment_id:
+        try:
+            await link_treatment_appointment(jwt, treatment_id, appointment_id)
+        except RpcError:
+            pass
+
     return {"booking_result": result, "messages": [AIMessage(content=confirmation)]}

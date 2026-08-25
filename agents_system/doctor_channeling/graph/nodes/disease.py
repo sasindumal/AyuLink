@@ -7,6 +7,7 @@ candidate and offers to find a doctor for it (also an interrupt).
 """
 
 from langchain_core.messages import AIMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
 from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS
@@ -14,6 +15,7 @@ from llm import text_llm
 from schemas import FollowupQuestion
 from state import GraphState
 from tools.neo4j_tools import find_diseases_for_symptoms
+from tools.postgres_tools import RpcError, create_treatment
 
 
 def disease_agent(state: GraphState) -> dict:
@@ -66,7 +68,7 @@ def ask_followup(state: GraphState) -> dict:
     return {"symptoms": symptoms, "round": state.get("round", 0) + 1}
 
 
-def explain_condition_node(state: GraphState) -> dict:
+async def explain_condition_node(state: GraphState, config: RunnableConfig) -> dict:
     candidates = state.get("candidate_diseases", [])
     confirmed = candidates[0] if candidates else None
 
@@ -91,11 +93,29 @@ def explain_condition_node(state: GraphState) -> dict:
     response = text_llm.invoke([{"role": "user", "content": prompt}])
     explanation = str(response.content)
 
-    return {
+    update = {
         "confirmed_disease": confirmed,
         "condition_explanation": explanation,
         "messages": [AIMessage(content=explanation)],
     }
+
+    # Best-effort — a Treatment record makes this diagnosis visible/resumable
+    # in the app, but a Postgres hiccup here must not break the diagnosis turn.
+    try:
+        thread_id = config["configurable"]["thread_id"]
+        treatment = await create_treatment(
+            state["patient_jwt"],
+            thread_id,
+            confirmed.get("disease_name", "Unknown"),
+            specialty=confirmed.get("specialty"),
+            description=explanation,
+        )
+        if treatment and treatment.get("id"):
+            update["treatment_id"] = treatment["id"]
+    except (RpcError, KeyError):
+        pass
+
+    return update
 
 
 def offer_doctor(state: GraphState) -> Command:

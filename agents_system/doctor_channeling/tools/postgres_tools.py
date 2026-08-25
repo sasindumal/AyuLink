@@ -71,3 +71,32 @@ async def book_appointment(
         },
     )
     return data
+
+
+async def create_treatment(
+    jwt: str,
+    thread_id: str,
+    disease_name: str,
+    specialty: str | None = None,
+    description: str | None = None,
+) -> dict:
+    data = await _call(
+        jwt,
+        "app_create_treatment",
+        {
+            "p_thread_id": thread_id,
+            "p_disease_name": disease_name,
+            "p_specialty": specialty,
+            "p_description": description,
+        },
+    )
+    return data
+
+
+async def link_treatment_appointment(jwt: str, treatment_id: str, appointment_id: str) -> dict:
+    data = await _call(
+        jwt,
+        "app_link_treatment_appointment",
+        {"p_treatment_id": treatment_id, "p_appointment_id": appointment_id},
+    )
+    return data

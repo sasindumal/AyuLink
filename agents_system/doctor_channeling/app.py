@@ -8,7 +8,7 @@ is built once at startup and reused for the process lifetime.
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
@@ -66,6 +66,7 @@ async def chat(body: ChatRequest, auth=Depends(get_patient_auth)):
         "patient_jwt": jwt,
         "patient_id": patient_id,
         "pdf_bytes": None,
+        "image_bytes": None,
     }
     return StreamingResponse(
         stream_graph_events(graph, input_, config), media_type="text/event-stream"
@@ -93,7 +94,53 @@ async def chat_pdf(
         "patient_jwt": jwt,
         "patient_id": patient_id,
         "pdf_bytes": pdf_bytes,
+        "image_bytes": None,
     }
     return StreamingResponse(
         stream_graph_events(graph, input_, config), media_type="text/event-stream"
     )
+
+
+@app.post("/chat/image")
+async def chat_image(
+    thread_id: str = Form(...), file: UploadFile = File(...), auth=Depends(get_patient_auth)
+):
+    jwt, patient_id = auth
+    image_bytes = await file.read()
+    config = {"configurable": {"thread_id": thread_id}}
+    input_ = {
+        "messages": [],
+        "patient_jwt": jwt,
+        "patient_id": patient_id,
+        "pdf_bytes": None,
+        "image_bytes": image_bytes,
+        "image_mime": file.content_type or "image/jpeg",
+    }
+    return StreamingResponse(
+        stream_graph_events(graph, input_, config), media_type="text/event-stream"
+    )
+
+
+@app.get("/chat/history")
+async def chat_history(thread_id: str, auth=Depends(get_patient_auth)):
+    """Returns the current message transcript and any pending interrupt for a
+    thread, so the mobile app can hydrate a 'continued' conversation
+    (e.g. reopening a Treatment) without replaying the whole graph."""
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = await graph.aget_state(config)
+
+    if not snapshot.values:
+        raise HTTPException(status_code=404, detail="No conversation found for this thread")
+
+    messages = []
+    for m in snapshot.values.get("messages", []):
+        role = "user" if getattr(m, "type", "") == "human" else "assistant"
+        messages.append({"role": role, "content": str(getattr(m, "content", ""))})
+
+    pending_interrupt = None
+    for task in snapshot.tasks:
+        if task.interrupts:
+            pending_interrupt = task.interrupts[0].value
+            break
+
+    return {"messages": messages, "interrupt": pending_interrupt}

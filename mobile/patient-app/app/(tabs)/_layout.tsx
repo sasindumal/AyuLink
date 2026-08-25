@@ -67,11 +67,20 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
-                name="assistant"
+                name="treatments"
                 options={{
-                    title: "Assistant",
+                    title: "Treatments",
                     tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="chatbubbles" size={size} color={color} />
+                        <Ionicons name="pulse" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="notifications"
+                options={{
+                    title: "Notifications",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="notifications" size={size} color={color} />
                     ),
                 }}
             />

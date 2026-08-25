@@ -36,6 +36,7 @@ import { AppointmentCard } from "../../src/components/AppointmentCard";
 import { SearchFilters, type SearchFilterState } from "../../src/components/SearchFilters";
 import { DoctorBrowseView } from "../../src/components/DoctorBrowseView";
 import { CenterBrowseView } from "../../src/components/CenterBrowseView";
+import { AppointmentDetailModal } from "../../src/components/AppointmentDetailModal";
 import type { Appointment, DoctorSlot } from "../../src/types";
 
 type Mode = "quick" | "byDoctor" | "byCenter" | "mine";
@@ -56,6 +57,7 @@ export default function Appointments() {
     const [slots, setSlots] = useState<DoctorSlot[]>([]);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
+    const [detailTarget, setDetailTarget] = useState<Appointment | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [searching, setSearching] = useState(false);
     const [loadingMine, setLoadingMine] = useState(true);
@@ -249,6 +251,7 @@ export default function Appointments() {
                                     appointment={item}
                                     onCancel={cancel}
                                     onReschedule={startReschedule}
+                                    onPress={setDetailTarget}
                                     cancelling={busyKey === item.id}
                                 />
                             )}
@@ -273,6 +276,8 @@ export default function Appointments() {
                             }
                         />
                     ))}
+
+                <AppointmentDetailModal appointment={detailTarget} onClose={() => setDetailTarget(null)} />
             </View>
         </SafeAreaView>
     );

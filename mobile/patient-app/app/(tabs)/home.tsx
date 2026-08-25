@@ -1,47 +1,35 @@
 // ==============================================
 // AyuLink Patient - Home Dashboard
-// Stats, quick Medical ID access, recent activity
+// Diagnosis entry point, quick Medical ID access,
+// and recent treatments
 // ==============================================
 
 import React, { useCallback, useEffect, useState } from "react";
-import {
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, spacing } from "../../src/theme";
-import {
-    Banner,
-    Card,
-    EmptyState,
-    ScreenHeader,
-    StatCard,
-} from "../../src/components/ui";
-import { PrescriptionCard } from "../../src/components/PrescriptionCard";
-import type { Prescription } from "../../src/types";
+import { colors, radius, shadow, spacing } from "../../src/theme";
+import { Banner, Button, Card, EmptyState, ScreenHeader } from "../../src/components/ui";
+import { TreatmentCard } from "../../src/components/TreatmentCard";
+import type { Treatment } from "../../src/types";
 
 export default function Home() {
     const { user, logout } = useAuth();
-    const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+    const [treatments, setTreatments] = useState<Treatment[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
     const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () => {
         try {
-            const data = await rpc<Prescription[]>("app_list_prescriptions");
-            setPrescriptions(data ?? []);
+            const data = await rpc<Treatment[]>("app_list_my_treatments");
+            setTreatments(data ?? []);
             setError(null);
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to load prescriptions");
+            setError(e instanceof Error ? e.message : "Failed to load treatments");
         } finally {
             setLoaded(true);
             setRefreshing(false);
@@ -52,8 +40,13 @@ export default function Home() {
         if (user) load();
     }, [user, load]);
 
-    const active = prescriptions.filter((p) => p.status !== "FULLY_DISPENSED");
-    const dispensed = prescriptions.filter((p) => p.status === "FULLY_DISPENSED");
+    const openTreatment = (t: Treatment) => {
+        if (t.status === "DIAGNOSED") {
+            router.push({ pathname: "/diagnosis", params: { threadId: t.thread_id } });
+        } else {
+            router.push("/(tabs)/appointments");
+        }
+    };
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -72,7 +65,7 @@ export default function Home() {
             >
                 <ScreenHeader
                     title={`Hi, ${user?.firstName ?? "there"} 👋`}
-                    subtitle="Welcome back to AyuLink"
+                    subtitle="Welcome to AyuLink"
                     right={
                         <Pressable onPress={logout} style={styles.logout}>
                             <Ionicons
@@ -86,26 +79,23 @@ export default function Home() {
 
                 {error && <Banner kind="error" message={error} />}
 
-                <View style={styles.statRow}>
-                    <StatCard
-                        label="Active"
-                        value={active.length}
-                        icon="pulse"
-                        tint={colors.primary}
-                    />
-                    <StatCard
-                        label="Total"
-                        value={prescriptions.length}
-                        icon="albums"
-                        tint={colors.primaryDark}
-                    />
-                    <StatCard
-                        label="Dispensed"
-                        value={dispensed.length}
-                        icon="checkmark-done"
-                        tint={colors.warning}
-                    />
-                </View>
+                <Card style={styles.diagnosisCard}>
+                    <View style={styles.diagnosisIcon}>
+                        <Ionicons name="pulse" size={26} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.diagnosisTitle}>Do you have any disease?</Text>
+                        <Text style={styles.diagnosisSubtitle}>
+                            Describe your symptoms and we'll help you find a doctor.
+                        </Text>
+                        <Button
+                            title="Diagnosis"
+                            icon="chatbubble-ellipses"
+                            onPress={() => router.push("/diagnosis")}
+                            style={{ marginTop: spacing.sm }}
+                        />
+                    </View>
+                </Card>
 
                 <Pressable onPress={() => router.push("/(tabs)/medical-id")}>
                     <Card style={styles.idCard}>
@@ -124,33 +114,27 @@ export default function Home() {
                     </Card>
                 </Pressable>
 
-                <Text style={styles.sectionTitle}>Recent Prescriptions</Text>
+                <Text style={styles.sectionTitle}>Recent Treatments</Text>
 
-                {loaded && prescriptions.length === 0 && !error ? (
+                {loaded && treatments.length === 0 && !error ? (
                     <EmptyState
-                        icon="document-text-outline"
-                        title="No prescriptions yet"
-                        message="Prescriptions issued by your doctor will appear here after your next visit."
+                        icon="pulse-outline"
+                        title="No treatments yet"
+                        message="Tap Diagnosis above to describe your symptoms and get started."
                     />
                 ) : (
-                    prescriptions
-                        .slice(0, 3)
-                        .map((p) => (
-                            <PrescriptionCard
-                                key={p.id}
-                                prescription={p}
-                                perspective="patient"
-                            />
-                        ))
+                    treatments.slice(0, 3).map((t) => (
+                        <TreatmentCard key={t.id} treatment={t} onPress={openTreatment} />
+                    ))
                 )}
 
-                {prescriptions.length > 3 && (
+                {treatments.length > 3 && (
                     <Pressable
-                        onPress={() => router.push("/(tabs)/prescriptions")}
+                        onPress={() => router.push("/(tabs)/treatments")}
                         style={styles.viewAll}
                     >
                         <Text style={styles.viewAllText}>
-                            View all {prescriptions.length} prescriptions
+                            View all {treatments.length} treatments
                         </Text>
                         <Ionicons
                             name="arrow-forward"
@@ -175,7 +159,23 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    statRow: { flexDirection: "row", gap: 10, marginBottom: spacing.md },
+    diagnosisCard: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: 14,
+        marginBottom: spacing.md,
+        ...shadow.card,
+    },
+    diagnosisIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: radius.sm,
+        backgroundColor: colors.primary,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    diagnosisTitle: { fontSize: 15.5, fontWeight: "800", color: colors.text },
+    diagnosisSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
     idCard: {
         flexDirection: "row",
         alignItems: "center",

@@ -23,7 +23,12 @@ from graph.nodes.doctor_finder import (
     route_after_doctor_finder,
 )
 from graph.nodes.general import general_answer_agent
-from graph.nodes.input_nodes import document_summarizer, normalise_input, pdf_to_images
+from graph.nodes.input_nodes import (
+    document_summarizer,
+    image_to_summary,
+    normalise_input,
+    pdf_to_images,
+)
 from graph.nodes.manager import manager_agent
 from graph.nodes.symptom import symptom_agent
 from state import GraphState
@@ -37,7 +42,11 @@ ROUTE_TARGETS = {
 
 
 def _entry_router(state: GraphState) -> str:
-    return "pdf_to_images" if state.get("pdf_bytes") else "normalise_input"
+    if state.get("pdf_bytes"):
+        return "pdf_to_images"
+    if state.get("image_bytes"):
+        return "image_to_summary"
+    return "normalise_input"
 
 
 def _route_after_manager(state: GraphState) -> str:
@@ -49,6 +58,7 @@ def build_graph_builder() -> StateGraph:
 
     builder.add_node("normalise_input", normalise_input)
     builder.add_node("pdf_to_images", pdf_to_images)
+    builder.add_node("image_to_summary", image_to_summary)
     builder.add_node("document_summarizer", document_summarizer)
     builder.add_node("manager_agent", manager_agent)
     builder.add_node("general_answer_agent", general_answer_agent)
@@ -64,9 +74,16 @@ def build_graph_builder() -> StateGraph:
     builder.add_node("booking_agent", booking_agent)
 
     builder.add_conditional_edges(
-        START, _entry_router, {"pdf_to_images": "pdf_to_images", "normalise_input": "normalise_input"}
+        START,
+        _entry_router,
+        {
+            "pdf_to_images": "pdf_to_images",
+            "image_to_summary": "image_to_summary",
+            "normalise_input": "normalise_input",
+        },
     )
     builder.add_edge("pdf_to_images", "document_summarizer")
+    builder.add_edge("image_to_summary", "document_summarizer")
     builder.add_edge("document_summarizer", "normalise_input")
     builder.add_edge("normalise_input", "manager_agent")
 

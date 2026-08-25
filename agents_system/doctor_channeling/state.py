@@ -24,6 +24,8 @@ class GraphState(TypedDict):
     patient_jwt: str
     patient_id: str
     pdf_bytes: Optional[bytes]
+    image_bytes: Optional[bytes]
+    image_mime: Optional[str]
 
     route: Optional[Literal["general", "clinical", "doctor_search", "booking"]]
     # Set by a HITL node (offer_doctor, present_top5) right before handing
@@ -38,6 +40,7 @@ class GraphState(TypedDict):
     confirmed_disease: Optional[dict]
     condition_explanation: Optional[str]
     specialty_hint: Optional[str]
+    treatment_id: Optional[str]
 
     location_pref: Optional[str]
     time_pref: Optional[str]

@@ -1,16 +1,19 @@
-"""normalise_input, pdf_to_images, document_summarizer.
+"""normalise_input, pdf_to_images, image_to_summary, document_summarizer.
 
-Two entry points converge here: typed text (messages already carries
-the HumanMessage) and PDF upload (pdf_bytes -> images/text -> a
-HumanMessage summary appended by document_summarizer before this
-node ever runs for that turn).
+Three entry points converge here: typed text (messages already carries
+the HumanMessage), PDF upload (pdf_bytes -> images/text -> a
+HumanMessage summary), and image upload (image_bytes -> a HumanMessage
+summary) — document_summarizer runs after either upload path, before
+this node ever sees plain text for that turn.
 """
+
+import base64
 
 from langchain_core.messages import HumanMessage
 
-from llm import text_llm, vision_llm
+from llm import text_llm
 from state import GraphState
-from tools.pdf_tools import extract_pages
+from tools.pdf_tools import describe_image, extract_pages
 
 
 def normalise_input(state: GraphState) -> dict:
@@ -32,24 +35,8 @@ def pdf_to_images(state: GraphState) -> dict:
             text_parts.append(f"[Page {page.page_number}]\n{page.text}")
         else:
             try:
-                response = vision_llm.invoke(
-                    [
-                        HumanMessage(
-                            content=[
-                                {
-                                    "type": "text",
-                                    "text": "Describe the medically relevant content of this report page "
-                                    "(findings, values, diagnoses, medications) in plain text.",
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {"url": f"data:image/png;base64,{page.image_b64}"},
-                                },
-                            ]
-                        )
-                    ]
-                )
-                image_summaries.append(f"[Page {page.page_number} (image)]\n{response.content}")
+                description = describe_image(page.image_b64, "image/png")
+                image_summaries.append(f"[Page {page.page_number} (image)]\n{description}")
             except Exception:  # noqa: BLE001 - no VLM loaded / unreachable, degrade gracefully
                 image_summaries.append(
                     f"[Page {page.page_number} (image) — could not be read: no vision model available]"
@@ -63,6 +50,25 @@ def pdf_to_images(state: GraphState) -> dict:
         )
 
     return {"messages": [HumanMessage(content=f"[Uploaded medical report]\n{combined}")]}
+
+
+def image_to_summary(state: GraphState) -> dict:
+    image_bytes = state.get("image_bytes")
+    if not image_bytes:
+        return {}
+
+    mime = state.get("image_mime") or "image/jpeg"
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    try:
+        description = describe_image(image_b64, mime)
+    except Exception:  # noqa: BLE001 - no VLM loaded / unreachable, degrade gracefully
+        description = (
+            "The attached image contains content I can't read yet — "
+            "please describe your symptoms in your own words."
+        )
+
+    return {"messages": [HumanMessage(content=f"[Uploaded medical report]\n{description}")]}
 
 
 def document_summarizer(state: GraphState) -> dict:

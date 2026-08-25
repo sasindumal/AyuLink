@@ -195,3 +195,51 @@ export interface ChannelingCenterSummary {
     contact_number: string;
     location: string;
 }
+
+// ----- Treatments (AI diagnosis sessions) -----
+
+export type TreatmentStatus = "DIAGNOSED" | "BOOKED" | "COMPLETED";
+
+export interface TreatmentAppointmentRef {
+    id: string;
+    orderNumber: string;
+    status: AppointmentStatus;
+    appointmentDate: string;
+    startTime: string;
+}
+
+// Shape returned by app_list_my_treatments() / app_create_treatment() /
+// app_link_treatment_appointment() (via treatment_json()).
+export interface Treatment {
+    id: string;
+    patient_id: string;
+    thread_id: string;
+    disease_name: string;
+    specialty: string | null;
+    description: string | null;
+    status: TreatmentStatus;
+    appointment_id: string | null;
+    created_at: string;
+    updated_at: string;
+    appointment: TreatmentAppointmentRef | null;
+}
+
+// ----- Notifications -----
+
+export type NotificationType =
+    | "APPOINTMENT_BOOKED"
+    | "APPOINTMENT_RESCHEDULED"
+    | "APPOINTMENT_CANCELLED"
+    | "APPOINTMENT_COMPLETED";
+
+// Shape returned by app_list_notifications()
+export interface AppNotification {
+    id: string;
+    user_id: string;
+    type: NotificationType;
+    title: string;
+    body: string;
+    appointment_id: string | null;
+    read: boolean;
+    created_at: string;
+}

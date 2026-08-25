@@ -1,13 +1,14 @@
 // ==============================================
-// AyuLink Patient - Assistant
+// AyuLink Patient - Diagnosis
 // Chat front-door to the LangGraph doctor-channeling
 // backend: general Q&A, symptom triage against the
 // knowledge graph, doctor search, and booking — all
-// driven from one conversational thread. Supports a
-// PDF report upload as an alternate entry point.
+// driven from one conversational thread. Supports PDF
+// and image report uploads, and can resume an existing
+// thread (continuing a Treatment from Home/Treatments).
 // ==============================================
 
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
@@ -19,18 +20,23 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import {
     type AgentEvent,
     type DoctorCard,
     type InterruptPayload,
+    fetchHistory,
     resumeChat,
+    sendImage,
     sendMessage,
     sendPdf,
-} from "../../src/lib/agentChat";
-import { Banner, Button, Input, ScreenHeader } from "../../src/components/ui";
-import { colors, radius, shadow, spacing } from "../../src/theme";
+} from "../src/lib/agentChat";
+import { Banner, Button, Input } from "../src/components/ui";
+import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
+import { colors, radius, shadow, spacing } from "../src/theme";
 
 type ChatItem =
     | { id: string; kind: "user"; text: string }
@@ -41,24 +47,69 @@ type ChatItem =
 let idCounter = 0;
 const nextId = () => `msg-${Date.now()}-${idCounter++}`;
 
-export default function Assistant() {
-    const [threadId] = useState(() => `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-    const [items, setItems] = useState<ChatItem[]>([
-        {
-            id: nextId(),
-            kind: "assistant",
-            text: "Hi! Tell me how you're feeling, ask a question, or attach a medical report to get started.",
-        },
-    ]);
+export default function Diagnosis() {
+    const params = useLocalSearchParams<{ threadId?: string }>();
+    const continuing = typeof params.threadId === "string" && params.threadId.length > 0;
+
+    const [threadId] = useState(
+        () => params.threadId ?? `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    );
+    const [items, setItems] = useState<ChatItem[]>(
+        continuing
+            ? []
+            : [
+                  {
+                      id: nextId(),
+                      kind: "assistant",
+                      text: "Hi! Tell me how you're feeling, ask a question, or attach a medical report to get started.",
+                  },
+              ]
+    );
+    const [hydrating, setHydrating] = useState(continuing);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
+    const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
     const currentAssistantId = useRef<string | null>(null);
     const listRef = useRef<FlatList<ChatItem>>(null);
 
     const scrollToEnd = () => {
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     };
+
+    useEffect(() => {
+        if (!continuing) return;
+        (async () => {
+            try {
+                const history = await fetchHistory(threadId);
+                const hydrated: ChatItem[] = history.messages.map((m) => ({
+                    id: nextId(),
+                    kind: m.role === "user" ? "user" : "assistant",
+                    text: m.content,
+                }));
+                if (history.interrupt) {
+                    hydrated.push({ id: nextId(), kind: "interrupt", payload: history.interrupt, resolved: false });
+                    setAwaitingInterrupt(history.interrupt);
+                }
+                setItems(hydrated.length ? hydrated : [
+                    { id: nextId(), kind: "assistant", text: "Welcome back — let's continue where we left off." },
+                ]);
+            } catch (e) {
+                setItems([
+                    {
+                        id: nextId(),
+                        kind: "system",
+                        tone: "error",
+                        text: e instanceof Error ? e.message : "Couldn't load this conversation",
+                    },
+                ]);
+            } finally {
+                setHydrating(false);
+                scrollToEnd();
+            }
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [continuing, threadId]);
 
     const handleEvent = useCallback((evt: AgentEvent) => {
         switch (evt.event) {
@@ -153,6 +204,16 @@ export default function Assistant() {
         [busy, threadId, runStream]
     );
 
+    const confirmBooking = useCallback(() => {
+        if (!pendingBooking) return;
+        const doc = pendingBooking;
+        setPendingBooking(null);
+        resolveInterrupt(
+            { doctor_schedule_id: doc.doctor_schedule_id, date: doc.date },
+            `Book Dr. ${doc.first_name} ${doc.last_name} — ${doc.date}`
+        );
+    }, [pendingBooking, resolveInterrupt]);
+
     const attachReport = useCallback(async () => {
         if (busy) return;
         const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf" });
@@ -163,6 +224,23 @@ export default function Assistant() {
         runStream((onEvent) => sendPdf(threadId, file.uri, file.name, onEvent));
     }, [busy, threadId, runStream]);
 
+    const attachImage = useCallback(async () => {
+        if (busy) return;
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) return;
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ["images"],
+            quality: 0.8,
+        });
+        if (result.canceled || !result.assets?.[0]) return;
+        const asset = result.assets[0];
+        const name = asset.fileName ?? "photo.jpg";
+        const mime = asset.mimeType ?? "image/jpeg";
+        setItems((prev) => [...prev, { id: nextId(), kind: "user", text: `🖼️ ${name}` }]);
+        scrollToEnd();
+        runStream((onEvent) => sendImage(threadId, asset.uri, name, mime, onEvent));
+    }, [busy, threadId, runStream]);
+
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <KeyboardAvoidingView
@@ -171,18 +249,39 @@ export default function Assistant() {
                 keyboardVerticalOffset={90}
             >
                 <View style={styles.container}>
-                    <ScreenHeader title="Assistant" subtitle="Ask, describe symptoms, or find a doctor" />
+                    <View style={styles.header}>
+                        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                            <Ionicons name="arrow-back" size={22} color={colors.primaryDark} />
+                        </Pressable>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.headerTitle}>Diagnosis</Text>
+                            <Text style={styles.headerSubtitle}>
+                                {continuing ? "Continuing your conversation" : "Tell me what's going on"}
+                            </Text>
+                        </View>
+                    </View>
 
-                    <FlatList
-                        ref={listRef}
-                        data={items}
-                        keyExtractor={(it) => it.id}
-                        renderItem={({ item }) => (
-                            <ChatBubble item={item} onResolveInterrupt={resolveInterrupt} busy={busy} />
-                        )}
-                        contentContainerStyle={{ paddingBottom: spacing.md, gap: spacing.sm }}
-                        showsVerticalScrollIndicator={false}
-                    />
+                    {hydrating ? (
+                        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+                            <ActivityIndicator size="large" color={colors.primaryDark} />
+                        </View>
+                    ) : (
+                        <FlatList
+                            ref={listRef}
+                            data={items}
+                            keyExtractor={(it) => it.id}
+                            renderItem={({ item }) => (
+                                <ChatBubble
+                                    item={item}
+                                    onResolveInterrupt={resolveInterrupt}
+                                    onRequestBooking={setPendingBooking}
+                                    busy={busy}
+                                />
+                            )}
+                            contentContainerStyle={{ paddingBottom: spacing.md, gap: spacing.sm }}
+                            showsVerticalScrollIndicator={false}
+                        />
+                    )}
 
                     {busy && (
                         <View style={styles.thinkingRow}>
@@ -192,6 +291,9 @@ export default function Assistant() {
                     )}
 
                     <View style={styles.inputRow}>
+                        <Pressable style={styles.attachButton} onPress={attachImage} disabled={busy}>
+                            <Ionicons name="image" size={20} color={colors.primaryDark} />
+                        </Pressable>
                         <Pressable style={styles.attachButton} onPress={attachReport} disabled={busy}>
                             <Ionicons name="attach" size={20} color={colors.primaryDark} />
                         </Pressable>
@@ -214,6 +316,13 @@ export default function Assistant() {
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            <BookingConfirmModal
+                doctor={pendingBooking}
+                busy={busy}
+                onConfirm={confirmBooking}
+                onCancel={() => setPendingBooking(null)}
+            />
         </SafeAreaView>
     );
 }
@@ -221,10 +330,12 @@ export default function Assistant() {
 function ChatBubble({
     item,
     onResolveInterrupt,
+    onRequestBooking,
     busy,
 }: {
     item: ChatItem;
     onResolveInterrupt: (value: unknown, label?: string) => void;
+    onRequestBooking: (doctor: DoctorCard) => void;
     busy: boolean;
 }) {
     if (item.kind === "user") {
@@ -254,6 +365,7 @@ function ChatBubble({
             resolved={item.resolved}
             busy={busy}
             onResolve={onResolveInterrupt}
+            onRequestBooking={onRequestBooking}
         />
     );
 }
@@ -263,11 +375,13 @@ function InterruptCard({
     resolved,
     busy,
     onResolve,
+    onRequestBooking,
 }: {
     payload: InterruptPayload;
     resolved: boolean;
     busy: boolean;
     onResolve: (value: unknown, label?: string) => void;
+    onRequestBooking: (doctor: DoctorCard) => void;
 }) {
     const [text, setText] = useState("");
     const [city, setCity] = useState("");
@@ -323,8 +437,8 @@ function InterruptCard({
                 <Text style={styles.assistantText}>{payload.message}</Text>
                 {!resolved && (
                     <View style={{ marginTop: spacing.sm, gap: 8 }}>
-                        <Input placeholder="City (optional)" value={city} onChangeText={setCity} editable={!busy} />
-                        <Input placeholder="Preferred time (optional)" value={time} onChangeText={setTime} editable={!busy} />
+                        <Input placeholder="City (default: nearest)" value={city} onChangeText={setCity} editable={!busy} />
+                        <Input placeholder="Preferred date/time (optional)" value={time} onChangeText={setTime} editable={!busy} />
                         <View style={{ flexDirection: "row", gap: 8 }}>
                             <Button
                                 title="Use nearest"
@@ -366,12 +480,7 @@ function InterruptCard({
                     key={`${doc.doctor_schedule_id}-${i}`}
                     doctor={doc}
                     disabled={resolved || busy}
-                    onBook={() =>
-                        onResolve(
-                            { doctor_schedule_id: doc.doctor_schedule_id, date: doc.date },
-                            `Book Dr. ${doc.first_name} ${doc.last_name} — ${doc.date}`
-                        )
-                    }
+                    onBook={() => onRequestBooking(doc)}
                 />
             ))}
         </View>
@@ -420,6 +529,17 @@ function DoctorResultCard({
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     container: { flex: 1, padding: spacing.lg, paddingBottom: spacing.sm },
+    header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: spacing.md },
+    backBtn: {
+        width: 38,
+        height: 38,
+        borderRadius: radius.sm,
+        backgroundColor: colors.primarySoft,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    headerTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
+    headerSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
     bubble: {
         borderRadius: radius.md,
         padding: spacing.md,

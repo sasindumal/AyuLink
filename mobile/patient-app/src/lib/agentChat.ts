@@ -144,3 +144,44 @@ export async function sendPdf(
     });
     await streamSSE(response as unknown as Response, onEvent);
 }
+
+export async function sendImage(
+    threadId: string,
+    fileUri: string,
+    fileName: string,
+    mimeType: string,
+    onEvent: (evt: AgentEvent) => void
+): Promise<void> {
+    const token = await getAccessToken();
+    const form = new FormData();
+    form.append("thread_id", threadId);
+    form.append("file", {
+        uri: fileUri,
+        name: fileName,
+        type: mimeType,
+    } as unknown as Blob);
+
+    const response = await fetch(`${AGENT_API_URL}/chat/image`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+    });
+    await streamSSE(response as unknown as Response, onEvent);
+}
+
+export interface ChatHistory {
+    messages: { role: "user" | "assistant"; content: string }[];
+    interrupt: InterruptPayload | null;
+}
+
+export async function fetchHistory(threadId: string): Promise<ChatHistory> {
+    const token = await getAccessToken();
+    const response = await fetch(
+        `${AGENT_API_URL}/chat/history?thread_id=${encodeURIComponent(threadId)}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!response.ok) {
+        throw new Error(`Could not load conversation history (${response.status})`);
+    }
+    return (await response.json()) as ChatHistory;
+}

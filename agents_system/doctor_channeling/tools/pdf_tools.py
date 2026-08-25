@@ -6,7 +6,31 @@ import base64
 
 import pymupdf as fitz
 
+from llm import vision_llm
+
 MIN_TEXT_CHARS = 40
+
+IMAGE_DESCRIBE_PROMPT = (
+    "Describe the medically relevant content of this image (findings, values, "
+    "diagnoses, medications, visible symptoms) in plain text."
+)
+
+
+def describe_image(image_b64: str, mime: str = "image/png") -> str:
+    """Sends a base64-encoded image to the vision-capable LLM and returns its
+    description. Raises on failure — callers decide the user-facing fallback."""
+    response = vision_llm.invoke(
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": IMAGE_DESCRIBE_PROMPT},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+                ],
+            }
+        ]
+    )
+    return str(response.content)
 
 
 class PageContent:

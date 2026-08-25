@@ -3,7 +3,7 @@
 // Mirrors the web app's brand palette
 // ==============================================
 
-import type { AppointmentStatus, PrescriptionStatus } from "./types";
+import type { AppointmentStatus, PrescriptionStatus, TreatmentStatus } from "./types";
 
 export const colors = {
     background: "#F7F0F0",
@@ -63,4 +63,13 @@ export const appointmentStatusMeta: Record<
     BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
     COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
     CANCELLED: { label: "Cancelled", color: colors.danger, bg: colors.dangerSoft },
+};
+
+export const treatmentStatusMeta: Record<
+    TreatmentStatus,
+    { label: string; color: string; bg: string }
+> = {
+    DIAGNOSED: { label: "Diagnosed", color: "#9A6F00", bg: colors.warningSoft },
+    BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
+    COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
 };

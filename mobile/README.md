@@ -124,10 +124,13 @@ uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 Simulator can't reach a server bound only to `127.0.0.1`. Check it's up with
 `curl http://localhost:8000/health` → `{"status":"ok"}`.
 
-Then in `patient-app/src/lib/agentConfig.ts`, set `AGENT_API_URL` to this
-machine's **LAN IP** (find it with `ipconfig getifaddr en0` on macOS), not
-`localhost` — e.g. `http://192.168.1.23:8000`. Your phone/simulator and this
-machine must be on the same Wi-Fi network.
+Then copy `patient-app/.env.example` to `patient-app/.env` and set
+`EXPO_PUBLIC_AGENT_API_URL` to this machine's **LAN IP** (find it with
+`ipconfig getifaddr en0` on macOS), not `localhost` — e.g.
+`http://192.168.1.23:8000`. Your phone/simulator and this machine must be on
+the same Wi-Fi network. **This IP changes** whenever the machine switches
+networks (home Wi-Fi, hotspot, office) — update `.env` and restart
+`npx expo start` each time, or requests will hang until they time out.
 
 ## Try the full flow
 
