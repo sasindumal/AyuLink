@@ -8,7 +8,8 @@ export type Role = "PATIENT" | "DOCTOR" | "PHARMACIST";
 export type PrescriptionStatus =
     | "NOT_DISPENSED"
     | "PARTIALLY_DISPENSED"
-    | "FULLY_DISPENSED";
+    | "FULLY_DISPENSED"
+    | "EXPIRED";
 
 export interface User {
     id: string;
@@ -66,6 +67,7 @@ export interface Prescription {
     dateIssued: string;
     diagnosis: string;
     status: PrescriptionStatus;
+    expiresAt: string | null;
     items: PrescriptionItem[];
     patient?: PersonRef;
     doctor?: PersonRef;

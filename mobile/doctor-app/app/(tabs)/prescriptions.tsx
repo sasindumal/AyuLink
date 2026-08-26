@@ -1,11 +1,17 @@
 // ==============================================
 // AyuLink Doctor - Issued Prescriptions
+// Always sorted by most recent. Search matches patient,
+// medical ID, or diagnosis; an optional date filter narrows
+// to one issue date. "Look up by patient" (scan or type a
+// Medical ID) restricts the list to one patient, which can
+// then itself be searched/filtered by date or diagnosis.
 // ==============================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    Pressable,
     RefreshControl,
     StyleSheet,
     Text,
@@ -19,20 +25,24 @@ import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing } from "../../src/theme";
 import {
     Banner,
+    Button,
+    Card,
     EmptyState,
-    FilterChips,
+    Input,
     ScreenHeader,
 } from "../../src/components/ui";
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
+import { QRScannerModal } from "../../src/components/QRScannerModal";
 import type { Prescription } from "../../src/types";
-
-type Sort = "date" | "patient" | "medicalId";
 
 export default function Prescriptions() {
     const { user } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-    const [sort, setSort] = useState<Sort>("date");
     const [search, setSearch] = useState("");
+    const [dateFilter, setDateFilter] = useState("");
+    const [patientFilter, setPatientFilter] = useState<string | null>(null);
+    const [patientIdInput, setPatientIdInput] = useState("");
+    const [scannerOpen, setScannerOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -54,8 +64,27 @@ export default function Prescriptions() {
         if (user) load();
     }, [user, load]);
 
+    const applyPatientFilter = (medicalId: string) => {
+        setScannerOpen(false);
+        if (!medicalId.trim()) return;
+        setPatientFilter(medicalId.trim());
+        setPatientIdInput("");
+    };
+
+    const matchedPatientName = useMemo(() => {
+        if (!patientFilter) return null;
+        const match = prescriptions.find(
+            (p) => (p.patient?.medicalId ?? "").toLowerCase() === patientFilter.toLowerCase()
+        );
+        return match?.patient ? `${match.patient.firstName} ${match.patient.lastName}` : null;
+    }, [prescriptions, patientFilter]);
+
     const filtered = useMemo(() => {
         let list = prescriptions;
+        if (patientFilter) {
+            const pf = patientFilter.toLowerCase();
+            list = list.filter((p) => (p.patient?.medicalId ?? "").toLowerCase() === pf);
+        }
         const q = search.trim().toLowerCase();
         if (q) {
             list = list.filter(
@@ -67,26 +96,19 @@ export default function Prescriptions() {
                     (p.patient?.medicalId ?? "").toLowerCase().includes(q)
             );
         }
-        list = [...list].sort((a, b) => {
-            if (sort === "patient") {
-                return `${a.patient?.firstName ?? ""} ${a.patient?.lastName ?? ""}`.localeCompare(
-                    `${b.patient?.firstName ?? ""} ${b.patient?.lastName ?? ""}`
-                );
-            }
-            if (sort === "medicalId") {
-                return (a.patient?.medicalId ?? "").localeCompare(b.patient?.medicalId ?? "");
-            }
-            return b.dateIssued.localeCompare(a.dateIssued);
-        });
-        return list;
-    }, [prescriptions, search, sort]);
+        const d = dateFilter.trim();
+        if (d) {
+            list = list.filter((p) => p.dateIssued.slice(0, 10) === d);
+        }
+        return [...list].sort((a, b) => b.dateIssued.localeCompare(a.dateIssued));
+    }, [prescriptions, patientFilter, search, dateFilter]);
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <View style={styles.container}>
                 <ScreenHeader
                     title="Issued Prescriptions"
-                    subtitle="Everything you have prescribed"
+                    subtitle="Everything you have prescribed, most recent first"
                 />
 
                 {error && <Banner kind="error" message={error} />}
@@ -102,16 +124,60 @@ export default function Prescriptions() {
                     />
                 </View>
 
-                <Text style={styles.sortLabel}>Sort by</Text>
-                <FilterChips<Sort>
-                    value={sort}
-                    onChange={setSort}
-                    options={[
-                        { key: "date", label: "Date" },
-                        { key: "patient", label: "Patient Name" },
-                        { key: "medicalId", label: "Medical ID" },
-                    ]}
-                />
+                <View style={styles.dateBox}>
+                    <Ionicons name="calendar-outline" size={17} color={colors.textMuted} />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Filter by date issued (YYYY-MM-DD)"
+                        placeholderTextColor={colors.textMuted}
+                        value={dateFilter}
+                        onChangeText={setDateFilter}
+                        autoCapitalize="none"
+                        autoCorrect={false}
+                    />
+                    {!!dateFilter && (
+                        <Pressable onPress={() => setDateFilter("")}>
+                            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+                        </Pressable>
+                    )}
+                </View>
+
+                {patientFilter ? (
+                    <Card style={styles.patientFilterCard}>
+                        <Ionicons name="person" size={18} color={colors.primaryDark} />
+                        <Text style={styles.patientFilterText}>
+                            Showing prescriptions for {matchedPatientName ?? patientFilter}
+                            {matchedPatientName ? ` (${patientFilter})` : ""}
+                        </Text>
+                        <Pressable onPress={() => setPatientFilter(null)}>
+                            <Text style={styles.clearText}>Clear</Text>
+                        </Pressable>
+                    </Card>
+                ) : (
+                    <Card style={{ marginBottom: spacing.md }}>
+                        <Text style={styles.lookupTitle}>Look up by patient</Text>
+                        <Button
+                            title="Scan Patient Medical ID"
+                            icon="scan"
+                            variant="secondary"
+                            onPress={() => setScannerOpen(true)}
+                        />
+                        <View style={styles.divider}>
+                            <View style={styles.dividerLine} />
+                            <Text style={styles.dividerText}>or enter manually</Text>
+                            <View style={styles.dividerLine} />
+                        </View>
+                        <Input
+                            placeholder="Medical ID (e.g. AYU-200012345678)"
+                            value={patientIdInput}
+                            onChangeText={setPatientIdInput}
+                            autoCapitalize="characters"
+                            autoCorrect={false}
+                            onSubmitEditing={() => applyPatientFilter(patientIdInput)}
+                            style={{ marginBottom: 0 }}
+                        />
+                    </Card>
+                )}
 
                 {loading ? (
                     <ActivityIndicator
@@ -143,8 +209,8 @@ export default function Prescriptions() {
                                 icon="document-text-outline"
                                 title="Nothing here"
                                 message={
-                                    search
-                                        ? "Try adjusting your search terms."
+                                    search || dateFilter || patientFilter
+                                        ? "Try adjusting your search, date, or patient filter."
                                         : "Prescriptions you issue will appear here."
                                 }
                             />
@@ -152,6 +218,13 @@ export default function Prescriptions() {
                     />
                 )}
             </View>
+
+            <QRScannerModal
+                visible={scannerOpen}
+                onClose={() => setScannerOpen(false)}
+                onScanned={applyPatientFilter}
+                title="Scan Patient Medical ID"
+            />
         </SafeAreaView>
     );
 }
@@ -168,6 +241,17 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: colors.border,
         paddingHorizontal: 12,
+        marginBottom: spacing.sm,
+    },
+    dateBox: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: colors.surface,
+        borderRadius: radius.sm,
+        borderWidth: 1,
+        borderColor: colors.border,
+        paddingHorizontal: 12,
         marginBottom: spacing.md,
     },
     searchInput: {
@@ -176,5 +260,22 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.text,
     },
-    sortLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6 },
+    lookupTitle: { fontSize: 13, fontWeight: "800", color: colors.primaryDark, marginBottom: spacing.sm },
+    divider: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginVertical: spacing.sm,
+    },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    dividerText: { fontSize: 12, color: colors.textMuted },
+    patientFilterCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: spacing.md,
+        backgroundColor: colors.primarySoft,
+    },
+    patientFilterText: { flex: 1, fontSize: 12.5, fontWeight: "600", color: colors.primaryDark },
+    clearText: { fontSize: 12.5, fontWeight: "700", color: colors.danger },
 });

@@ -117,11 +117,22 @@ export function PrescriptionCard({
                     <Text style={styles.rxId}>
                         Rx #{prescription.id.slice(0, 8).toUpperCase()}
                     </Text>
+                    {perspective === "patient" && (
+                        <Text style={styles.expiryNote}>
+                            {prescription.expiresAt
+                                ? `Expires ${formatDate(prescription.expiresAt)}`
+                                : "Never expires"}
+                        </Text>
+                    )}
 
                     {perspective === "patient" && (
                         prescription.status === "FULLY_DISPENSED" ? (
                             <Text style={styles.doneNote}>
                                 Fully dispensed — no QR code needed
+                            </Text>
+                        ) : prescription.status === "EXPIRED" ? (
+                            <Text style={styles.doneNote}>
+                                Expired — this prescription can no longer be dispensed
                             </Text>
                         ) : (
                             <Button
@@ -247,6 +258,11 @@ const styles = StyleSheet.create({
         color: colors.textMuted,
         fontFamily: Platform.select({ ios: "Courier", default: "monospace" }),
         marginTop: 8,
+    },
+    expiryNote: {
+        fontSize: 11,
+        color: colors.textMuted,
+        marginTop: 3,
     },
     doneNote: {
         fontSize: 12,

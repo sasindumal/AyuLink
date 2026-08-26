@@ -206,7 +206,9 @@ export default function Dispense() {
         !!item.dispensedAt &&
         Date.now() - new Date(item.dispensedAt).getTime() < REVERT_WINDOW_MS;
 
-    const activeRx = prescriptions.filter((p) => p.status !== "FULLY_DISPENSED");
+    const activeRx = prescriptions.filter(
+        (p) => p.status !== "FULLY_DISPENSED" && p.status !== "EXPIRED"
+    );
     const reset = () => {
         setPatient(null);
         setPrescriptions([]);

@@ -17,9 +17,10 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { colors, radius, spacing } from "../../src/theme";
-import { Banner, Button, Card, Input, ScreenHeader } from "../../src/components/ui";
+import { Banner, Button, Card, FilterChips, Input, ScreenHeader } from "../../src/components/ui";
 import { QRScannerModal } from "../../src/components/QRScannerModal";
 import { QuickPickField } from "../../src/components/QuickPickField";
+import { SelectField } from "../../src/components/SelectField";
 import type { PatientLookup } from "../../src/types";
 
 const DOSAGE_UNITS = ["mg", "g", "mcg", "ml", "IU", "tablet(s)", "capsule(s)", "drop(s)", "puff(s)", "tsp"];
@@ -28,10 +29,12 @@ const FREQUENCY_PRESETS = [
     "Once daily", "Twice daily", "Three times daily", "As needed (PRN)",
 ];
 const DURATION_PRESETS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month", "Ongoing"];
+const EXPIRY_PRESETS = [7, 14, 30, 60, 90];
 
 interface MedInput {
     drugName: string;
-    dosage: string;
+    dosageAmount: string;
+    dosageUnit: string;
     frequency: string;
     duration: string;
     instructions: string;
@@ -39,7 +42,8 @@ interface MedInput {
 
 const emptyMed = (): MedInput => ({
     drugName: "",
-    dosage: "",
+    dosageAmount: "",
+    dosageUnit: "",
     frequency: "",
     duration: "",
     instructions: "",
@@ -53,6 +57,7 @@ export default function Scan() {
 
     const [diagnosis, setDiagnosis] = useState("");
     const [meds, setMeds] = useState<MedInput[]>([emptyMed()]);
+    const [expiryDays, setExpiryDays] = useState<number | null>(30);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -87,20 +92,21 @@ export default function Scan() {
             return;
         }
         const cleaned = meds.filter(
-            (m) => m.drugName.trim() || m.dosage.trim() || m.frequency.trim()
+            (m) => m.drugName.trim() || m.dosageAmount.trim() || m.frequency.trim()
         );
         if (
             cleaned.length === 0 ||
             cleaned.some(
                 (m) =>
                     !m.drugName.trim() ||
-                    !m.dosage.trim() ||
+                    !m.dosageAmount.trim() ||
+                    !m.dosageUnit.trim() ||
                     !m.frequency.trim() ||
                     !m.duration.trim()
             )
         ) {
             setError(
-                "Each medication needs a drug name, dosage, frequency, and duration"
+                "Each medication needs a drug name, dosage amount + unit, frequency, and duration"
             );
             return;
         }
@@ -112,11 +118,12 @@ export default function Scan() {
                 p_diagnosis: diagnosis.trim(),
                 p_items: cleaned.map((m) => ({
                     drugName: m.drugName.trim(),
-                    dosage: m.dosage.trim(),
+                    dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
                     frequency: m.frequency.trim(),
                     duration: m.duration.trim(),
                     instructions: m.instructions.trim(),
                 })),
+                p_expiry_days: expiryDays,
             });
             setSuccess(
                 `Prescription issued for ${patient.firstName} ${patient.lastName}`
@@ -125,6 +132,7 @@ export default function Scan() {
             setManualId("");
             setDiagnosis("");
             setMeds([emptyMed()]);
+            setExpiryDays(30);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to issue prescription");
         } finally {
@@ -191,7 +199,7 @@ export default function Scan() {
                                         NIC {patient.nicNumber} ·{" "}
                                         {
                                             patient.prescriptionsAsPatient.filter(
-                                                (p) => p.status !== "FULLY_DISPENSED"
+                                                (p) => p.status !== "FULLY_DISPENSED" && p.status !== "EXPIRED"
                                             ).length
                                         }{" "}
                                         active Rx
@@ -246,14 +254,26 @@ export default function Scan() {
                                         value={med.drugName}
                                         onChangeText={(v) => updateMed(i, "drugName", v)}
                                     />
-                                    <QuickPickField
-                                        label="Dosage"
-                                        placeholder="e.g. 500"
-                                        value={med.dosage}
-                                        onChangeText={(v) => updateMed(i, "dosage", v)}
-                                        presets={DOSAGE_UNITS}
-                                        mode="appendUnit"
-                                    />
+                                    <View style={styles.row}>
+                                        <View style={{ flex: 1 }}>
+                                            <Input
+                                                label="Dosage Amount"
+                                                placeholder="e.g. 500"
+                                                value={med.dosageAmount}
+                                                onChangeText={(v) => updateMed(i, "dosageAmount", v)}
+                                                keyboardType="numeric"
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <SelectField
+                                                label="Unit"
+                                                placeholder="Select unit"
+                                                value={med.dosageUnit}
+                                                options={DOSAGE_UNITS}
+                                                onChange={(v) => updateMed(i, "dosageUnit", v)}
+                                            />
+                                        </View>
+                                    </View>
                                     <QuickPickField
                                         label="Frequency"
                                         placeholder="e.g. 1-0-1"
@@ -288,6 +308,23 @@ export default function Scan() {
                                 onPress={() => setMeds((list) => [...list, emptyMed()])}
                                 style={{ marginBottom: spacing.md }}
                             />
+
+                            <Text style={styles.sectionTitle}>Prescription Expiry</Text>
+                            <Card style={{ marginBottom: spacing.md }}>
+                                <FilterChips<string>
+                                    value={expiryDays === null ? "never" : String(expiryDays)}
+                                    onChange={(v) => setExpiryDays(v === "never" ? null : Number(v))}
+                                    options={[
+                                        ...EXPIRY_PRESETS.map((d) => ({ key: String(d), label: `${d} days` })),
+                                        { key: "never", label: "Never" },
+                                    ]}
+                                />
+                                <Text style={styles.expiryHint}>
+                                    {expiryDays === null
+                                        ? "This prescription will never expire, even once fully dispensed."
+                                        : `Automatically archives as expired ${expiryDays} days after issue — even if fully dispensed by then.`}
+                                </Text>
+                            </Card>
 
                             <Button
                                 title="Sign & Issue Prescription"
@@ -358,4 +395,6 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     medTitle: { fontSize: 13, fontWeight: "800", color: colors.primaryDark },
+    row: { flexDirection: "row", gap: 12 },
+    expiryHint: { fontSize: 12, color: colors.textMuted, marginTop: spacing.xs, lineHeight: 17 },
 });

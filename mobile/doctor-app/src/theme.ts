@@ -54,4 +54,5 @@ export const statusMeta: Record<
     NOT_DISPENSED: { label: "Not Dispensed", color: colors.primaryDark, bg: colors.primarySoft },
     PARTIALLY_DISPENSED: { label: "Partial", color: "#9A6F00", bg: colors.warningSoft },
     FULLY_DISPENSED: { label: "Dispensed", color: colors.neutral, bg: colors.neutralSoft },
+    EXPIRED: { label: "Expired", color: colors.danger, bg: colors.dangerSoft },
 };
