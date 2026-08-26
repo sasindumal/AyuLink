@@ -4,14 +4,20 @@
 // pick a time in the next few days -> book.
 // ==============================================
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { rpc } from "../lib/api";
 import { colors, spacing } from "../theme";
-import { Banner, Button, Card, EmptyState, Input } from "./ui";
+import { Banner, Button, Card, EmptyState, FilterChips, Input } from "./ui";
+import { SelectField } from "./SelectField";
 import { SlotCard } from "./SlotCard";
+import { useLookups } from "../lib/lookups";
+import { haversineKm, parseLocation } from "../lib/geo";
 import type { CenterAvailabilitySlot, ChannelingCenterSummary } from "../types";
+
+type CenterSort = "name" | "nearest";
 
 export function CenterBrowseView({
     onBook,
@@ -21,12 +27,18 @@ export function CenterBrowseView({
     bookingKey: string | null;
 }) {
     const [query, setQuery] = useState("");
+    const [city, setCity] = useState("");
+    const [sort, setSort] = useState<CenterSort>("name");
+    const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [locating, setLocating] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
     const [centers, setCenters] = useState<ChannelingCenterSummary[]>([]);
     const [selected, setSelected] = useState<ChannelingCenterSummary | null>(null);
     const [availability, setAvailability] = useState<CenterAvailabilitySlot[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [loadingAvail, setLoadingAvail] = useState(false);
+    const { cities } = useLookups();
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -45,15 +57,53 @@ export function CenterBrowseView({
         load();
     }, [load]);
 
-    const filtered = centers.filter((c) => {
+    const withDistance = useMemo(
+        () =>
+            centers.map((c) => {
+                const loc = parseLocation(c.location);
+                const distanceKm = coords && loc ? haversineKm(coords, loc) : null;
+                return { ...c, distanceKm };
+            }),
+        [centers, coords]
+    );
+
+    const filtered = useMemo(() => {
         const q = query.trim().toLowerCase();
-        if (!q) return true;
-        return (
-            c.name.toLowerCase().includes(q) ||
-            c.address.toLowerCase().includes(q) ||
-            (c.city ?? "").toLowerCase().includes(q)
-        );
-    });
+        let result = withDistance.filter((c) => {
+            const matchesQuery =
+                !q ||
+                c.name.toLowerCase().includes(q) ||
+                c.address.toLowerCase().includes(q) ||
+                (c.city ?? "").toLowerCase().includes(q);
+            const matchesCity = !city || (c.city ?? "").toLowerCase() === city.toLowerCase();
+            return matchesQuery && matchesCity;
+        });
+        if (sort === "nearest") {
+            result = [...result].sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity));
+        } else {
+            result = [...result].sort((a, b) => a.name.localeCompare(b.name));
+        }
+        return result;
+    }, [withDistance, query, city, sort]);
+
+    const useMyLocation = async () => {
+        setLocating(true);
+        setLocationError(null);
+        try {
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") {
+                setLocationError("Location permission was denied");
+                return;
+            }
+            const pos = await Location.getCurrentPositionAsync({});
+            setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+            setSort("nearest");
+        } catch {
+            setLocationError("Could not get your location");
+        } finally {
+            setLocating(false);
+        }
+    };
 
     const openCenter = async (center: ChannelingCenterSummary) => {
         setSelected(center);
@@ -134,6 +184,24 @@ export function CenterBrowseView({
                 value={query}
                 onChangeText={setQuery}
             />
+            <SelectField label="City" value={city} options={cities} onChange={setCity} />
+
+            <Text style={styles.label}>Sort by</Text>
+            <FilterChips<CenterSort>
+                value={sort}
+                onChange={(next) => {
+                    if (next === "nearest" && !coords) {
+                        useMyLocation();
+                        return;
+                    }
+                    setSort(next);
+                }}
+                options={[
+                    { key: "name", label: "Name" },
+                    { key: "nearest", label: locating ? "Locating…" : "Nearest" },
+                ]}
+            />
+            {locationError && <Text style={styles.error}>{locationError}</Text>}
 
             {error && <Banner kind="error" message={error} />}
 
@@ -151,6 +219,7 @@ export function CenterBrowseView({
                                 <Text style={styles.centerAddress}>
                                     {item.address}
                                     {item.city ? `  ·  ${item.city}` : ""}
+                                    {item.distanceKm != null ? `  ·  ${item.distanceKm.toFixed(1)} km` : ""}
                                 </Text>
                             </View>
                             <Button title="View" variant="secondary" onPress={() => openCenter(item)} />
@@ -170,6 +239,8 @@ export function CenterBrowseView({
 }
 
 const styles = StyleSheet.create({
+    label: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6, marginTop: 4 },
+    error: { fontSize: 12, color: colors.danger, marginTop: 4, marginBottom: spacing.sm },
     backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
     backText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
     selectedTitle: { fontSize: 17, fontWeight: "800", color: colors.primaryDark },

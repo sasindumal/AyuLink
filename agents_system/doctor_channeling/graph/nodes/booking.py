@@ -37,6 +37,26 @@ _FRESH_SEARCH_STATE = {
 }
 
 
+def _generate_booking_reason(symptoms: list[str]) -> str | None:
+    """A short, symptom-only reason for the appointment record — never the
+    disease name or diagnosis, which the doctor should determine themselves,
+    not read off a patient-submitted AI guess."""
+    if not symptoms:
+        return None
+    try:
+        prompt = (
+            "Write ONE short, plain sentence (under 20 words) for a doctor's-appointment "
+            "\"reason for visit\" field, describing only the symptoms below. Do NOT name or "
+            "imply any disease, diagnosis, or condition — list symptoms only.\n\n"
+            f"Symptoms: {', '.join(symptoms)}"
+        )
+        response = text_llm.invoke([{"role": "user", "content": prompt}])
+        text = str(response.content).strip()
+        return text or None
+    except Exception:  # noqa: BLE001 - fall back to a plain symptom list
+        return f"Reported symptoms: {', '.join(symptoms)}"
+
+
 def _format_status(booking: dict) -> str:
     doctor = booking.get("doctor") or {}
     center = booking.get("channelingCenter") or {}
@@ -132,7 +152,7 @@ async def _cancel_booking(state: GraphState, jwt: str, existing: dict) -> dict:
 
 async def _commit_booking(state: GraphState, jwt: str, doctor_schedule_id: str, date: str):
     reschedule_id = state.get("rescheduling_appointment_id")
-    reason = state.get("condition_explanation")
+    reason = _generate_booking_reason(state.get("symptoms", []))
 
     try:
         if reschedule_id:

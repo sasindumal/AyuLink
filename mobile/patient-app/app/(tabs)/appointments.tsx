@@ -36,18 +36,21 @@ import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, spacing } from "../../src/theme";
-import { Banner, Button, EmptyState, FilterChips, ScreenHeader } from "../../src/components/ui";
+import { Banner, Button, EmptyState, FilterChips, Input, ScreenHeader } from "../../src/components/ui";
 import { SlotCard } from "../../src/components/SlotCard";
 import { AppointmentCard } from "../../src/components/AppointmentCard";
 import { SearchFilters, type SearchFilterState } from "../../src/components/SearchFilters";
+import { SelectField } from "../../src/components/SelectField";
 import { DoctorBrowseView } from "../../src/components/DoctorBrowseView";
 import { CenterBrowseView } from "../../src/components/CenterBrowseView";
+import { useLookups } from "../../src/lib/lookups";
 import { AppointmentDetailModal } from "../../src/components/AppointmentDetailModal";
 import { ConfirmModal } from "../../src/components/ConfirmModal";
 import type { Appointment, DoctorSlot, DoctorSummary, Treatment } from "../../src/types";
 
 type Mode = "quick" | "byDoctor" | "byCenter" | "mine";
 type MineFilter = "upcoming" | "past";
+type MineSort = "date" | "doctor" | "center";
 
 const DEFAULT_FILTERS: SearchFilterState = {
     specialty: "",
@@ -63,6 +66,11 @@ export default function Appointments() {
     const params = useLocalSearchParams<{ appointmentId?: string }>();
     const [mode, setMode] = useState<Mode>("mine");
     const [mineFilter, setMineFilter] = useState<MineFilter>("upcoming");
+    const [mineQuery, setMineQuery] = useState("");
+    const [mineSpecialty, setMineSpecialty] = useState("");
+    const [mineCity, setMineCity] = useState("");
+    const [mineSort, setMineSort] = useState<MineSort>("date");
+    const { specialties, cities } = useLookups();
     const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_FILTERS);
     const [slots, setSlots] = useState<DoctorSlot[]>([]);
     const [viewingDoctor, setViewingDoctor] = useState<DoctorSummary | null>(null);
@@ -219,8 +227,45 @@ export default function Appointments() {
     const mineList = useMemo(() => {
         const upcoming = appointments.filter((a) => a.status === "BOOKED");
         const past = appointments.filter((a) => a.status !== "BOOKED");
-        return mineFilter === "upcoming" ? upcoming : past;
-    }, [appointments, mineFilter]);
+        let list = mineFilter === "upcoming" ? upcoming : past;
+
+        if (mineSpecialty) {
+            list = list.filter((a) => a.doctor.specialty === mineSpecialty);
+        }
+        if (mineCity) {
+            list = list.filter((a) => a.channelingCenter.city === mineCity);
+        }
+
+        const q = mineQuery.trim().toLowerCase();
+        if (q) {
+            list = list.filter((a) => {
+                const doctorName = `dr. ${a.doctor.firstName} ${a.doctor.lastName}`.toLowerCase();
+                return (
+                    doctorName.includes(q) ||
+                    (a.doctor.specialty ?? "").toLowerCase().includes(q) ||
+                    a.channelingCenter.name.toLowerCase().includes(q) ||
+                    (a.channelingCenter.city ?? "").toLowerCase().includes(q) ||
+                    a.order_number.toLowerCase().includes(q)
+                );
+            });
+        }
+
+        list = [...list].sort((a, b) => {
+            if (mineSort === "doctor") {
+                return `${a.doctor.firstName} ${a.doctor.lastName}`.localeCompare(
+                    `${b.doctor.firstName} ${b.doctor.lastName}`
+                );
+            }
+            if (mineSort === "center") {
+                return a.channelingCenter.name.localeCompare(b.channelingCenter.name);
+            }
+            const aKey = `${a.appointment_date} ${a.start_time}`;
+            const bKey = `${b.appointment_date} ${b.start_time}`;
+            return mineFilter === "upcoming" ? aKey.localeCompare(bKey) : bKey.localeCompare(aKey);
+        });
+
+        return list;
+    }, [appointments, mineFilter, mineQuery, mineSpecialty, mineCity, mineSort]);
 
     const linkedTreatment = detailTarget
         ? treatments.find((t) => t.appointment_id === detailTarget.id) ?? null
@@ -329,14 +374,49 @@ export default function Appointments() {
                             data={mineList}
                             keyExtractor={(a) => a.id}
                             ListHeaderComponent={
-                                <FilterChips<MineFilter>
-                                    value={mineFilter}
-                                    onChange={setMineFilter}
-                                    options={[
-                                        { key: "upcoming", label: "Upcoming", count: appointments.filter((a) => a.status === "BOOKED").length },
-                                        { key: "past", label: "Past & Cancelled", count: appointments.filter((a) => a.status !== "BOOKED").length },
-                                    ]}
-                                />
+                                <View>
+                                    <FilterChips<MineFilter>
+                                        value={mineFilter}
+                                        onChange={setMineFilter}
+                                        options={[
+                                            { key: "upcoming", label: "Upcoming", count: appointments.filter((a) => a.status === "BOOKED").length },
+                                            { key: "past", label: "Past & Cancelled", count: appointments.filter((a) => a.status !== "BOOKED").length },
+                                        ]}
+                                    />
+                                    <Input
+                                        placeholder="Search by doctor, center, or order number"
+                                        value={mineQuery}
+                                        onChangeText={setMineQuery}
+                                    />
+                                    <View style={styles.filterRow}>
+                                        <View style={{ flex: 1 }}>
+                                            <SelectField
+                                                label="Specialty"
+                                                value={mineSpecialty}
+                                                options={specialties}
+                                                onChange={setMineSpecialty}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <SelectField
+                                                label="City"
+                                                value={mineCity}
+                                                options={cities}
+                                                onChange={setMineCity}
+                                            />
+                                        </View>
+                                    </View>
+                                    <Text style={styles.sortLabel}>Sort by</Text>
+                                    <FilterChips<MineSort>
+                                        value={mineSort}
+                                        onChange={setMineSort}
+                                        options={[
+                                            { key: "date", label: "Date/Time" },
+                                            { key: "doctor", label: "Doctor" },
+                                            { key: "center", label: "Center" },
+                                        ]}
+                                    />
+                                </View>
                             }
                             renderItem={({ item }) => (
                                 <AppointmentCard
@@ -424,5 +504,7 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     rescheduleText: { flex: 1, fontSize: 13, fontWeight: "600", color: colors.primaryDark },
+    sortLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6, marginTop: 4 },
+    filterRow: { flexDirection: "row", gap: 10 },
     rescheduleCancel: { fontSize: 13, fontWeight: "700", color: colors.danger },
 });

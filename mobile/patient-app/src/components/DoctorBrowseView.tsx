@@ -7,14 +7,20 @@
 // Quick Search's "See other times with this doctor".
 // ==============================================
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
 import { rpc } from "../lib/api";
 import { colors, spacing } from "../theme";
-import { Banner, Button, Card, EmptyState, Input } from "./ui";
+import { Banner, Button, Card, EmptyState, FilterChips, Input } from "./ui";
+import { SelectField } from "./SelectField";
 import { SlotCard } from "./SlotCard";
+import { useLookups } from "../lib/lookups";
 import type { DoctorAvailabilitySlot, DoctorSummary } from "../types";
+
+type DetailSort = "soonest" | "center" | "nearest";
+type MinRating = 0 | 3 | 4 | 4.5;
 
 export function DoctorBrowseView({
     onBook,
@@ -29,12 +35,19 @@ export function DoctorBrowseView({
 }) {
     const [specialty, setSpecialty] = useState("");
     const [city, setCity] = useState("");
+    const [minRating, setMinRating] = useState<MinRating>(0);
+    const [sortByRating, setSortByRating] = useState(false);
     const [doctors, setDoctors] = useState<DoctorSummary[]>([]);
     const [selected, setSelected] = useState<DoctorSummary | null>(initialDoctor ?? null);
     const [availability, setAvailability] = useState<DoctorAvailabilitySlot[]>([]);
+    const [centerQuery, setCenterQuery] = useState("");
+    const [detailSort, setDetailSort] = useState<DetailSort>("soonest");
+    const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+    const [locating, setLocating] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [loadingAvail, setLoadingAvail] = useState(false);
+    const { specialties, cities } = useLookups();
 
     const search = useCallback(async () => {
         setLoading(true);
@@ -43,6 +56,7 @@ export function DoctorBrowseView({
             const data = await rpc<DoctorSummary[]>("app_search_doctors", {
                 p_specialty: specialty.trim() || null,
                 p_city: city.trim() || null,
+                p_min_rating: minRating || null,
             });
             setDoctors(data ?? []);
         } catch (e) {
@@ -50,24 +64,84 @@ export function DoctorBrowseView({
         } finally {
             setLoading(false);
         }
-    }, [specialty, city]);
+    }, [specialty, city, minRating]);
 
-    const openDoctor = useCallback(async (doctor: DoctorSummary) => {
-        setSelected(doctor);
-        setLoadingAvail(true);
-        setError(null);
+    const sortedDoctors = useMemo(() => {
+        if (!sortByRating) return doctors;
+        return [...doctors].sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1));
+    }, [doctors, sortByRating]);
+
+    const visibleAvailability = useMemo(() => {
+        const q = centerQuery.trim().toLowerCase();
+        if (!q) return availability;
+        return availability.filter(
+            (s) =>
+                s.channelingCenterName.toLowerCase().includes(q) ||
+                (s.city ?? "").toLowerCase().includes(q) ||
+                s.address.toLowerCase().includes(q)
+        );
+    }, [availability, centerQuery]);
+
+    const loadAvailability = useCallback(
+        async (doctorId: string, sort: DetailSort, loc: { lat: number; lng: number } | null) => {
+            setLoadingAvail(true);
+            setError(null);
+            try {
+                const data = await rpc<DoctorAvailabilitySlot[]>("app_get_doctor_availability", {
+                    p_doctor_id: doctorId,
+                    p_lookahead_days: 14,
+                    p_near_lat: loc?.lat ?? null,
+                    p_near_lng: loc?.lng ?? null,
+                    p_sort: sort,
+                });
+                setAvailability(data ?? []);
+            } catch (e) {
+                setError(e instanceof Error ? e.message : "Failed to load availability");
+            } finally {
+                setLoadingAvail(false);
+            }
+        },
+        []
+    );
+
+    const openDoctor = useCallback(
+        (doctor: DoctorSummary) => {
+            setSelected(doctor);
+            setCenterQuery("");
+            setDetailSort("soonest");
+            loadAvailability(doctor.doctorId, "soonest", coords);
+        },
+        [coords, loadAvailability]
+    );
+
+    const useMyLocation = async () => {
+        setLocating(true);
         try {
-            const data = await rpc<DoctorAvailabilitySlot[]>("app_get_doctor_availability", {
-                p_doctor_id: doctor.doctorId,
-                p_lookahead_days: 14,
-            });
-            setAvailability(data ?? []);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to load availability");
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            if (status !== "granted") {
+                setError("Location permission was denied");
+                return;
+            }
+            const pos = await Location.getCurrentPositionAsync({});
+            const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setCoords(loc);
+            setDetailSort("nearest");
+            if (selected) loadAvailability(selected.doctorId, "nearest", loc);
+        } catch {
+            setError("Could not get your location");
         } finally {
-            setLoadingAvail(false);
+            setLocating(false);
         }
-    }, []);
+    };
+
+    const changeDetailSort = (sort: DetailSort) => {
+        if (sort === "nearest" && !coords) {
+            useMyLocation();
+            return;
+        }
+        setDetailSort(sort);
+        if (selected) loadAvailability(selected.doctorId, sort, coords);
+    };
 
     useEffect(() => {
         if (initialDoctor) {
@@ -102,11 +176,28 @@ export function DoctorBrowseView({
 
                 {error && <Banner kind="error" message={error} />}
 
+                <Input
+                    label="Search centers"
+                    placeholder="Name, address, or city"
+                    value={centerQuery}
+                    onChangeText={setCenterQuery}
+                />
+                <Text style={styles.label}>Sort by</Text>
+                <FilterChips<DetailSort>
+                    value={detailSort}
+                    onChange={changeDetailSort}
+                    options={[
+                        { key: "soonest", label: "Soonest" },
+                        { key: "center", label: "Center" },
+                        { key: "nearest", label: locating ? "Locating…" : "Nearest" },
+                    ]}
+                />
+
                 {loadingAvail ? (
                     <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginTop: spacing.xl }} />
                 ) : (
                     <FlatList
-                        data={availability}
+                        data={visibleAvailability}
                         keyExtractor={(s, i) => `${s.doctorScheduleId}-${s.date}-${i}`}
                         scrollEnabled={false}
                         renderItem={({ item }) => (
@@ -114,6 +205,7 @@ export function DoctorBrowseView({
                                 centerName={item.channelingCenterName}
                                 address={item.address}
                                 city={item.city}
+                                distanceKm={item.distanceKm}
                                 date={item.date}
                                 startTime={item.startTime}
                                 endTime={item.endTime}
@@ -136,19 +228,36 @@ export function DoctorBrowseView({
 
     return (
         <View>
-            <Input
-                label="Specialty"
-                placeholder="e.g. Cardiology"
-                value={specialty}
-                onChangeText={setSpecialty}
+            <SelectField label="Specialty" value={specialty} options={specialties} onChange={setSpecialty} />
+            <SelectField label="City" value={city} options={cities} onChange={setCity} />
+
+            <Text style={styles.label}>Minimum rating</Text>
+            <FilterChips<string>
+                value={String(minRating)}
+                onChange={(v) => setMinRating(Number(v) as MinRating)}
+                options={[
+                    { key: "0", label: "Any" },
+                    { key: "3", label: "3+" },
+                    { key: "4", label: "4+" },
+                    { key: "4.5", label: "4.5+" },
+                ]}
             />
-            <Input label="City" placeholder="e.g. Colombo" value={city} onChangeText={setCity} />
+
             <Button title="Search Doctors" onPress={search} loading={loading} />
 
             {error && <Banner kind="error" message={error} />}
 
+            <View style={styles.sortRow}>
+                <Text style={styles.sortLabel}>{sortedDoctors.length} doctor{sortedDoctors.length === 1 ? "" : "s"}</Text>
+                <FilterChips<"off" | "on">
+                    value={sortByRating ? "on" : "off"}
+                    onChange={() => setSortByRating((v) => !v)}
+                    options={[{ key: "on", label: sortByRating ? "Sorted by rating ✓" : "Sort by rating" }]}
+                />
+            </View>
+
             <FlatList
-                data={doctors}
+                data={sortedDoctors}
                 keyExtractor={(d) => d.doctorId}
                 scrollEnabled={false}
                 contentContainerStyle={{ marginTop: spacing.sm }}
@@ -181,6 +290,14 @@ export function DoctorBrowseView({
 }
 
 const styles = StyleSheet.create({
+    label: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6, marginTop: 4 },
+    sortRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: spacing.sm,
+    },
+    sortLabel: { fontSize: 12.5, color: colors.textMuted, fontWeight: "600" },
     backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
     backText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
     selectedTitle: { fontSize: 17, fontWeight: "800", color: colors.primaryDark },

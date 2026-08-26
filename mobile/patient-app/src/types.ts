@@ -170,6 +170,7 @@ export interface DoctorAvailabilitySlot {
     date: string;
     startTime: string;
     endTime: string;
+    distanceKm: number | null;
 }
 
 // Shape returned by app_get_center_availability() — every upcoming

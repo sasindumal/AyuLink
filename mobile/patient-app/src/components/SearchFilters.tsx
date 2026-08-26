@@ -6,7 +6,9 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import * as Location from "expo-location";
 import { colors, spacing } from "../theme";
-import { FilterChips, Input } from "./ui";
+import { FilterChips } from "./ui";
+import { SelectField } from "./SelectField";
+import { useLookups } from "../lib/lookups";
 
 export type SortOption = "soonest" | "nearest" | "rating";
 export type MinRating = 0 | 3 | 4 | 4.5;
@@ -29,6 +31,7 @@ export function SearchFilters({
 }) {
     const [locating, setLocating] = React.useState(false);
     const [locationError, setLocationError] = React.useState<string | null>(null);
+    const { specialties, cities } = useLookups();
 
     const useMyLocation = async () => {
         setLocating(true);
@@ -57,17 +60,17 @@ export function SearchFilters({
 
     return (
         <View>
-            <Input
+            <SelectField
                 label="Specialty"
-                placeholder="e.g. Cardiology"
                 value={value.specialty}
-                onChangeText={(specialty) => onChange({ ...value, specialty })}
+                options={specialties}
+                onChange={(specialty) => onChange({ ...value, specialty })}
             />
-            <Input
+            <SelectField
                 label="City"
-                placeholder="e.g. Colombo"
                 value={value.city}
-                onChangeText={(city) => onChange({ ...value, city })}
+                options={cities}
+                onChange={(city) => onChange({ ...value, city })}
             />
 
             <View style={styles.locationRow}>

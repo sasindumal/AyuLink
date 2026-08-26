@@ -9,7 +9,7 @@
 // ==============================================
 
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../theme";
 import { Button, Card, formatDate } from "./ui";
@@ -85,9 +85,14 @@ export function SlotCard({
 
             <View style={styles.actionsRow}>
                 {onViewOtherTimes && (
-                    <Text style={styles.otherTimes} onPress={onViewOtherTimes}>
-                        See other times with this doctor
-                    </Text>
+                    <Pressable
+                        onPress={onViewOtherTimes}
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.otherTimesBtn, pressed && { opacity: 0.6 }]}
+                    >
+                        <Text style={styles.otherTimes}>See other times with this doctor</Text>
+                        <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+                    </Pressable>
                 )}
                 <View style={{ flex: 1 }}>
                     <Button title="Book" onPress={onBook} loading={booking} />
@@ -114,6 +119,15 @@ const styles = StyleSheet.create({
     ratingText: { fontSize: 12.5, fontWeight: "700", color: "#9A6F00" },
     infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
     infoText: { fontSize: 13, color: colors.text, flex: 1 },
-    actionsRow: { marginTop: spacing.sm, gap: 6 },
-    otherTimes: { fontSize: 12, fontWeight: "700", color: colors.primary },
+    actionsRow: { marginTop: spacing.sm, gap: 10 },
+    otherTimesBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        paddingVertical: 10,
+        borderRadius: radius.sm,
+        backgroundColor: colors.primarySoft,
+    },
+    otherTimes: { fontSize: 12.5, fontWeight: "700", color: colors.primary },
 });
