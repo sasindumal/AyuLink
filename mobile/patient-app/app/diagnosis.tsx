@@ -36,6 +36,7 @@ import {
     sendPdf,
 } from "../src/lib/agentChat";
 import { Banner, Button, Input } from "../src/components/ui";
+import { FormattedText } from "../src/components/FormattedText";
 import { AttachMenu } from "../src/components/AttachMenu";
 import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
 import { VoiceControl } from "../src/components/VoiceControl";
@@ -498,7 +499,7 @@ function ChatBubble({
     if (item.kind === "assistant") {
         return (
             <View style={[styles.bubble, styles.assistantBubble]}>
-                <Text style={styles.assistantText}>{item.text}</Text>
+                <FormattedText text={item.text} style={styles.assistantText} />
             </View>
         );
     }
@@ -540,7 +541,7 @@ function InterruptCard({
     if (payload.type === "ask_followup") {
         return (
             <View style={[styles.bubble, styles.assistantBubble]}>
-                <Text style={styles.assistantText}>{payload.question}</Text>
+                <FormattedText text={payload.question} style={styles.assistantText} />
                 {!resolved && (
                     <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
                         <Input
@@ -566,7 +567,7 @@ function InterruptCard({
     if (payload.type === "offer_doctor") {
         return (
             <View style={[styles.bubble, styles.assistantBubble]}>
-                <Text style={styles.assistantText}>{payload.message}</Text>
+                <FormattedText text={payload.message} style={styles.assistantText} />
                 {!resolved && (
                     <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
                         <Button title="Yes" onPress={() => onResolve("yes", "Yes")} disabled={busy} style={{ flex: 1 }} />
@@ -586,7 +587,7 @@ function InterruptCard({
     if (payload.type === "ask_location_time") {
         return (
             <View style={[styles.bubble, styles.assistantBubble]}>
-                <Text style={styles.assistantText}>{payload.message}</Text>
+                <FormattedText text={payload.message} style={styles.assistantText} />
                 {!resolved && (
                     <View style={{ marginTop: spacing.sm, gap: 8 }}>
                         <Input placeholder="City (default: nearest)" value={city} onChangeText={setCity} editable={!busy} />
