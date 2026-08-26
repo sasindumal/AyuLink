@@ -1,0 +1,44 @@
+{
+    "expo": {
+        "name": "AyuLink Pharmacy",
+        "slug": "ayulink-pharmacy",
+        "version": "0.1.0",
+        "scheme": "ayulink-pharmacy",
+        "orientation": "portrait",
+        "userInterfaceStyle": "light",
+        "newArchEnabled": true,
+        "backgroundColor": "#F7F0F0",
+        "icon": "./assets/icon.png",
+        "splash": {
+            "image": "./assets/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#25671E"
+        },
+        "ios": {
+            "supportsTablet": true,
+            "bundleIdentifier": "lk.ayulink.pharmacy",
+            "infoPlist": {
+                "NSCameraUsageDescription": "AyuLink Pharmacy uses the camera to scan patient Medical ID QR codes."
+            }
+        },
+        "android": {
+            "package": "lk.ayulink.pharmacy",
+            "edgeToEdgeEnabled": true,
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#FFFFFF"
+            },
+            "permissions": ["android.permission.CAMERA"]
+        },
+        "plugins": [
+            "expo-router",
+            "expo-secure-store",
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "AyuLink Pharmacy uses the camera to scan patient Medical ID QR codes."
+                }
+            ]
+        ]
+    }
+}
