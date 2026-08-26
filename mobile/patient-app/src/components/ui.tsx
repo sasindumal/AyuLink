@@ -92,10 +92,18 @@ export function Button({
 export function Input({
     label,
     style,
+    containerStyle,
     ...props
-}: TextInputProps & { label?: string }) {
+}: TextInputProps & { label?: string; containerStyle?: ViewStyle }) {
+    // `style` only ever reaches the TextInput itself — a caller passing
+    // `style={{ flex: 1 }}` to expand this inside a row layout does NOT
+    // make the outer wrapper (which is what the row actually sizes)
+    // expand, so the whole component collapses to ~0 width instead.
+    // `containerStyle` is the escape hatch for that: pass layout props
+    // (flex, width, margin) there, and text-appearance props (color,
+    // fontSize) via `style` as before.
     return (
-        <View style={{ marginBottom: spacing.md }}>
+        <View style={[{ marginBottom: spacing.md }, containerStyle]}>
             {label && <Text style={styles.inputLabel}>{label}</Text>}
             <TextInput
                 placeholderTextColor={colors.textMuted}

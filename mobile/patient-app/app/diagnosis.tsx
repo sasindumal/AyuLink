@@ -19,7 +19,7 @@ import {
     Text,
     View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -35,6 +35,7 @@ import {
     sendPdf,
 } from "../src/lib/agentChat";
 import { Banner, Button, Input } from "../src/components/ui";
+import { AttachMenu } from "../src/components/AttachMenu";
 import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
 import { colors, radius, shadow, spacing } from "../src/theme";
 
@@ -70,8 +71,10 @@ export default function Diagnosis() {
     const [busy, setBusy] = useState(false);
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
     const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
+    const [attachMenuVisible, setAttachMenuVisible] = useState(false);
     const currentAssistantId = useRef<string | null>(null);
     const listRef = useRef<FlatList<ChatItem>>(null);
+    const insets = useSafeAreaInsets();
 
     const scrollToEnd = () => {
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -290,17 +293,19 @@ export default function Diagnosis() {
                         </View>
                     )}
 
-                    <View style={styles.inputRow}>
-                        <Pressable style={styles.attachButton} onPress={attachImage} disabled={busy}>
-                            <Ionicons name="image" size={20} color={colors.primaryDark} />
-                        </Pressable>
-                        <Pressable style={styles.attachButton} onPress={attachReport} disabled={busy}>
-                            <Ionicons name="attach" size={20} color={colors.primaryDark} />
+                    <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+                        <Pressable
+                            style={styles.attachButton}
+                            onPress={() => setAttachMenuVisible(true)}
+                            disabled={busy}
+                            hitSlop={4}
+                        >
+                            <Ionicons name="add" size={24} color={colors.primaryDark} />
                         </Pressable>
                         <Input
-                            style={{ flex: 1, marginBottom: 0, color: "#000000" }}
+                            containerStyle={styles.textInputContainer}
+                            style={styles.textInput}
                             placeholder={awaitingInterrupt ? "Respond above first…" : "Describe how you feel…"}
-                            placeholderTextColor={colors.textMuted}
                             value={input}
                             onChangeText={setInput}
                             editable={!busy && !awaitingInterrupt}
@@ -315,12 +320,20 @@ export default function Diagnosis() {
                             style={[styles.sendButton, (busy || !input.trim() || !!awaitingInterrupt) && { opacity: 0.5 }]}
                             onPress={send}
                             disabled={busy || !input.trim() || !!awaitingInterrupt}
+                            hitSlop={4}
                         >
                             <Ionicons name="send" size={18} color="#fff" />
                         </Pressable>
                     </View>
                 </View>
             </KeyboardAvoidingView>
+
+            <AttachMenu
+                visible={attachMenuVisible}
+                onClose={() => setAttachMenuVisible(false)}
+                onPickImage={attachImage}
+                onPickDocument={attachReport}
+            />
 
             <BookingConfirmModal
                 doctor={pendingBooking}
@@ -399,7 +412,7 @@ function InterruptCard({
                 {!resolved && (
                     <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
                         <Input
-                            style={{ flex: 1, marginBottom: 0, color: "#000000" }}
+                            containerStyle={{ flex: 1, minWidth: 0, marginBottom: 0 }}
                             placeholder="Your answer…"
                             value={text}
                             onChangeText={setText}
@@ -572,9 +585,16 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingTop: spacing.sm,
     },
+    // minWidth: 0 is the key line — without it, a flex row refuses to
+    // shrink this below the TextInput's natural content width, which is
+    // exactly what was collapsing it to ~0px next to the fixed-size
+    // buttons. flexShrink lets it give way on narrow screens too.
+    textInputContainer: { flex: 1, minWidth: 0, flexShrink: 1, marginBottom: 0 },
+    textInput: { flexShrink: 1 },
     attachButton: {
         width: 44,
         height: 44,
+        flexShrink: 0,
         borderRadius: radius.sm,
         backgroundColor: colors.primarySoft,
         alignItems: "center",
@@ -583,6 +603,7 @@ const styles = StyleSheet.create({
     sendButton: {
         width: 44,
         height: 44,
+        flexShrink: 0,
         borderRadius: radius.sm,
         backgroundColor: colors.primary,
         alignItems: "center",
