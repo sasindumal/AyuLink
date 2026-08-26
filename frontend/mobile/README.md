@@ -33,7 +33,7 @@ Four React Native (Expo) apps that talk **directly to Supabase** — no Next.js 
 ## Per-app setup
 
 ```bash
-cd mobile/patient-app       # or doctor-app / pharmacy-app / channeling-center-app
+cd frontend/mobile/patient-app       # or doctor-app / pharmacy-app / channeling-center-app
 npm install --legacy-peer-deps
 ```
 
@@ -66,8 +66,8 @@ supabase db query --linked -f supabase/seed.sql                # patient, doctor
 supabase db query --linked -f supabase/seed_appointments.sql   # 2 channeling centers, schedules, 1 booking
 
 # Recommended: bulk-import Dataset_ref/ for 90 real doctors + 53 real channeling centers
-python3 knowledge-graph/seed_postgres_dataset.py
-supabase db query --linked -f knowledge-graph/seed_postgres_dataset.sql
+python3 backend/src/agent_workflow/ingestion/seed_postgres_dataset.py
+supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres_dataset.sql
 ```
 
 (No Supabase CLI? Paste each `.sql` file into the Supabase **SQL Editor** instead — same effect.) Full details, including how to wipe and start over: [docs/README.md § Database Management](../docs/README.md#8-database-management).
@@ -87,50 +87,11 @@ Ran the bulk import? You also get 90 real doctor logins and 53 real channeling-c
 
 The patient app's *Assistant* tab is a chat front-door (general Q&A, symptom
 triage against a Neo4j knowledge graph, doctor search, and booking) backed by
-a LangGraph + FastAPI server at [`agents_system/doctor_channeling`](../agents_system/doctor_channeling),
-using a local [LM Studio](https://lmstudio.ai) model — not Supabase directly.
+a LangGraph + FastAPI server at [`backend/`](../../backend), using either a
+local [LM Studio](https://lmstudio.ai) model or Google AI Studio (Gemini) —
+not Supabase directly.
 
-**One-time setup:**
-
-1. Root `.env` needs `SUPABASE_ANON_KEY`, `AGENTS_CHECKPOINT_DATABASE_URL` (a
-   Supabase **session pooler** connection string — Dashboard → your project →
-   Settings → Database → Connection string → "Session pooler", *not*
-   "Transaction pooler"), and `NEO4J_*` — see
-   [`agents_system/doctor_channeling/.env.example`](../agents_system/doctor_channeling/.env.example)
-   for the full list and where each value comes from.
-2. Create the venv and install deps:
-   ```bash
-   cd agents_system/doctor_channeling
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-3. Open [LM Studio](https://lmstudio.ai), load a model, and start its local
-   server (default `http://localhost:1234/v1`). Set `LM_STUDIO_MODEL` in root
-   `.env` to that model's exact name (`curl http://localhost:1234/v1/models`
-   lists what's loaded). A vision-capable model is optional — without one,
-   image-only PDF report pages degrade to "please describe your symptoms"
-   instead of failing.
-
-**Run:**
-
-```bash
-cd agents_system/doctor_channeling
-source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
-
-`--host 0.0.0.0` is required, not optional — a physical phone or the iOS
-Simulator can't reach a server bound only to `127.0.0.1`. Check it's up with
-`curl http://localhost:8000/health` → `{"status":"ok"}`.
-
-Then copy `patient-app/.env.example` to `patient-app/.env` and set
-`EXPO_PUBLIC_AGENT_API_URL` to this machine's **LAN IP** (find it with
-`ipconfig getifaddr en0` on macOS), not `localhost` — e.g.
-`http://192.168.1.23:8000`. Your phone/simulator and this machine must be on
-the same Wi-Fi network. **This IP changes** whenever the machine switches
-networks (home Wi-Fi, hotspot, office) — update `.env` and restart
-`npx expo start` each time, or requests will hang until they time out.
+Full setup, running, seeding, and troubleshooting: **[backend/README.md](../../backend/README.md)**.
 
 ## Try the full flow
 
