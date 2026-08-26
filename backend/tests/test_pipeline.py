@@ -7,8 +7,8 @@ framing, routing, the Neo4j-backed clinical loop, and HITL interrupt/resume
 mechanics via the Postgres checkpointer.
 
 Requires:
-  - The backend running (see mobile/README.md "Assistant backend").
-  - LM Studio running with a text model loaded.
+  - The backend running (see backend/README.md).
+  - The configured LLM provider (LM Studio or Google AI Studio) reachable.
 
 Optional:
   - TEST_PATIENT_JWT env var: a real Supabase access token for a signed-in

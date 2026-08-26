@@ -14,10 +14,14 @@ from langgraph.types import Command, interrupt
 from utils.llm import text_llm
 from src.agent_workflow.retrevel.schemas import DoctorSearchQuery
 from src.agent_workflow.retrevel.state import DoctorCard, GraphState
-from src.agent_workflow.retrevel.tools.neo4j_tools import find_diseases_for_symptoms, list_specialty_names
+from src.agent_workflow.retrevel.tools.neo4j_tools import (
+    find_diseases_for_symptoms_hybrid,
+    list_specialty_names,
+)
 from src.agent_workflow.retrevel.tools.postgres_tools import get_doctor_availability, search_doctors
 
 _NONE_OF_THESE = "None of these"
+GENERAL_PRACTITIONER = "General Practitioner"
 
 
 def _match_specialty_name(query: str) -> str | None:
@@ -82,7 +86,7 @@ def _specialty_from_graph(symptoms: list[str]) -> str | None:
     if not symptoms:
         return None
     try:
-        candidates = find_diseases_for_symptoms(symptoms)
+        candidates = find_diseases_for_symptoms_hybrid(symptoms)
     except Exception:  # noqa: BLE001 - Neo4j hiccup shouldn't break doctor search
         return None
     return candidates[0].get("specialty") if candidates else None
@@ -99,6 +103,7 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
     extracted_specialty: str | None = None
     doctor_name: str | None = None
     symptoms: list[str] = []
+    is_general_case = False
     try:
         structured = text_llm.with_structured_output(DoctorSearchQuery, method="json_schema")
         result: DoctorSearchQuery = structured.invoke(
@@ -107,7 +112,10 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
                     "role": "system",
                     "content": "Extract what the patient is searching for: an explicitly named "
                     "specialty/type of doctor, a city, a doctor's name, and/or any symptoms or "
-                    "conditions they described (if no specialty was explicitly named).",
+                    "conditions they described (if no specialty was explicitly named). Also flag "
+                    "whether this looks like an everyday, non-specific case (common cold, mild "
+                    "fever, minor cough, routine checkup) that a General Practitioner handles, "
+                    "rather than something pointing to a specific specialist.",
                 },
                 {"role": "user", "content": text},
             ]
@@ -115,6 +123,7 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
         extracted_specialty = result.specialty
         doctor_name = result.doctor_name
         symptoms = result.symptoms
+        is_general_case = result.is_general_case
     except Exception:  # noqa: BLE001 - fall back further down
         pass
 
@@ -126,6 +135,13 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
         # dropping the search filter entirely.
         canonical = _match_specialty_name(extracted_specialty)
         return canonical or extracted_specialty, doctor_name
+
+    # A common/everyday complaint goes straight to a General Practitioner —
+    # skip the specialist graph lookup entirely rather than routing a mild
+    # cold or a routine checkup to e.g. Cardiology off a loosely-matched
+    # symptom.
+    if is_general_case:
+        return GENERAL_PRACTITIONER, doctor_name
 
     graph_specialty = _specialty_from_graph(symptoms)
     if graph_specialty:

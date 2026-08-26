@@ -1,9 +1,15 @@
 """Read-only Cypher queries against the seeded knowledge graph.
 
-Symptom matching is fuzzy substring CONTAINS (no pgvector/embeddings
-per project decision) — the single biggest correctness risk in the
-clinical path; symptom_agent tries to normalize phrasing toward
-catalog terms before this is called.
+find_diseases_for_symptoms_hybrid() is the primary disease-lookup entry
+point: for each patient symptom phrase it combines a fuzzy substring
+CONTAINS match against Symptom.name (weight 1.0 — an exact catalog term
+should always outrank a merely-similar one) with a cosine-similarity
+search over the symptom_embedding_idx vector index (weight = similarity
+score, floored at config.SYMPTOM_VECTOR_SIMILARITY_FLOOR), so phrasing
+that doesn't literally contain a catalog term (e.g. "tummy ache" vs.
+"abdominal pain") can still surface the right Symptom node. It falls
+back to find_diseases_for_symptoms() (CONTAINS-only, no embedding call)
+if embedding generation fails for any reason.
 
 Queries run via session.execute_read (a managed transaction), not a
 bare session.run — Aura's connections routinely go idle-stale between
@@ -15,6 +21,7 @@ transient connection error.
 from neo4j import GraphDatabase
 
 from utils import config
+from utils.llm import embed_texts
 
 _driver = None
 
@@ -65,6 +72,119 @@ def find_diseases_for_symptoms(symptoms: list[str]) -> list[dict]:
 
     def _run(tx):
         return [dict(record) for record in tx.run(_FIND_DISEASES_QUERY, symptoms=symptoms)]
+
+    with get_driver().session(database=config.NEO4J_DATABASE) as session:
+        return session.execute_read(_run)
+
+
+_EXACT_SYMPTOM_MATCH_QUERY = """
+MATCH (s:Symptom)
+WHERE toLower(s.name) CONTAINS toLower($symptom) OR toLower($symptom) CONTAINS toLower(s.name)
+RETURN s.id AS symptom_id, s.name AS symptom_name
+"""
+
+_VECTOR_SYMPTOM_MATCH_QUERY = """
+CALL db.index.vector.queryNodes('symptom_embedding_idx', $k, $embedding)
+YIELD node AS s, score
+RETURN s.id AS symptom_id, s.name AS symptom_name, score
+"""
+
+_DISEASES_FOR_WEIGHTED_SYMPTOMS_QUERY = """
+UNWIND $weighted_symptoms AS ws
+MATCH (s:Symptom {id: ws.symptom_id})<-[:HAS_SYMPTOM]-(d:Disease)<-[:MANAGES]-(sp:Specialty)
+RETURN d.id AS disease_id, d.name AS disease_name, d.description AS disease_description,
+       sp.name AS specialty, s.name AS symptom_name, ws.weight AS weight, ws.phrase AS phrase
+"""
+
+
+def find_diseases_for_symptoms_hybrid(
+    symptoms: list[str],
+    vector_k: int = config.SYMPTOM_VECTOR_TOP_K,
+    similarity_floor: float = config.SYMPTOM_VECTOR_SIMILARITY_FLOOR,
+) -> list[dict]:
+    """Hybrid symptom->disease retrieval: exact CONTAINS match (weight 1.0)
+    unioned with a symptom_embedding_idx vector search (weight = cosine
+    score, dropped below similarity_floor), then the same
+    Symptom<-HAS_SYMPTOM-Disease<-MANAGES-Specialty traversal and
+    aggregation find_diseases_for_symptoms() does — same output shape
+    (disease_id, disease_name, disease_description, specialty, matches,
+    matched_symptoms), so it's a drop-in replacement at call sites.
+
+    Falls back to find_diseases_for_symptoms() if embedding the patient's
+    symptom phrases fails (e.g. the configured provider/embedding model is unavailable) —
+    the vector index requires it to have been created by seed_neo4j.py's
+    embedding pass, so a fresh/unembedded graph degrades the same way."""
+    if not symptoms:
+        return []
+
+    try:
+        embeddings = embed_texts(symptoms)
+    except Exception:  # noqa: BLE001 - embedding provider down/model not loaded
+        return find_diseases_for_symptoms(symptoms)
+
+    def _run(tx):
+        best_weight_by_symptom_id: dict[str, float] = {}
+        weighted_symptoms = []
+        for phrase, embedding in zip(symptoms, embeddings):
+            for record in tx.run(_EXACT_SYMPTOM_MATCH_QUERY, symptom=phrase):
+                weighted_symptoms.append(
+                    {"symptom_id": record["symptom_id"], "weight": 1.0, "phrase": phrase}
+                )
+            try:
+                vector_hits = list(
+                    tx.run(_VECTOR_SYMPTOM_MATCH_QUERY, k=vector_k, embedding=embedding)
+                )
+            except Exception:  # noqa: BLE001 - vector index not created yet
+                vector_hits = []
+            for record in vector_hits:
+                if record["score"] < similarity_floor:
+                    continue
+                weighted_symptoms.append(
+                    {"symptom_id": record["symptom_id"], "weight": record["score"], "phrase": phrase}
+                )
+
+        if not weighted_symptoms:
+            return []
+
+        rows = list(
+            tx.run(_DISEASES_FOR_WEIGHTED_SYMPTOMS_QUERY, weighted_symptoms=weighted_symptoms)
+        )
+
+        # Aggregate per disease: for each original patient phrase, take the
+        # best weight across any Symptom node that matched it (a phrase
+        # shouldn't count twice just because two synonymous Symptom nodes
+        # both matched it), then sum those per-phrase weights into "matches".
+        per_disease: dict[str, dict] = {}
+        for row in rows:
+            entry = per_disease.setdefault(
+                row["disease_id"],
+                {
+                    "disease_id": row["disease_id"],
+                    "disease_name": row["disease_name"],
+                    "disease_description": row["disease_description"],
+                    "specialty": row["specialty"],
+                    "phrase_weights": {},
+                    "matched_symptoms": set(),
+                },
+            )
+            entry["phrase_weights"][row["phrase"]] = max(
+                entry["phrase_weights"].get(row["phrase"], 0.0), row["weight"]
+            )
+            entry["matched_symptoms"].add(row["symptom_name"])
+
+        candidates = [
+            {
+                "disease_id": entry["disease_id"],
+                "disease_name": entry["disease_name"],
+                "disease_description": entry["disease_description"],
+                "specialty": entry["specialty"],
+                "matches": round(sum(entry["phrase_weights"].values()), 3),
+                "matched_symptoms": sorted(entry["matched_symptoms"]),
+            }
+            for entry in per_disease.values()
+        ]
+        candidates.sort(key=lambda c: c["matches"], reverse=True)
+        return candidates[:5]
 
     with get_driver().session(database=config.NEO4J_DATABASE) as session:
         return session.execute_read(_run)

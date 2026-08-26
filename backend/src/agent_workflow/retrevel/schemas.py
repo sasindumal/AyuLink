@@ -47,6 +47,15 @@ class DoctorSearchQuery(BaseModel):
         description="Symptom or condition phrases mentioned (e.g. 'chest pain'), normalized "
         "toward likely medical catalog terms, if no explicit specialty was named.",
     )
+    is_general_case: bool = Field(
+        False,
+        description="True if this looks like an everyday, non-specific complaint best seen by "
+        "a General Practitioner rather than a specialist — a common cold, mild/short-lived "
+        "fever, minor cough or sore throat, routine checkup, or a vague 'not feeling well' with "
+        "no specific worrying symptom. False if the patient named a specialty, described a "
+        "symptom pointing to a particular body system/specialist (e.g. chest pain, joint "
+        "swelling, vision changes), or described something severe/persistent/alarming.",
+    )
 
 
 class FollowupQuestion(BaseModel):
