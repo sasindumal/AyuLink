@@ -24,6 +24,11 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as Speech from "expo-speech";
+import {
+    ExpoSpeechRecognitionModule,
+    useSpeechRecognitionEvent,
+} from "expo-speech-recognition";
 import {
     type AgentEvent,
     type DoctorCard,
@@ -37,7 +42,10 @@ import {
 import { Banner, Button, Input } from "../src/components/ui";
 import { AttachMenu } from "../src/components/AttachMenu";
 import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
+import { VoiceControl } from "../src/components/VoiceControl";
 import { colors, radius, shadow, spacing } from "../src/theme";
+
+const VOICE_LANG = "en-US";
 
 type ChatItem =
     | { id: string; kind: "user"; text: string }
@@ -72,9 +80,31 @@ export default function Diagnosis() {
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
     const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
     const [attachMenuVisible, setAttachMenuVisible] = useState(false);
+    const [voiceMode, setVoiceMode] = useState(false);
+    const [listening, setListening] = useState(false);
+    const [speaking, setSpeaking] = useState(false);
+    const [interimTranscript, setInterimTranscript] = useState("");
     const currentAssistantId = useRef<string | null>(null);
+    const currentAssistantText = useRef("");
+    const voiceModeRef = useRef(false);
     const listRef = useRef<FlatList<ChatItem>>(null);
     const insets = useSafeAreaInsets();
+
+    useEffect(() => {
+        voiceModeRef.current = voiceMode;
+        if (!voiceMode) {
+            Speech.stop();
+            ExpoSpeechRecognitionModule.stop();
+        }
+    }, [voiceMode]);
+
+    useEffect(() => {
+        // Stop any in-flight mic/speech when leaving this screen.
+        return () => {
+            Speech.stop();
+            ExpoSpeechRecognitionModule.stop();
+        };
+    }, []);
 
     const scrollToEnd = () => {
         requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
@@ -114,9 +144,46 @@ export default function Diagnosis() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [continuing, threadId]);
 
+    const speak = useCallback((text: string) => {
+        if (!voiceModeRef.current || !text.trim()) return;
+        Speech.stop();
+        setSpeaking(true);
+        Speech.speak(text, {
+            language: VOICE_LANG,
+            onDone: () => setSpeaking(false),
+            onStopped: () => setSpeaking(false),
+            onError: () => setSpeaking(false),
+        });
+    }, []);
+
+    const interruptSpeechText = (payload: InterruptPayload): string => {
+        switch (payload.type) {
+            case "ask_followup":
+                return payload.question;
+            case "offer_doctor":
+            case "ask_location_time":
+                return payload.message;
+            case "present_top5":
+                return payload.doctors.length
+                    ? `I found ${payload.doctors.length} matching doctor${payload.doctors.length === 1 ? "" : "s"}. Take a look and tap Book Now on the one you'd like.`
+                    : "I couldn't find any matching doctors with availability right now.";
+            default:
+                return "";
+        }
+    };
+
+    // Speaks whatever assistant text just finished streaming (if any),
+    // then clears the turn's accumulator — shared by interrupt/error/done.
+    const finishAssistantTurn = () => {
+        if (currentAssistantText.current) speak(currentAssistantText.current);
+        currentAssistantId.current = null;
+        currentAssistantText.current = "";
+    };
+
     const handleEvent = useCallback((evt: AgentEvent) => {
         switch (evt.event) {
             case "token": {
+                currentAssistantText.current += evt.data.content;
                 if (!currentAssistantId.current) {
                     const id = nextId();
                     currentAssistantId.current = id;
@@ -135,17 +202,18 @@ export default function Diagnosis() {
                 break;
             }
             case "interrupt": {
-                currentAssistantId.current = null;
+                finishAssistantTurn();
                 setAwaitingInterrupt(evt.data);
                 setItems((prev) => [
                     ...prev,
                     { id: nextId(), kind: "interrupt", payload: evt.data, resolved: false },
                 ]);
                 scrollToEnd();
+                speak(interruptSpeechText(evt.data));
                 break;
             }
             case "error": {
-                currentAssistantId.current = null;
+                finishAssistantTurn();
                 setItems((prev) => [
                     ...prev,
                     { id: nextId(), kind: "system", tone: "error", text: evt.data.message },
@@ -153,18 +221,20 @@ export default function Diagnosis() {
                 break;
             }
             case "done": {
-                currentAssistantId.current = null;
+                finishAssistantTurn();
                 break;
             }
             default:
                 break;
         }
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [speak]);
 
     const runStream = useCallback(
         async (fn: (onEvent: (e: AgentEvent) => void) => Promise<void>) => {
             setBusy(true);
             currentAssistantId.current = null;
+            currentAssistantText.current = "";
             try {
                 await fn(handleEvent);
             } catch (e) {
@@ -184,14 +254,19 @@ export default function Diagnosis() {
         [handleEvent]
     );
 
-    const send = useCallback(() => {
-        const text = input.trim();
-        if (!text || busy) return;
-        setInput("");
-        setItems((prev) => [...prev, { id: nextId(), kind: "user", text }]);
-        scrollToEnd();
-        runStream((onEvent) => sendMessage(threadId, text, onEvent));
-    }, [input, busy, threadId, runStream]);
+    const sendText = useCallback(
+        (text: string) => {
+            const trimmed = text.trim();
+            if (!trimmed || busy) return;
+            setInput("");
+            setItems((prev) => [...prev, { id: nextId(), kind: "user", text: trimmed }]);
+            scrollToEnd();
+            runStream((onEvent) => sendMessage(threadId, trimmed, onEvent));
+        },
+        [busy, threadId, runStream]
+    );
+
+    const send = useCallback(() => sendText(input), [input, sendText]);
 
     const resolveInterrupt = useCallback(
         (value: unknown, label?: string) => {
@@ -206,6 +281,82 @@ export default function Diagnosis() {
         },
         [busy, threadId, runStream]
     );
+
+    // Voice mode's single entry point for a finished transcript — routes
+    // to a fresh message or an ask_followup answer, whichever the current
+    // turn expects, exactly like the text bar would.
+    const submitVoiceTranscript = useCallback(
+        (text: string) => {
+            const trimmed = text.trim();
+            if (!trimmed) return;
+            if (awaitingInterrupt?.type === "ask_followup") {
+                resolveInterrupt(trimmed, trimmed);
+            } else if (!awaitingInterrupt) {
+                sendText(trimmed);
+            }
+        },
+        [awaitingInterrupt, resolveInterrupt, sendText]
+    );
+
+    const finalTranscript = useRef("");
+    const interimTranscriptRef = useRef("");
+
+    useSpeechRecognitionEvent("start", () => setListening(true));
+
+    useSpeechRecognitionEvent("result", (event) => {
+        const transcript = event.results[0]?.transcript ?? "";
+        interimTranscriptRef.current = transcript;
+        setInterimTranscript(transcript);
+        if (event.isFinal) finalTranscript.current = transcript;
+    });
+
+    useSpeechRecognitionEvent("end", () => {
+        setListening(false);
+        setInterimTranscript("");
+        const transcript = finalTranscript.current || interimTranscriptRef.current;
+        finalTranscript.current = "";
+        interimTranscriptRef.current = "";
+        if (transcript.trim()) submitVoiceTranscript(transcript);
+    });
+
+    useSpeechRecognitionEvent("error", (event) => {
+        setListening(false);
+        setInterimTranscript("");
+        if (event.error === "no-speech" || event.error === "aborted") return;
+        setItems((prev) => [
+            ...prev,
+            { id: nextId(), kind: "system", tone: "error", text: `Voice input error: ${event.message || event.error}` },
+        ]);
+    });
+
+    const startListening = useCallback(async () => {
+        Speech.stop();
+        setSpeaking(false);
+        const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!permission.granted) {
+            setItems((prev) => [
+                ...prev,
+                {
+                    id: nextId(),
+                    kind: "system",
+                    tone: "error",
+                    text: "Microphone/speech recognition permission was denied — enable it in Settings to use voice chat.",
+                },
+            ]);
+            return;
+        }
+        finalTranscript.current = "";
+        interimTranscriptRef.current = "";
+        ExpoSpeechRecognitionModule.start({
+            lang: VOICE_LANG,
+            interimResults: true,
+            continuous: false,
+        });
+    }, []);
+
+    const stopListening = useCallback(() => {
+        ExpoSpeechRecognitionModule.stop();
+    }, []);
 
     const confirmBooking = useCallback(() => {
         if (!pendingBooking) return;
@@ -259,9 +410,23 @@ export default function Diagnosis() {
                         <View style={{ flex: 1 }}>
                             <Text style={styles.headerTitle}>Diagnosis</Text>
                             <Text style={styles.headerSubtitle}>
-                                {continuing ? "Continuing your conversation" : "Tell me what's going on"}
+                                {voiceMode
+                                    ? "Voice chat"
+                                    : continuing
+                                      ? "Continuing your conversation"
+                                      : "Tell me what's going on"}
                             </Text>
                         </View>
+                        <Pressable
+                            onPress={() => setVoiceMode((v) => !v)}
+                            style={[styles.backBtn, voiceMode && styles.voiceToggleActive]}
+                        >
+                            <Ionicons
+                                name={voiceMode ? "chatbox-ellipses" : "mic"}
+                                size={20}
+                                color={voiceMode ? "#fff" : colors.primaryDark}
+                            />
+                        </Pressable>
                     </View>
 
                     {hydrating ? (
@@ -293,38 +458,52 @@ export default function Diagnosis() {
                         </View>
                     )}
 
-                    <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
-                        <Pressable
-                            style={styles.attachButton}
-                            onPress={() => setAttachMenuVisible(true)}
-                            disabled={busy}
-                            hitSlop={4}
-                        >
-                            <Ionicons name="add" size={24} color={colors.primaryDark} />
-                        </Pressable>
-                        <Input
-                            containerStyle={styles.textInputContainer}
-                            style={styles.textInput}
-                            placeholder={awaitingInterrupt ? "Respond above first…" : "Describe how you feel…"}
-                            value={input}
-                            onChangeText={setInput}
-                            editable={!busy && !awaitingInterrupt}
-                            onSubmitEditing={send}
-                            returnKeyType="send"
-                            multiline={false}
-                            textAlignVertical="center"
-                            cursorColor={colors.primaryDark}
-                            selectionColor={colors.primaryDark}
-                        />
-                        <Pressable
-                            style={[styles.sendButton, (busy || !input.trim() || !!awaitingInterrupt) && { opacity: 0.5 }]}
-                            onPress={send}
-                            disabled={busy || !input.trim() || !!awaitingInterrupt}
-                            hitSlop={4}
-                        >
-                            <Ionicons name="send" size={18} color="#fff" />
-                        </Pressable>
-                    </View>
+                    {voiceMode ? (
+                        <View style={{ paddingBottom: Math.max(insets.bottom, spacing.sm) }}>
+                            <VoiceControl
+                                listening={listening}
+                                speaking={speaking}
+                                disabled={busy || (!!awaitingInterrupt && awaitingInterrupt.type !== "ask_followup")}
+                                disabledReason={busy ? "Thinking…" : "Respond above first…"}
+                                interimTranscript={interimTranscript}
+                                onStart={startListening}
+                                onStop={stopListening}
+                            />
+                        </View>
+                    ) : (
+                        <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+                            <Pressable
+                                style={styles.attachButton}
+                                onPress={() => setAttachMenuVisible(true)}
+                                disabled={busy}
+                                hitSlop={4}
+                            >
+                                <Ionicons name="add" size={24} color={colors.primaryDark} />
+                            </Pressable>
+                            <Input
+                                containerStyle={styles.textInputContainer}
+                                style={styles.textInput}
+                                placeholder={awaitingInterrupt ? "Respond above first…" : "Describe how you feel…"}
+                                value={input}
+                                onChangeText={setInput}
+                                editable={!busy && !awaitingInterrupt}
+                                onSubmitEditing={send}
+                                returnKeyType="send"
+                                multiline={false}
+                                textAlignVertical="center"
+                                cursorColor={colors.primaryDark}
+                                selectionColor={colors.primaryDark}
+                            />
+                            <Pressable
+                                style={[styles.sendButton, (busy || !input.trim() || !!awaitingInterrupt) && { opacity: 0.5 }]}
+                                onPress={send}
+                                disabled={busy || !input.trim() || !!awaitingInterrupt}
+                                hitSlop={4}
+                            >
+                                <Ionicons name="send" size={18} color="#fff" />
+                            </Pressable>
+                        </View>
+                    )}
                 </View>
             </KeyboardAvoidingView>
 
@@ -558,6 +737,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
+    voiceToggleActive: { backgroundColor: colors.primary },
     headerTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
     headerSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
     bubble: {
