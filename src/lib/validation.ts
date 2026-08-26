@@ -31,28 +31,28 @@ export const registerSchema = z
         // Doctor-specific fields
         slmcRegNo: trimmedString(50).optional(),
         specialization: trimmedString(100).optional(),
-        hospitalName: trimmedString(150).optional(),
         // Pharmacist-specific fields
         pharmacyName: trimmedString(150).optional(),
         pharmacyLicense: trimmedString(50).optional(),
-        pharmacyAddress: trimmedString(300).optional(),
+        pharmacyLatitude: trimmedString(20).optional(),
+        pharmacyLongitude: trimmedString(20).optional(),
     })
     .superRefine((data, ctx) => {
         if (data.role === Role.DOCTOR) {
-            if (!data.slmcRegNo || !data.specialization || !data.hospitalName) {
+            if (!data.slmcRegNo || !data.specialization) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
-                    message:
-                        "Doctor registration requires SLMC number, specialization, and hospital name",
+                    message: "Doctor registration requires SLMC number and specialization",
                 });
             }
         }
         if (data.role === Role.PHARMACIST) {
-            if (!data.pharmacyName || !data.pharmacyLicense || !data.pharmacyAddress) {
+            if (!data.pharmacyName || !data.pharmacyLicense
+                || !data.pharmacyLatitude || !data.pharmacyLongitude) {
                 ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     message:
-                        "Pharmacist registration requires pharmacy name, license number, and address",
+                        "Pharmacist registration requires pharmacy name, license number, and location",
                 });
             }
         }

@@ -46,3 +46,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /supabase/.temp
+
+# python
+__pycache__/
+*.pyc
+/agents_system/doctor_channeling/.venv
+/graphify-out

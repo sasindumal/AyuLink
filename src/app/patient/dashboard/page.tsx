@@ -29,7 +29,6 @@ interface Prescription {
         lastName: string;
         doctorProfile?: {
             specialization: string;
-            hospitalName: string;
             slmcRegNo: string;
         };
     };
@@ -223,7 +222,6 @@ export default function PatientDashboard() {
                                                 doctorSpecialization={
                                                     rx.doctor.doctorProfile?.specialization
                                                 }
-                                                hospitalName={rx.doctor.doctorProfile?.hospitalName}
                                                 slmcRegNo={rx.doctor.doctorProfile?.slmcRegNo}
                                                 items={rx.items}
                                                 expanded={selectedRx === rx.id}
@@ -254,7 +252,6 @@ export default function PatientDashboard() {
                                                 doctorSpecialization={
                                                     rx.doctor.doctorProfile?.specialization
                                                 }
-                                                hospitalName={rx.doctor.doctorProfile?.hospitalName}
                                                 slmcRegNo={rx.doctor.doctorProfile?.slmcRegNo}
                                                 items={rx.items}
                                                 expanded={selectedRx === rx.id}

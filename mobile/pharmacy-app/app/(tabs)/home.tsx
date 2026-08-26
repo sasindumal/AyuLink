@@ -114,9 +114,9 @@ export default function Home() {
                         <Text style={styles.identityMeta}>
                             License {profile.licenseNumber}
                         </Text>
-                        {!!profile.pharmacyAddress && (
+                        {!!profile.location && (
                             <Text style={styles.identityMeta}>
-                                📍 {profile.pharmacyAddress}
+                                📍 {profile.location}
                             </Text>
                         )}
                     </Card>

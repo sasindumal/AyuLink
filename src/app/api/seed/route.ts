@@ -97,15 +97,14 @@ export async function GET() {
         const { data: doctorProfile } = await supabase
             .from("DoctorProfile")
             .select("id")
-            .eq("userId", doctor.id)
+            .eq("user_id", doctor.id)
             .maybeSingle();
 
         if (!doctorProfile) {
             const { error } = await supabase.from("DoctorProfile").insert({
-                userId: doctor.id,
-                slmcRegNo: "SLMC-12345",
-                specialization: "Cardiology",
-                hospitalName: "National Hospital Colombo",
+                user_id: doctor.id,
+                slmc_id: "SLMC-12345",
+                specialty: "Cardiology",
             });
             if (error) throw error;
         }
@@ -134,7 +133,7 @@ export async function GET() {
                 userId: pharmacist.id,
                 pharmacyName: "MediCare Pharmacy",
                 licenseNumber: "PL-2024-001",
-                pharmacyAddress: "45 Galle Road, Colombo 03",
+                location: "(79.8475,6.9101)",
             });
             if (error) throw error;
         }

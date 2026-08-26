@@ -27,7 +27,7 @@ interface Prescription {
 interface PharmacyInfo {
     pharmacyName: string;
     licenseNumber: string;
-    pharmacyAddress: string;
+    location: string;
 }
 
 export default function PharmacyDashboard() {
@@ -78,9 +78,9 @@ export default function PharmacyDashboard() {
                             <span className="text-sm text-text-muted font-mono bg-background px-2 py-0.5 rounded-lg border border-border">
                                 {pharmacyInfo?.licenseNumber || "—"}
                             </span>
-                            {pharmacyInfo?.pharmacyAddress && (
+                            {pharmacyInfo?.location && (
                                 <span className="text-sm text-text-muted">
-                                    📍 {pharmacyInfo.pharmacyAddress}
+                                    📍 {pharmacyInfo.location}
                                 </span>
                             )}
                         </div>

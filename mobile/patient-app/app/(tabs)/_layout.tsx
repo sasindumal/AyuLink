@@ -1,11 +1,16 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../src/lib/auth";
 import { colors } from "../../src/theme";
+import { registerForPushNotifications } from "../../src/lib/notifications";
 
 export default function TabsLayout() {
     const { user, loading } = useAuth();
+
+    useEffect(() => {
+        if (user) registerForPushNotifications();
+    }, [user]);
 
     if (!loading && !user) {
         return <Redirect href="/login" />;
@@ -35,6 +40,15 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen
+                name="treatments"
+                options={{
+                    title: "Treatments",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="pulse" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
                 name="medical-id"
                 options={{
                     title: "Medical ID",
@@ -49,6 +63,15 @@ export default function TabsLayout() {
                     title: "Prescriptions",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="document-text" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="appointments"
+                options={{
+                    title: "Appointments",
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons name="calendar" size={size} color={color} />
                     ),
                 }}
             />

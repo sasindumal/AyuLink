@@ -21,12 +21,16 @@
 
 -- ----- Enums -----
 
-create type "Role" as enum ('PATIENT', 'DOCTOR', 'PHARMACIST');
+create type "Role" as enum ('PATIENT', 'DOCTOR', 'PHARMACIST', 'CHANNELING_CENTER');
 
 create type "PrescriptionStatus" as enum (
     'NOT_DISPENSED',
     'PARTIALLY_DISPENSED',
     'FULLY_DISPENSED'
+);
+
+create type "DayOfWeek" as enum (
+    'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'
 );
 
 -- ----- Tables -----
@@ -50,14 +54,15 @@ create table "User" (
 );
 
 create table "DoctorProfile" (
-    "id"             uuid primary key default gen_random_uuid(),
-    "userId"         uuid not null unique,
-    "slmcRegNo"      text not null unique,
-    "specialization" text not null,
-    "hospitalName"   text not null,
+    "id"        uuid primary key default gen_random_uuid(),
+    "user_id"   uuid not null unique,
+    "slmc_id"   text not null unique,
+    "specialty" text not null,
+    -- Optional 0-5 rating; also mirrored on the Neo4j (:Doctor) node.
+    "rating"    real check ("rating" is null or ("rating" >= 0 and "rating" <= 5)),
 
-    constraint "DoctorProfile_userId_fkey"
-        foreign key ("userId") references "User" ("id") on delete cascade
+    constraint "DoctorProfile_user_id_fkey"
+        foreign key ("user_id") references "User" ("id") on delete cascade
 );
 
 create table "PharmacyProfile" (
@@ -65,10 +70,49 @@ create table "PharmacyProfile" (
     "userId"          uuid not null unique,
     "pharmacyName"    text not null,
     "licenseNumber"   text not null unique,
-    "pharmacyAddress" text not null,
+    "location"        point not null,
 
     constraint "PharmacyProfile_userId_fkey"
         foreign key ("userId") references "User" ("id") on delete cascade
+);
+
+-- A channeling center is also a login-capable account (role
+-- CHANNELING_CENTER on "User"), same pattern as DoctorProfile /
+-- PharmacyProfile.
+create table "ChannelingCenter" (
+    "id"             uuid primary key default gen_random_uuid(),
+    "user_id"        uuid not null unique,
+    "name"           text not null,
+    "address"        text not null,
+    "contact_number" text not null,
+    "location"       point not null,
+
+    constraint "ChannelingCenter_user_id_fkey"
+        foreign key ("user_id") references "User" ("id") on delete cascade
+);
+
+-- A doctor's recurring weekly availability at a channeling center.
+-- A doctor can hold multiple slots across multiple centers; each
+-- slot's day/time is managed by the doctor themselves via the
+-- app_* functions below.
+create table "DoctorSchedule" (
+    "id"                   uuid primary key default gen_random_uuid(),
+    "doctor_id"            uuid not null,
+    "channeling_center_id" uuid not null,
+    "day_of_week"          "DayOfWeek" not null,
+    "start_time"           time not null,
+    "end_time"             time not null,
+    "created_at"           timestamptz not null default now(),
+    "updated_at"           timestamptz not null default now(),
+
+    constraint "DoctorSchedule_doctor_id_fkey"
+        foreign key ("doctor_id") references "User" ("id") on delete cascade,
+    constraint "DoctorSchedule_channeling_center_id_fkey"
+        foreign key ("channeling_center_id") references "ChannelingCenter" ("id") on delete cascade,
+    constraint "DoctorSchedule_time_check"
+        check ("end_time" > "start_time"),
+    constraint "DoctorSchedule_slot_unique"
+        unique ("doctor_id", "channeling_center_id", "day_of_week", "start_time")
 );
 
 create table "Prescription" (
@@ -117,6 +161,8 @@ create table "MobileOtp" (
 
 -- ----- Indexes -----
 
+create index "DoctorSchedule_doctor_id_idx" on "DoctorSchedule" ("doctor_id");
+create index "DoctorSchedule_channeling_center_id_idx" on "DoctorSchedule" ("channeling_center_id");
 create index "Prescription_patientId_idx" on "Prescription" ("patientId");
 create index "Prescription_doctorId_idx" on "Prescription" ("doctorId");
 create index "PrescriptionItem_prescriptionId_idx" on "PrescriptionItem" ("prescriptionId");
@@ -141,6 +187,19 @@ create trigger "Prescription_updatedAt"
     before update on "Prescription"
     for each row execute function set_updated_at();
 
+-- snake_case counterpart of set_updated_at(), for snake_case tables
+create or replace function set_updated_at_snake()
+returns trigger as $$
+begin
+    new."updated_at" = now();
+    return new;
+end;
+$$ language plpgsql;
+
+create trigger "DoctorSchedule_updated_at"
+    before update on "DoctorSchedule"
+    for each row execute function set_updated_at_snake();
+
 -- ==============================================
 -- Internal functions (service role / web server)
 -- ==============================================
@@ -152,7 +211,8 @@ create or replace function create_user_with_profile(
     p_user_id uuid,
     p_user jsonb,
     p_doctor jsonb default null,
-    p_pharmacy jsonb default null
+    p_pharmacy jsonb default null,
+    p_channeling_center jsonb default null
 ) returns "User"
 language plpgsql security definer set search_path = public as $$
 declare
@@ -176,13 +236,35 @@ begin
     returning * into v_user;
 
     if p_doctor is not null then
-        insert into "DoctorProfile" ("userId", "slmcRegNo", "specialization", "hospitalName")
-        values (p_user_id, p_doctor->>'slmcRegNo', p_doctor->>'specialization', p_doctor->>'hospitalName');
+        insert into "DoctorProfile" ("user_id", "slmc_id", "specialty")
+        values (p_user_id, p_doctor->>'slmcRegNo', p_doctor->>'specialization');
     end if;
 
     if p_pharmacy is not null then
-        insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "pharmacyAddress")
-        values (p_user_id, p_pharmacy->>'pharmacyName', p_pharmacy->>'licenseNumber', p_pharmacy->>'pharmacyAddress');
+        insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "location")
+        values (
+            p_user_id,
+            p_pharmacy->>'pharmacyName',
+            p_pharmacy->>'licenseNumber',
+            point(
+                (p_pharmacy->>'longitude')::float8,
+                (p_pharmacy->>'latitude')::float8
+            )
+        );
+    end if;
+
+    if p_channeling_center is not null then
+        insert into "ChannelingCenter" ("user_id", "name", "address", "contact_number", "location")
+        values (
+            p_user_id,
+            p_channeling_center->>'name',
+            p_channeling_center->>'address',
+            p_channeling_center->>'contactNumber',
+            point(
+                (p_channeling_center->>'longitude')::float8,
+                (p_channeling_center->>'latitude')::float8
+            )
+        );
     end if;
 
     return v_user;
@@ -330,11 +412,11 @@ language sql stable security definer set search_path = public as $$
                 'id', u."id", 'firstName', u."firstName", 'lastName', u."lastName",
                 'doctorProfile', (
                     select jsonb_build_object(
-                        'specialization', dp."specialization",
-                        'hospitalName', dp."hospitalName",
-                        'slmcRegNo', dp."slmcRegNo"
+                        'specialization', dp."specialty",
+                        'slmcRegNo', dp."slmc_id",
+                        'rating', dp."rating"
                     )
-                    from "DoctorProfile" dp where dp."userId" = u."id"
+                    from "DoctorProfile" dp where dp."user_id" = u."id"
                 )
             )
             from "User" u where u."id" = p."doctorId"
@@ -408,16 +490,25 @@ begin
     if v_role = 'DOCTOR' and (
         coalesce(trim(p_profile->>'slmcRegNo'), '') = ''
         or coalesce(trim(p_profile->>'specialization'), '') = ''
-        or coalesce(trim(p_profile->>'hospitalName'), '') = ''
     ) then
-        raise exception 'Doctor registration requires SLMC number, specialization, and hospital name';
+        raise exception 'Doctor registration requires SLMC number and specialization';
     end if;
     if v_role = 'PHARMACIST' and (
         coalesce(trim(p_profile->>'pharmacyName'), '') = ''
         or coalesce(trim(p_profile->>'pharmacyLicense'), '') = ''
-        or coalesce(trim(p_profile->>'pharmacyAddress'), '') = ''
+        or (p_profile->>'pharmacyLatitude') is null
+        or (p_profile->>'pharmacyLongitude') is null
     ) then
-        raise exception 'Pharmacist registration requires pharmacy name, license number, and address';
+        raise exception 'Pharmacist registration requires pharmacy name, license number, and location';
+    end if;
+    if v_role = 'CHANNELING_CENTER' and (
+        coalesce(trim(p_profile->>'centerName'), '') = ''
+        or coalesce(trim(p_profile->>'centerAddress'), '') = ''
+        or coalesce(trim(p_profile->>'centerContactNumber'), '') = ''
+        or (p_profile->>'centerLatitude') is null
+        or (p_profile->>'centerLongitude') is null
+    ) then
+        raise exception 'Channeling center registration requires a name, address, contact number, and location';
     end if;
 
     insert into "User" (
@@ -437,11 +528,31 @@ begin
     );
 
     if v_role = 'DOCTOR' then
-        insert into "DoctorProfile" ("userId", "slmcRegNo", "specialization", "hospitalName")
-        values (v_uid, trim(p_profile->>'slmcRegNo'), trim(p_profile->>'specialization'), trim(p_profile->>'hospitalName'));
+        insert into "DoctorProfile" ("user_id", "slmc_id", "specialty")
+        values (v_uid, trim(p_profile->>'slmcRegNo'), trim(p_profile->>'specialization'));
     elsif v_role = 'PHARMACIST' then
-        insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "pharmacyAddress")
-        values (v_uid, trim(p_profile->>'pharmacyName'), trim(p_profile->>'pharmacyLicense'), trim(p_profile->>'pharmacyAddress'));
+        insert into "PharmacyProfile" ("userId", "pharmacyName", "licenseNumber", "location")
+        values (
+            v_uid,
+            trim(p_profile->>'pharmacyName'),
+            trim(p_profile->>'pharmacyLicense'),
+            point(
+                (p_profile->>'pharmacyLongitude')::float8,
+                (p_profile->>'pharmacyLatitude')::float8
+            )
+        );
+    elsif v_role = 'CHANNELING_CENTER' then
+        insert into "ChannelingCenter" ("user_id", "name", "address", "contact_number", "location")
+        values (
+            v_uid,
+            trim(p_profile->>'centerName'),
+            trim(p_profile->>'centerAddress'),
+            trim(p_profile->>'centerContactNumber'),
+            point(
+                (p_profile->>'centerLongitude')::float8,
+                (p_profile->>'centerLatitude')::float8
+            )
+        );
     end if;
 
     return app_get_my_profile();
@@ -573,6 +684,124 @@ begin
     return prescription_json(p);
 end $$;
 
+-- List all channeling centers (public directory data; user_id
+-- omitted since this is world-readable)
+create or replace function app_list_channeling_centers()
+returns jsonb
+language sql stable security definer set search_path = public as $$
+    select coalesce(jsonb_agg((to_jsonb(cc) - 'user_id') order by cc."name"), '[]'::jsonb)
+    from "ChannelingCenter" cc
+$$;
+
+-- Caller's own channeling schedule (verified doctors only)
+create or replace function app_get_my_schedule()
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+    me "User";
+    result jsonb;
+begin
+    select * into me from "User" where "id" = auth.uid();
+    if me is null then
+        raise exception 'Not signed in';
+    end if;
+    if me."role" <> 'DOCTOR' then
+        raise exception 'Only doctors have a channeling schedule';
+    end if;
+
+    select coalesce(jsonb_agg(
+        to_jsonb(ds) || jsonb_build_object('channelingCenter', to_jsonb(cc))
+        order by cc."name", ds."day_of_week", ds."start_time"
+    ), '[]'::jsonb)
+    into result
+    from "DoctorSchedule" ds
+    join "ChannelingCenter" cc on cc."id" = ds."channeling_center_id"
+    where ds."doctor_id" = me."id";
+
+    return result;
+end $$;
+
+-- Create or update one of the caller's own schedule slots
+-- (pass p_id to update an existing slot, null to create a new one).
+-- Verified doctors only; lets a doctor hold slots at multiple
+-- channeling centers, on different days and times, and change
+-- them at any time without staff intervention.
+create or replace function app_upsert_schedule_slot(
+    p_id uuid,
+    p_channeling_center_id uuid,
+    p_day_of_week "DayOfWeek",
+    p_start_time time,
+    p_end_time time
+) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    me "User";
+    v_row "DoctorSchedule";
+begin
+    select * into me from "User" where "id" = auth.uid();
+    if me is null then
+        raise exception 'Not signed in';
+    end if;
+    if me."role" <> 'DOCTOR' then
+        raise exception 'Only doctors can manage a channeling schedule';
+    end if;
+    if not me."verified" then
+        raise exception 'Your account is pending verification. You cannot manage your schedule yet';
+    end if;
+    if p_end_time <= p_start_time then
+        raise exception 'End time must be after start time';
+    end if;
+    if not exists (select 1 from "ChannelingCenter" where "id" = p_channeling_center_id) then
+        raise exception 'Channeling center not found';
+    end if;
+
+    if p_id is null then
+        insert into "DoctorSchedule" (
+            "doctor_id", "channeling_center_id", "day_of_week", "start_time", "end_time"
+        )
+        values (me."id", p_channeling_center_id, p_day_of_week, p_start_time, p_end_time)
+        returning * into v_row;
+    else
+        update "DoctorSchedule" set
+            "channeling_center_id" = p_channeling_center_id,
+            "day_of_week"          = p_day_of_week,
+            "start_time"           = p_start_time,
+            "end_time"             = p_end_time
+        where "id" = p_id and "doctor_id" = me."id"
+        returning * into v_row;
+
+        if not found then
+            raise exception 'Schedule slot not found';
+        end if;
+    end if;
+
+    return to_jsonb(v_row);
+exception
+    when unique_violation then
+        raise exception 'You already have a schedule slot at this center, day, and start time';
+end $$;
+
+-- Remove one of the caller's own schedule slots
+create or replace function app_delete_schedule_slot(p_id uuid)
+returns void
+language plpgsql security definer set search_path = public as $$
+declare
+    me "User";
+begin
+    select * into me from "User" where "id" = auth.uid();
+    if me is null then
+        raise exception 'Not signed in';
+    end if;
+    if me."role" <> 'DOCTOR' then
+        raise exception 'Only doctors can manage a channeling schedule';
+    end if;
+
+    delete from "DoctorSchedule" where "id" = p_id and "doctor_id" = me."id";
+    if not found then
+        raise exception 'Schedule slot not found';
+    end if;
+end $$;
+
 -- Dispense or revert one item (verified pharmacists only)
 create or replace function app_dispense_item(
     p_prescription_id uuid,
@@ -636,6 +865,25 @@ begin
     );
 end $$;
 
+-- Caller's channeling center profile (null when none on file)
+create or replace function app_get_my_channeling_center_profile()
+returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+    me "User";
+begin
+    select * into me from "User" where "id" = auth.uid();
+    if me is null then
+        raise exception 'Not signed in';
+    end if;
+    if me."role" <> 'CHANNELING_CENTER' then
+        raise exception 'Only channeling centers have a center profile';
+    end if;
+    return (
+        select to_jsonb(cc) from "ChannelingCenter" cc where cc."user_id" = me."id"
+    );
+end $$;
+
 -- Resolve a pharmacy license number to the login email
 -- (used by the pharmacy app's license login tab; callable pre-auth)
 create or replace function app_login_email_for_license(p_license text)
@@ -652,11 +900,12 @@ $$;
 -- user JWTs; app_* functions are for authenticated users
 -- (the license->email resolver also works pre-auth).
 
-revoke execute on function create_user_with_profile(uuid, jsonb, jsonb, jsonb) from public, anon, authenticated;
+revoke execute on function create_user_with_profile(uuid, jsonb, jsonb, jsonb, jsonb) from public, anon, authenticated;
 revoke execute on function create_prescription_with_items(uuid, uuid, text, jsonb) from public, anon, authenticated;
 revoke execute on function dispense_prescription_item(uuid, uuid, boolean, uuid) from public, anon, authenticated;
 revoke execute on function prescription_json("Prescription") from public, anon, authenticated;
 revoke execute on function set_updated_at() from public, anon, authenticated;
+revoke execute on function set_updated_at_snake() from public, anon, authenticated;
 
 revoke execute on function app_get_my_profile() from public, anon;
 revoke execute on function app_register_profile(jsonb) from public, anon;
@@ -665,8 +914,13 @@ revoke execute on function app_lookup_patient(text) from public, anon;
 revoke execute on function app_create_prescription(uuid, text, jsonb) from public, anon;
 revoke execute on function app_dispense_item(uuid, uuid, boolean) from public, anon;
 revoke execute on function app_get_pharmacy_profile() from public, anon;
+revoke execute on function app_get_my_channeling_center_profile() from public, anon;
+revoke execute on function app_get_my_schedule() from public, anon;
+revoke execute on function app_upsert_schedule_slot(uuid, uuid, "DayOfWeek", time, time) from public, anon;
+revoke execute on function app_delete_schedule_slot(uuid) from public, anon;
 
 grant execute on function app_login_email_for_license(text) to anon, authenticated;
+grant execute on function app_list_channeling_centers() to anon, authenticated;
 
 -- ----- Row Level Security -----
 -- No table policies: direct table access with the anon key is
@@ -676,6 +930,8 @@ grant execute on function app_login_email_for_license(text) to anon, authenticat
 alter table "User" enable row level security;
 alter table "DoctorProfile" enable row level security;
 alter table "PharmacyProfile" enable row level security;
+alter table "ChannelingCenter" enable row level security;
+alter table "DoctorSchedule" enable row level security;
 alter table "Prescription" enable row level security;
 alter table "PrescriptionItem" enable row level security;
 alter table "MobileOtp" enable row level security;

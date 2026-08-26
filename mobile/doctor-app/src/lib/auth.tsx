@@ -27,7 +27,7 @@ export interface LoginFields {
 }
 
 /** Registration fields; role plus the role-specific extras. */
-export type RegisterProfile = Record<string, string>;
+export type RegisterProfile = Record<string, string | string[]>;
 
 interface AuthState {
     user: User | null;
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const register = useCallback(
         async (profile: RegisterProfile, password: string): Promise<User> => {
             const { data, error } = await supabase.auth.signUp({
-                email: nicToEmail(profile.nicNumber),
+                email: nicToEmail(profile.nicNumber as string),
                 password,
             });
             if (error) {

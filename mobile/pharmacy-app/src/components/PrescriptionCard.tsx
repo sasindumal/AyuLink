@@ -47,9 +47,7 @@ export function PrescriptionCard({
                         {counterpart ? `  ·  ${counterpart}` : ""}
                     </Text>
                     {perspective === "patient" && doctorProfile && (
-                        <Text style={styles.subline}>
-                            {doctorProfile.specialization} · {doctorProfile.hospitalName}
-                        </Text>
+                        <Text style={styles.subline}>{doctorProfile.specialization}</Text>
                     )}
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 6 }}>

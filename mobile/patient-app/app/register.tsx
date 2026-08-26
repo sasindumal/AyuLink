@@ -86,7 +86,7 @@ export default function Register() {
                 >
                     <Text style={styles.title}>Create your account</Text>
                     <Text style={styles.subtitle}>
-                        Get your Digital Medical ID in under a minute
+                        Set up your personal AI health assistant & digital health ID in under a minute
                     </Text>
 
                     <View style={styles.form}>

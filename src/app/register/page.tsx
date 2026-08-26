@@ -39,11 +39,11 @@ interface FormData {
     // Doctor-specific
     slmcRegNo: string;
     specialization: string;
-    hospitalName: string;
     // Pharmacist-specific
     pharmacyName: string;
     pharmacyLicense: string;
-    pharmacyAddress: string;
+    pharmacyLatitude: string;
+    pharmacyLongitude: string;
 }
 
 const roleOptions = [
@@ -91,10 +91,10 @@ export default function RegisterPage() {
         confirmPassword: "",
         slmcRegNo: "",
         specialization: "",
-        hospitalName: "",
         pharmacyName: "",
         pharmacyLicense: "",
-        pharmacyAddress: "",
+        pharmacyLatitude: "",
+        pharmacyLongitude: "",
     });
 
     // Determine total steps based on role
@@ -117,14 +117,15 @@ export default function RegisterPage() {
                 return true;
             case 3:
                 if (formData.role === "DOCTOR") {
-                    if (!formData.slmcRegNo || !formData.specialization || !formData.hospitalName) {
+                    if (!formData.slmcRegNo || !formData.specialization) {
                         setError("All doctor details are required");
                         return false;
                     }
                     return true;
                 }
                 if (formData.role === "PHARMACIST") {
-                    if (!formData.pharmacyName || !formData.pharmacyLicense || !formData.pharmacyAddress) {
+                    if (!formData.pharmacyName || !formData.pharmacyLicense
+                        || !formData.pharmacyLatitude || !formData.pharmacyLongitude) {
                         setError("All pharmacy details are required");
                         return false;
                     }
@@ -488,19 +489,6 @@ export default function RegisterPage() {
                                         <option value="Other">Other</option>
                                     </select>
                                 </div>
-
-                                <div>
-                                    <label className="block text-sm font-semibold text-primary-dark mb-2">
-                                        Hospital / Clinic Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.hospitalName}
-                                        onChange={(e) => updateForm("hospitalName", e.target.value)}
-                                        placeholder="e.g., National Hospital Colombo"
-                                        className="input-field"
-                                    />
-                                </div>
                             </div>
                         </div>
                     )}
@@ -543,17 +531,33 @@ export default function RegisterPage() {
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-semibold text-primary-dark mb-2">
-                                        Pharmacy Address
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={formData.pharmacyAddress}
-                                        onChange={(e) => updateForm("pharmacyAddress", e.target.value)}
-                                        placeholder="e.g., 123 Main Street, Colombo 07"
-                                        className="input-field"
-                                    />
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-semibold text-primary-dark mb-2">
+                                            Latitude
+                                        </label>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={formData.pharmacyLatitude}
+                                            onChange={(e) => updateForm("pharmacyLatitude", e.target.value)}
+                                            placeholder="e.g., 6.9101"
+                                            className="input-field"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-semibold text-primary-dark mb-2">
+                                            Longitude
+                                        </label>
+                                        <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            value={formData.pharmacyLongitude}
+                                            onChange={(e) => updateForm("pharmacyLongitude", e.target.value)}
+                                            placeholder="e.g., 79.8475"
+                                            className="input-field"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>

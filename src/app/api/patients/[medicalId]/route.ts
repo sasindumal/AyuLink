@@ -43,7 +43,7 @@ export async function GET(
                     ),
                     doctor:User!Prescription_doctorId_fkey (
                         firstName, lastName,
-                        doctorProfile:DoctorProfile ( specialization, hospitalName, slmcRegNo )
+                        doctorProfile:DoctorProfile ( specialization:specialty, slmcRegNo:slmc_id )
                     )
                 )
             `)

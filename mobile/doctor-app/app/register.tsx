@@ -4,11 +4,12 @@
 // New doctors start unverified.
 // ==============================================
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     Alert,
     KeyboardAvoidingView,
     Platform,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -16,9 +17,18 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../src/lib/auth";
+import { rpc } from "../src/lib/api";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, Input } from "../src/components/ui";
+
+const MAX_SPECIALTIES = 5;
+
+interface Specialty {
+    id: string;
+    name: string;
+}
 
 export default function Register() {
     const { register } = useAuth();
@@ -29,25 +39,43 @@ export default function Register() {
         mobileNumber: "",
         dob: "",
         slmcRegNo: "",
-        specialization: "",
-        hospitalName: "",
         password: "",
         confirm: "",
     });
+    const [specialtyIds, setSpecialtyIds] = useState<string[]>([]);
+    const [specialties, setSpecialties] = useState<Specialty[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        rpc<Specialty[]>("app_list_specialties")
+            .then((data) => setSpecialties(data ?? []))
+            .catch(() => {});
+    }, []);
 
     const set = (key: keyof typeof form) => (value: string) =>
         setForm((f) => ({ ...f, [key]: value }));
 
+    const toggleSpecialty = (id: string) => {
+        setSpecialtyIds((prev) => {
+            if (prev.includes(id)) return prev.filter((x) => x !== id);
+            if (prev.length >= MAX_SPECIALTIES) return prev;
+            return [...prev, id];
+        });
+    };
+
     const submit = async () => {
         const required = [
             form.nicNumber, form.firstName, form.lastName, form.mobileNumber,
-            form.dob, form.slmcRegNo, form.specialization, form.hospitalName,
+            form.dob, form.slmcRegNo,
             form.password,
         ];
         if (required.some((v) => !v.trim())) {
             setError("Please fill in all fields");
+            return;
+        }
+        if (specialtyIds.length === 0) {
+            setError("Please select at least one specialty");
             return;
         }
         if (form.password.length < 8) {
@@ -70,8 +98,7 @@ export default function Register() {
                     dob: form.dob.trim(),
                     role: "DOCTOR",
                     slmcRegNo: form.slmcRegNo.trim(),
-                    specialization: form.specialization.trim(),
-                    hospitalName: form.hospitalName.trim(),
+                    specialtyIds,
                 },
                 form.password
             );
@@ -156,18 +183,49 @@ export default function Register() {
                             onChangeText={set("slmcRegNo")}
                             autoCapitalize="characters"
                         />
-                        <Input
-                            label="Specialization"
-                            placeholder="Cardiology"
-                            value={form.specialization}
-                            onChangeText={set("specialization")}
-                        />
-                        <Input
-                            label="Hospital / Clinic"
-                            placeholder="National Hospital Colombo"
-                            value={form.hospitalName}
-                            onChangeText={set("hospitalName")}
-                        />
+                        <Text style={styles.inputLabel}>
+                            Specialties (up to {MAX_SPECIALTIES})
+                        </Text>
+                        <View style={styles.specialtyChipRow}>
+                            {specialties.map((s) => {
+                                const active = specialtyIds.includes(s.id);
+                                const disabled = !active && specialtyIds.length >= MAX_SPECIALTIES;
+                                return (
+                                    <Pressable
+                                        key={s.id}
+                                        onPress={() => toggleSpecialty(s.id)}
+                                        disabled={disabled}
+                                        style={[
+                                            styles.specialtyChip,
+                                            active && styles.specialtyChipActive,
+                                            disabled && styles.specialtyChipDisabled,
+                                        ]}
+                                    >
+                                        {active && (
+                                            <Ionicons
+                                                name="checkmark"
+                                                size={13}
+                                                color="#fff"
+                                                style={{ marginRight: 4 }}
+                                            />
+                                        )}
+                                        <Text
+                                            style={[
+                                                styles.specialtyChipText,
+                                                active && styles.specialtyChipTextActive,
+                                            ]}
+                                        >
+                                            {s.name}
+                                        </Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </View>
+                        {specialtyIds.length >= MAX_SPECIALTIES && (
+                            <Text style={styles.specialtyHint}>
+                                Maximum of {MAX_SPECIALTIES} specialties selected
+                            </Text>
+                        )}
 
                         <Text style={styles.section}>Security</Text>
                         <Input
@@ -234,6 +292,48 @@ const styles = StyleSheet.create({
         marginTop: spacing.sm,
     },
     row: { flexDirection: "row", gap: 12 },
+    inputLabel: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: colors.text,
+        marginBottom: 8,
+    },
+    specialtyChipRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginBottom: spacing.sm,
+    },
+    specialtyChip: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingHorizontal: 14,
+        paddingVertical: 9,
+        borderRadius: radius.full,
+        backgroundColor: colors.background,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    specialtyChipActive: {
+        backgroundColor: colors.primary,
+        borderColor: colors.primary,
+    },
+    specialtyChipDisabled: {
+        opacity: 0.4,
+    },
+    specialtyChipText: {
+        fontSize: 12.5,
+        fontWeight: "600",
+        color: colors.text,
+    },
+    specialtyChipTextActive: {
+        color: "#fff",
+    },
+    specialtyHint: {
+        fontSize: 11.5,
+        color: colors.textMuted,
+        marginBottom: spacing.sm,
+    },
     footer: {
         flexDirection: "row",
         justifyContent: "center",
