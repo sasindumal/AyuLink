@@ -4,7 +4,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS
+from utils.config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS
 
 CONFIDENCE_TAU = CONFIDENCE_THRESHOLD
 MAX_ROUNDS = MAX_FOLLOWUP_ROUNDS

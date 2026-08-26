@@ -4,7 +4,7 @@ these RPCs check auth.uid() + role='PATIENT' themselves)."""
 
 from supabase import AsyncClient, acreate_client
 
-import config
+from utils import config
 
 
 class RpcError(Exception):

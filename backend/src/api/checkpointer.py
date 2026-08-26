@@ -8,7 +8,7 @@ server-side prepared statements AsyncPostgresSaver relies on.
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg_pool import AsyncConnectionPool
 
-import config
+from utils import config
 
 _pool: AsyncConnectionPool | None = None
 _checkpointer: AsyncPostgresSaver | None = None

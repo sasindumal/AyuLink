@@ -29,7 +29,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_DIR = PROJECT_ROOT / "Dataset_ref"
 OUT_FILE = Path(__file__).resolve().parent / "seed_postgres_dataset.sql"
 

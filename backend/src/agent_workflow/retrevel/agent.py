@@ -7,30 +7,30 @@ it once the checkpointer is ready (see checkpointer.init_checkpointer).
 
 from langgraph.graph import END, START, StateGraph
 
-from graph.nodes.booking import booking_agent
-from graph.nodes.disease import (
+from src.agent_workflow.retrevel.subagents.booking import booking_agent
+from src.agent_workflow.retrevel.subagents.disease import (
     ask_followup,
     disease_agent,
     explain_condition_node,
     offer_doctor,
     should_ask_followup,
 )
-from graph.nodes.doctor_finder import (
+from src.agent_workflow.retrevel.subagents.doctor_finder import (
     ask_location_time,
     availability_check,
     doctor_finder_agent,
     present_top5,
     route_after_doctor_finder,
 )
-from graph.nodes.input_nodes import (
+from src.agent_workflow.retrevel.subagents.input_nodes import (
     document_summarizer,
     image_to_summary,
     normalise_input,
     pdf_to_images,
 )
-from graph.nodes.manager import manager_agent
-from graph.nodes.symptom import symptom_agent
-from state import GraphState
+from src.agent_workflow.retrevel.subagents.manager import manager_agent
+from src.agent_workflow.retrevel.subagents.symptom import symptom_agent
+from src.agent_workflow.retrevel.state import GraphState
 
 ROUTE_TARGETS = {
     "clinical": "symptom_agent",

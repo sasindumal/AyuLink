@@ -6,7 +6,7 @@ import base64
 
 import pymupdf as fitz
 
-from llm import vision_llm
+from utils.llm import vision_llm
 
 MIN_TEXT_CHARS = 40
 

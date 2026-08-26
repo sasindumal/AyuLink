@@ -1,11 +1,11 @@
-"""Typed settings loaded from the repo-root .env file."""
+"""Typed settings loaded from the backend/.env file."""
 
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 
-ROOT_DIR = Path(__file__).resolve().parents[2]
+ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
 

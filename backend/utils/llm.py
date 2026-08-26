@@ -2,7 +2,7 @@
 
 from langchain_openai import ChatOpenAI
 
-import config
+from utils import config
 
 text_llm = ChatOpenAI(
     base_url=config.LM_STUDIO_BASE_URL,

@@ -14,7 +14,7 @@ transient connection error.
 
 from neo4j import GraphDatabase
 
-import config
+from utils import config
 
 _driver = None
 

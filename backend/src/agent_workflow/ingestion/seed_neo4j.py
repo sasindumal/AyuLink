@@ -39,11 +39,12 @@ from schema import DoctorNode, SpecialtyNode, DiseaseNode, SymptomNode
 # ──────────────────────────────────────────────
 # Resolve paths
 # ──────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_DIR = PROJECT_ROOT / "Dataset_ref"
+BACKEND_DIR = Path(__file__).resolve().parents[3]
 
-# Load .env from project root
-load_dotenv(PROJECT_ROOT / ".env")
+# Load .env from backend/
+load_dotenv(BACKEND_DIR / ".env")
 
 NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")

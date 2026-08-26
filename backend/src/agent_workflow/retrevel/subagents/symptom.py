@@ -3,9 +3,9 @@ conversation into state['symptoms'], merging with prior rounds."""
 
 import re
 
-from llm import text_llm
-from schemas import SymptomExtraction
-from state import GraphState
+from utils.llm import text_llm
+from src.agent_workflow.retrevel.schemas import SymptomExtraction
+from src.agent_workflow.retrevel.state import GraphState
 
 EXTRACTION_PROMPT = """Extract the patient's symptoms from this conversation as a short \
 list of normalized, catalog-style medical terms (e.g. "headache" not "my head hurts", \

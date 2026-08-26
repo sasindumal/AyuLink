@@ -11,9 +11,9 @@ for any vaguely help-seeking message when it's one of only three
 options, so an unsignalled "booking" verdict from the LLM is
 downgraded rather than trusted outright."""
 
-from llm import text_llm
-from schemas import RouteDecision
-from state import GraphState
+from utils.llm import text_llm
+from src.agent_workflow.retrevel.schemas import RouteDecision
+from src.agent_workflow.retrevel.state import GraphState
 
 ROUTES = ("clinical", "doctor_search", "booking")
 

@@ -12,12 +12,12 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
-from config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS, MIN_SYMPTOMS_BEFORE_DIAGNOSIS
-from llm import text_llm
-from schemas import FollowupQuestion
-from state import GraphState
-from tools.neo4j_tools import find_diseases_for_symptoms, get_symptoms_for_diseases
-from tools.postgres_tools import RpcError, create_treatment
+from utils.config import CONFIDENCE_THRESHOLD, MAX_FOLLOWUP_ROUNDS, MIN_SYMPTOMS_BEFORE_DIAGNOSIS
+from utils.llm import text_llm
+from src.agent_workflow.retrevel.schemas import FollowupQuestion
+from src.agent_workflow.retrevel.state import GraphState
+from src.agent_workflow.retrevel.tools.neo4j_tools import find_diseases_for_symptoms, get_symptoms_for_diseases
+from src.agent_workflow.retrevel.tools.postgres_tools import RpcError, create_treatment
 
 
 def disease_agent(state: GraphState) -> dict:
