@@ -19,7 +19,15 @@ import { rpc } from "../../src/lib/api";
 import { colors, radius, spacing } from "../../src/theme";
 import { Banner, Button, Card, Input, ScreenHeader } from "../../src/components/ui";
 import { QRScannerModal } from "../../src/components/QRScannerModal";
+import { QuickPickField } from "../../src/components/QuickPickField";
 import type { PatientLookup } from "../../src/types";
+
+const DOSAGE_UNITS = ["mg", "g", "mcg", "ml", "IU", "tablet(s)", "capsule(s)", "drop(s)", "puff(s)", "tsp"];
+const FREQUENCY_PRESETS = [
+    "1-0-0", "0-1-0", "0-0-1", "1-0-1", "1-1-1", "2-1-2",
+    "Once daily", "Twice daily", "Three times daily", "As needed (PRN)",
+];
+const DURATION_PRESETS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month", "Ongoing"];
 
 interface MedInput {
     drugName: string;
@@ -238,30 +246,29 @@ export default function Scan() {
                                         value={med.drugName}
                                         onChangeText={(v) => updateMed(i, "drugName", v)}
                                     />
-                                    <View style={styles.row}>
-                                        <View style={{ flex: 1 }}>
-                                            <Input
-                                                placeholder="Dosage"
-                                                value={med.dosage}
-                                                onChangeText={(v) =>
-                                                    updateMed(i, "dosage", v)
-                                                }
-                                            />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <Input
-                                                placeholder="Frequency"
-                                                value={med.frequency}
-                                                onChangeText={(v) =>
-                                                    updateMed(i, "frequency", v)
-                                                }
-                                            />
-                                        </View>
-                                    </View>
-                                    <Input
-                                        placeholder="Duration (e.g. 7 days)"
+                                    <QuickPickField
+                                        label="Dosage"
+                                        placeholder="e.g. 500"
+                                        value={med.dosage}
+                                        onChangeText={(v) => updateMed(i, "dosage", v)}
+                                        presets={DOSAGE_UNITS}
+                                        mode="appendUnit"
+                                    />
+                                    <QuickPickField
+                                        label="Frequency"
+                                        placeholder="e.g. 1-0-1"
+                                        value={med.frequency}
+                                        onChangeText={(v) => updateMed(i, "frequency", v)}
+                                        presets={FREQUENCY_PRESETS}
+                                        mode="replace"
+                                    />
+                                    <QuickPickField
+                                        label="Duration"
+                                        placeholder="e.g. 7 days"
                                         value={med.duration}
                                         onChangeText={(v) => updateMed(i, "duration", v)}
+                                        presets={DURATION_PRESETS}
+                                        mode="replace"
                                     />
                                     <Input
                                         placeholder="Instructions (optional)"
@@ -351,5 +358,4 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     medTitle: { fontSize: 13, fontWeight: "800", color: colors.primaryDark },
-    row: { flexDirection: "row", gap: 12 },
 });

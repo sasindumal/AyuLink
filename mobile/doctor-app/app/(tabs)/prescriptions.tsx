@@ -8,6 +8,7 @@ import {
     FlatList,
     RefreshControl,
     StyleSheet,
+    Text,
     TextInput,
     View,
 } from "react-native";
@@ -25,12 +26,12 @@ import {
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
 import type { Prescription } from "../../src/types";
 
-type Filter = "ALL" | "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
+type Sort = "date" | "patient" | "medicalId";
 
 export default function Prescriptions() {
     const { user } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-    const [filter, setFilter] = useState<Filter>("ALL");
+    const [sort, setSort] = useState<Sort>("date");
     const [search, setSearch] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -55,7 +56,6 @@ export default function Prescriptions() {
 
     const filtered = useMemo(() => {
         let list = prescriptions;
-        if (filter !== "ALL") list = list.filter((p) => p.status === filter);
         const q = search.trim().toLowerCase();
         if (q) {
             list = list.filter(
@@ -63,16 +63,23 @@ export default function Prescriptions() {
                     p.diagnosis.toLowerCase().includes(q) ||
                     `${p.patient?.firstName ?? ""} ${p.patient?.lastName ?? ""}`
                         .toLowerCase()
-                        .includes(q)
+                        .includes(q) ||
+                    (p.patient?.medicalId ?? "").toLowerCase().includes(q)
             );
         }
+        list = [...list].sort((a, b) => {
+            if (sort === "patient") {
+                return `${a.patient?.firstName ?? ""} ${a.patient?.lastName ?? ""}`.localeCompare(
+                    `${b.patient?.firstName ?? ""} ${b.patient?.lastName ?? ""}`
+                );
+            }
+            if (sort === "medicalId") {
+                return (a.patient?.medicalId ?? "").localeCompare(b.patient?.medicalId ?? "");
+            }
+            return b.dateIssued.localeCompare(a.dateIssued);
+        });
         return list;
-    }, [prescriptions, filter, search]);
-
-    const count = (status: Filter) =>
-        status === "ALL"
-            ? prescriptions.length
-            : prescriptions.filter((p) => p.status === status).length;
+    }, [prescriptions, search, sort]);
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -88,21 +95,21 @@ export default function Prescriptions() {
                     <Ionicons name="search" size={17} color={colors.textMuted} />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search by patient or diagnosis"
+                        placeholder="Search by patient, medical ID, or diagnosis"
                         placeholderTextColor={colors.textMuted}
                         value={search}
                         onChangeText={setSearch}
                     />
                 </View>
 
-                <FilterChips<Filter>
-                    value={filter}
-                    onChange={setFilter}
+                <Text style={styles.sortLabel}>Sort by</Text>
+                <FilterChips<Sort>
+                    value={sort}
+                    onChange={setSort}
                     options={[
-                        { key: "ALL", label: "All", count: count("ALL") },
-                        { key: "NOT_DISPENSED", label: "Active", count: count("NOT_DISPENSED") },
-                        { key: "PARTIALLY_DISPENSED", label: "Partial", count: count("PARTIALLY_DISPENSED") },
-                        { key: "FULLY_DISPENSED", label: "Done", count: count("FULLY_DISPENSED") },
+                        { key: "date", label: "Date" },
+                        { key: "patient", label: "Patient Name" },
+                        { key: "medicalId", label: "Medical ID" },
                     ]}
                 />
 
@@ -169,4 +176,5 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.text,
     },
+    sortLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6 },
 });

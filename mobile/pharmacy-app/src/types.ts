@@ -81,3 +81,22 @@ export interface PatientLookup {
     mobileNumber: string;
     prescriptionsAsPatient: Prescription[];
 }
+
+// ----- Notifications -----
+
+export type NotificationType =
+    | "APPOINTMENT_BOOKED"
+    | "APPOINTMENT_RESCHEDULED"
+    | "APPOINTMENT_CANCELLED"
+    | "APPOINTMENT_COMPLETED";
+
+export interface AppNotification {
+    id: string;
+    user_id: string;
+    type: NotificationType;
+    title: string;
+    body: string;
+    appointment_id: string | null;
+    read: boolean;
+    created_at: string;
+}

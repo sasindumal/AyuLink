@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import {
+    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -61,9 +62,11 @@ export default function Login() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.brand}>
-                        <View style={styles.logo}>
-                            <Ionicons name="business" size={34} color="#fff" />
-                        </View>
+                        <Image
+                            source={require("../assets/icon-mark.png")}
+                            style={styles.logo}
+                            resizeMode="contain"
+                        />
                         <Text style={styles.title}>AyuLink Channeling Center</Text>
                         <Text style={styles.subtitle}>
                             Manage appointments at your center
@@ -126,12 +129,8 @@ const styles = StyleSheet.create({
     scroll: { flexGrow: 1, justifyContent: "center", padding: spacing.lg },
     brand: { alignItems: "center", marginBottom: spacing.xl },
     logo: {
-        width: 72,
-        height: 72,
-        borderRadius: 22,
-        backgroundColor: colors.primaryDark,
-        alignItems: "center",
-        justifyContent: "center",
+        width: 88,
+        height: 88,
         marginBottom: spacing.md,
     },
     title: { fontSize: 24, fontWeight: "800", color: colors.primaryDark, textAlign: "center" },

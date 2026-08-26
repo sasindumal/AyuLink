@@ -32,6 +32,85 @@ import type { PatientLookup, Prescription } from "../../src/types";
 
 const REVERT_WINDOW_MS = 15 * 60 * 1000;
 
+function RxDispenseCard({
+    rx,
+    busyItem,
+    canUndo,
+    onToggle,
+}: {
+    rx: Prescription;
+    busyItem: string | null;
+    canUndo: (item: Prescription["items"][number]) => boolean;
+    onToggle: (prescriptionId: string, itemId: string, dispensed: boolean) => void;
+}) {
+    const dispensedCount = rx.items.filter((i) => i.dispensed).length;
+    const progress = rx.items.length === 0 ? 0 : dispensedCount / rx.items.length;
+
+    return (
+        <View style={styles.rxCard}>
+            <View style={styles.rxHeader}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.rxDiagnosis}>{rx.diagnosis}</Text>
+                    <Text style={styles.rxMeta}>
+                        {rx.doctor ? `Dr. ${rx.doctor.firstName} ${rx.doctor.lastName}` : ""}
+                        {rx.doctor?.doctorProfile ? ` · ${rx.doctor.doctorProfile.specialization}` : ""}
+                    </Text>
+                </View>
+                <StatusBadge status={rx.status} />
+            </View>
+
+            <View style={styles.progressTrack}>
+                <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            </View>
+            <Text style={styles.progressText}>
+                {dispensedCount}/{rx.items.length} dispensed
+            </Text>
+
+            {rx.items.map((item) => (
+                <View key={item.id} style={styles.item}>
+                    <View style={{ flex: 1, paddingRight: 10 }}>
+                        <View style={styles.itemNameRow}>
+                            <View
+                                style={[
+                                    styles.dot,
+                                    { backgroundColor: item.dispensed ? colors.primary : colors.warning },
+                                ]}
+                            />
+                            <Text style={styles.itemName}>{item.drugName}</Text>
+                        </View>
+                        <Text style={styles.itemDetail}>
+                            {item.dosage} · {item.frequency} · {item.duration}
+                        </Text>
+                        {!!item.instructions && (
+                            <Text style={styles.itemInstructions}>{item.instructions}</Text>
+                        )}
+                        {item.dispensed && item.dispensedAt && (
+                            <Text style={styles.itemDone}>Done at {formatTime(item.dispensedAt)}</Text>
+                        )}
+                    </View>
+
+                    {busyItem === item.id ? (
+                        <ActivityIndicator color={colors.primaryDark} />
+                    ) : item.dispensed ? (
+                        canUndo(item) ? (
+                            <Pressable onPress={() => onToggle(rx.id, item.id, false)} style={styles.undoBtn}>
+                                <Ionicons name="arrow-undo" size={14} color={colors.danger} />
+                                <Text style={styles.undoText}>Undo</Text>
+                            </Pressable>
+                        ) : (
+                            <Ionicons name="checkmark-circle" size={26} color={colors.primary} />
+                        )
+                    ) : (
+                        <Pressable onPress={() => onToggle(rx.id, item.id, true)} style={styles.dispenseBtn}>
+                            <Text style={styles.dispenseText}>Dispense</Text>
+                        </Pressable>
+                    )}
+                </View>
+            ))}
+        </View>
+    );
+}
+
 export default function Dispense() {
     const { user } = useAuth();
     const [scannerOpen, setScannerOpen] = useState(false);
@@ -39,6 +118,7 @@ export default function Dispense() {
     const [lookupLoading, setLookupLoading] = useState(false);
     const [patient, setPatient] = useState<PatientLookup | null>(null);
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+    const [singleRx, setSingleRx] = useState<Prescription | null>(null);
     const [busyItem, setBusyItem] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
@@ -46,6 +126,7 @@ export default function Dispense() {
         setScannerOpen(false);
         if (!medicalId.trim()) return;
         setError(null);
+        setSingleRx(null);
         setLookupLoading(true);
         try {
             const data = await rpc<PatientLookup>("app_lookup_patient", {
@@ -57,6 +138,38 @@ export default function Dispense() {
             setError(e instanceof Error ? e.message : "Patient not found");
         } finally {
             setLookupLoading(false);
+        }
+    };
+
+    // A patient's per-prescription QR encodes the prescription's own
+    // id, not their Medical ID — scanning one shows only that single
+    // prescription (never their other pending ones), and a fully
+    // dispensed prescription's QR is refused by the RPC outright.
+    const lookupPrescription = async (prescriptionId: string) => {
+        setError(null);
+        setPatient(null);
+        setPrescriptions([]);
+        setLookupLoading(true);
+        try {
+            const data = await rpc<Prescription>("app_lookup_prescription_by_id", {
+                p_prescription_id: prescriptionId,
+            });
+            setSingleRx(data);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Prescription not found");
+        } finally {
+            setLookupLoading(false);
+        }
+    };
+
+    const handleScan = (data: string) => {
+        setScannerOpen(false);
+        const trimmed = data.trim();
+        if (!trimmed) return;
+        if (trimmed.toUpperCase().startsWith("AYU-")) {
+            lookup(trimmed);
+        } else {
+            lookupPrescription(trimmed);
         }
     };
 
@@ -79,6 +192,7 @@ export default function Dispense() {
             setPrescriptions((list) =>
                 list.map((p) => (p.id === prescriptionId ? data.prescription : p))
             );
+            setSingleRx((rx) => (rx && rx.id === prescriptionId ? data.prescription : rx));
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to update item");
         } finally {
@@ -96,6 +210,7 @@ export default function Dispense() {
     const reset = () => {
         setPatient(null);
         setPrescriptions([]);
+        setSingleRx(null);
         setManualId("");
         setError(null);
     };
@@ -108,12 +223,39 @@ export default function Dispense() {
             >
                 <ScreenHeader
                     title="Scan & Dispense"
-                    subtitle="Scan a patient to see their active prescriptions"
+                    subtitle="Scan a Medical ID or a single prescription QR"
                 />
 
                 {error && <Banner kind="error" message={error} />}
 
-                {!patient ? (
+                {singleRx ? (
+                    <>
+                        <Card style={styles.patientCard}>
+                            <View style={styles.patientAvatar}>
+                                <Ionicons name="person" size={22} color="#fff" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.patientName}>
+                                    {singleRx.patient?.firstName} {singleRx.patient?.lastName}
+                                </Text>
+                                <Text style={styles.patientMeta}>
+                                    NIC {singleRx.patient?.nicNumber} · {singleRx.patient?.medicalId}
+                                </Text>
+                            </View>
+                            <Pressable onPress={reset} style={styles.changeBtn}>
+                                <Text style={styles.changeBtnText}>New Search</Text>
+                            </Pressable>
+                        </Card>
+
+                        <Text style={styles.sectionTitle}>This Prescription</Text>
+                        <Text style={styles.singleRxHint}>
+                            Scanned from the patient's prescription QR — their other
+                            prescriptions are not shown.
+                        </Text>
+
+                        <RxDispenseCard rx={singleRx} busyItem={busyItem} canUndo={canUndo} onToggle={toggleItem} />
+                    </>
+                ) : !patient ? (
                     <Card>
                         <Button
                             title="Scan Patient QR Code"
@@ -177,130 +319,9 @@ export default function Dispense() {
                             </Card>
                         )}
 
-                        {activeRx.map((rx) => {
-                            const dispensedCount = rx.items.filter(
-                                (i) => i.dispensed
-                            ).length;
-                            const progress =
-                                rx.items.length === 0
-                                    ? 0
-                                    : dispensedCount / rx.items.length;
-                            return (
-                                <View key={rx.id} style={styles.rxCard}>
-                                    <View style={styles.rxHeader}>
-                                        <View style={{ flex: 1, paddingRight: 8 }}>
-                                            <Text style={styles.rxDiagnosis}>
-                                                {rx.diagnosis}
-                                            </Text>
-                                            <Text style={styles.rxMeta}>
-                                                {rx.doctor
-                                                    ? `Dr. ${rx.doctor.firstName} ${rx.doctor.lastName}`
-                                                    : ""}
-                                                {rx.doctor?.doctorProfile
-                                                    ? ` · ${rx.doctor.doctorProfile.specialization}`
-                                                    : ""}
-                                            </Text>
-                                        </View>
-                                        <StatusBadge status={rx.status} />
-                                    </View>
-
-                                    <View style={styles.progressTrack}>
-                                        <View
-                                            style={[
-                                                styles.progressFill,
-                                                { width: `${progress * 100}%` },
-                                            ]}
-                                        />
-                                    </View>
-                                    <Text style={styles.progressText}>
-                                        {dispensedCount}/{rx.items.length} dispensed
-                                    </Text>
-
-                                    {rx.items.map((item) => (
-                                        <View key={item.id} style={styles.item}>
-                                            <View style={{ flex: 1, paddingRight: 10 }}>
-                                                <View style={styles.itemNameRow}>
-                                                    <View
-                                                        style={[
-                                                            styles.dot,
-                                                            {
-                                                                backgroundColor:
-                                                                    item.dispensed
-                                                                        ? colors.primary
-                                                                        : colors.warning,
-                                                            },
-                                                        ]}
-                                                    />
-                                                    <Text style={styles.itemName}>
-                                                        {item.drugName}
-                                                    </Text>
-                                                </View>
-                                                <Text style={styles.itemDetail}>
-                                                    {item.dosage} · {item.frequency} ·{" "}
-                                                    {item.duration}
-                                                </Text>
-                                                {!!item.instructions && (
-                                                    <Text style={styles.itemInstructions}>
-                                                        {item.instructions}
-                                                    </Text>
-                                                )}
-                                                {item.dispensed && item.dispensedAt && (
-                                                    <Text style={styles.itemDone}>
-                                                        Done at{" "}
-                                                        {formatTime(item.dispensedAt)}
-                                                    </Text>
-                                                )}
-                                            </View>
-
-                                            {busyItem === item.id ? (
-                                                <ActivityIndicator
-                                                    color={colors.primaryDark}
-                                                />
-                                            ) : item.dispensed ? (
-                                                canUndo(item) ? (
-                                                    <Pressable
-                                                        onPress={() =>
-                                                            toggleItem(
-                                                                rx.id,
-                                                                item.id,
-                                                                false
-                                                            )
-                                                        }
-                                                        style={styles.undoBtn}
-                                                    >
-                                                        <Ionicons
-                                                            name="arrow-undo"
-                                                            size={14}
-                                                            color={colors.danger}
-                                                        />
-                                                        <Text style={styles.undoText}>
-                                                            Undo
-                                                        </Text>
-                                                    </Pressable>
-                                                ) : (
-                                                    <Ionicons
-                                                        name="checkmark-circle"
-                                                        size={26}
-                                                        color={colors.primary}
-                                                    />
-                                                )
-                                            ) : (
-                                                <Pressable
-                                                    onPress={() =>
-                                                        toggleItem(rx.id, item.id, true)
-                                                    }
-                                                    style={styles.dispenseBtn}
-                                                >
-                                                    <Text style={styles.dispenseText}>
-                                                        Dispense
-                                                    </Text>
-                                                </Pressable>
-                                            )}
-                                        </View>
-                                    ))}
-                                </View>
-                            );
-                        })}
+                        {activeRx.map((rx) => (
+                            <RxDispenseCard key={rx.id} rx={rx} busyItem={busyItem} canUndo={canUndo} onToggle={toggleItem} />
+                        ))}
                     </>
                 )}
             </ScrollView>
@@ -308,8 +329,8 @@ export default function Dispense() {
             <QRScannerModal
                 visible={scannerOpen}
                 onClose={() => setScannerOpen(false)}
-                onScanned={lookup}
-                title="Scan Patient Medical ID"
+                onScanned={handleScan}
+                title="Scan Patient QR Code"
             />
         </SafeAreaView>
     );
@@ -350,6 +371,12 @@ const styles = StyleSheet.create({
         backgroundColor: colors.surface,
     },
     changeBtnText: { fontSize: 12, fontWeight: "700", color: colors.primaryDark },
+    singleRxHint: {
+        fontSize: 12,
+        color: colors.textMuted,
+        marginTop: -4,
+        marginBottom: spacing.sm,
+    },
     sectionTitle: {
         fontSize: 15,
         fontWeight: "800",

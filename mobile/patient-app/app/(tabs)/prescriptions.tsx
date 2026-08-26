@@ -9,6 +9,7 @@ import {
     FlatList,
     RefreshControl,
     StyleSheet,
+    Text,
     TextInput,
     View,
 } from "react-native";
@@ -26,12 +27,12 @@ import {
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
 import type { Prescription } from "../../src/types";
 
-type Filter = "ALL" | "NOT_DISPENSED" | "PARTIALLY_DISPENSED" | "FULLY_DISPENSED";
+type Sort = "date" | "doctor";
 
 export default function Prescriptions() {
     const { user } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
-    const [filter, setFilter] = useState<Filter>("ALL");
+    const [sort, setSort] = useState<Sort>("date");
     const [search, setSearch] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -56,7 +57,6 @@ export default function Prescriptions() {
 
     const filtered = useMemo(() => {
         let list = prescriptions;
-        if (filter !== "ALL") list = list.filter((p) => p.status === filter);
         const q = search.trim().toLowerCase();
         if (q) {
             list = list.filter(
@@ -67,13 +67,16 @@ export default function Prescriptions() {
                         .includes(q)
             );
         }
+        list = [...list].sort((a, b) => {
+            if (sort === "doctor") {
+                return `${a.doctor?.firstName ?? ""} ${a.doctor?.lastName ?? ""}`.localeCompare(
+                    `${b.doctor?.firstName ?? ""} ${b.doctor?.lastName ?? ""}`
+                );
+            }
+            return b.dateIssued.localeCompare(a.dateIssued);
+        });
         return list;
-    }, [prescriptions, filter, search]);
-
-    const count = (status: Filter) =>
-        status === "ALL"
-            ? prescriptions.length
-            : prescriptions.filter((p) => p.status === status).length;
+    }, [prescriptions, search, sort]);
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -96,14 +99,13 @@ export default function Prescriptions() {
                     />
                 </View>
 
-                <FilterChips<Filter>
-                    value={filter}
-                    onChange={setFilter}
+                <Text style={styles.sortLabel}>Sort by</Text>
+                <FilterChips<Sort>
+                    value={sort}
+                    onChange={setSort}
                     options={[
-                        { key: "ALL", label: "All", count: count("ALL") },
-                        { key: "NOT_DISPENSED", label: "Active", count: count("NOT_DISPENSED") },
-                        { key: "PARTIALLY_DISPENSED", label: "Partial", count: count("PARTIALLY_DISPENSED") },
-                        { key: "FULLY_DISPENSED", label: "Done", count: count("FULLY_DISPENSED") },
+                        { key: "date", label: "Date" },
+                        { key: "doctor", label: "Doctor Name" },
                     ]}
                 />
 
@@ -173,4 +175,5 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: colors.text,
     },
+    sortLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6 },
 });

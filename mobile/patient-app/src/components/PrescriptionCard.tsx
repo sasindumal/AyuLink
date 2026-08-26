@@ -4,11 +4,12 @@
 // ==============================================
 
 import React, { useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import QRCode from "react-native-qrcode-svg";
 import { colors, radius, shadow, spacing, statusMeta } from "../theme";
 import type { Prescription } from "../types";
-import { StatusBadge, formatDate, formatTime } from "./ui";
+import { Button, StatusBadge, formatDate, formatTime } from "./ui";
 
 export function PrescriptionCard({
     prescription,
@@ -21,6 +22,7 @@ export function PrescriptionCard({
     initiallyExpanded?: boolean;
 }) {
     const [expanded, setExpanded] = useState(initiallyExpanded);
+    const [qrOpen, setQrOpen] = useState(false);
     const meta = statusMeta[prescription.status];
 
     const counterpart =
@@ -115,7 +117,52 @@ export function PrescriptionCard({
                     <Text style={styles.rxId}>
                         Rx #{prescription.id.slice(0, 8).toUpperCase()}
                     </Text>
+
+                    {perspective === "patient" && (
+                        prescription.status === "FULLY_DISPENSED" ? (
+                            <Text style={styles.doneNote}>
+                                Fully dispensed — no QR code needed
+                            </Text>
+                        ) : (
+                            <Button
+                                title="Show QR to Pharmacy"
+                                variant="secondary"
+                                icon="qr-code"
+                                onPress={() => setQrOpen(true)}
+                                style={{ marginTop: spacing.sm }}
+                            />
+                        )
+                    )}
                 </View>
+            )}
+
+            {perspective === "patient" && (
+                <Modal visible={qrOpen} transparent animationType="fade" onRequestClose={() => setQrOpen(false)}>
+                    <Pressable style={styles.backdrop} onPress={() => setQrOpen(false)}>
+                        <Pressable style={styles.qrCard} onPress={() => {}}>
+                            <Text style={styles.qrTitle}>{prescription.diagnosis}</Text>
+                            <Text style={styles.qrSubtitle}>
+                                {counterpart ? `${counterpart} · ` : ""}
+                                {formatDate(prescription.dateIssued)}
+                            </Text>
+                            <View style={styles.qrFrame}>
+                                <QRCode
+                                    value={prescription.id}
+                                    size={210}
+                                    color={colors.primaryDark}
+                                    backgroundColor="#FFFFFF"
+                                />
+                            </View>
+                            <Text style={styles.qrNote}>
+                                Show this to the pharmacy for this prescription only —
+                                it will not reveal your other prescriptions.
+                            </Text>
+                            <Pressable style={styles.qrClose} onPress={() => setQrOpen(false)}>
+                                <Text style={styles.qrCloseText}>Close</Text>
+                            </Pressable>
+                        </Pressable>
+                    </Pressable>
+                </Modal>
             )}
         </Pressable>
     );
@@ -201,4 +248,44 @@ const styles = StyleSheet.create({
         fontFamily: Platform.select({ ios: "Courier", default: "monospace" }),
         marginTop: 8,
     },
+    doneNote: {
+        fontSize: 12,
+        color: colors.textMuted,
+        fontStyle: "italic",
+        marginTop: spacing.sm,
+    },
+    backdrop: {
+        flex: 1,
+        backgroundColor: "rgba(28, 43, 26, 0.45)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: spacing.lg,
+    },
+    qrCard: {
+        width: "100%",
+        maxWidth: 360,
+        backgroundColor: colors.surface,
+        borderRadius: radius.lg,
+        padding: spacing.lg,
+        alignItems: "center",
+    },
+    qrTitle: { fontSize: 16, fontWeight: "800", color: colors.text, textAlign: "center" },
+    qrSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md, textAlign: "center" },
+    qrFrame: {
+        padding: 14,
+        borderRadius: radius.md,
+        borderWidth: 2,
+        borderColor: colors.primarySoft,
+        backgroundColor: "#fff",
+        marginBottom: spacing.md,
+    },
+    qrNote: {
+        fontSize: 12,
+        color: colors.textMuted,
+        textAlign: "center",
+        lineHeight: 17,
+        marginBottom: spacing.md,
+    },
+    qrClose: { paddingVertical: 10, paddingHorizontal: spacing.lg },
+    qrCloseText: { color: colors.textMuted, fontWeight: "700", fontSize: 13.5 },
 });
