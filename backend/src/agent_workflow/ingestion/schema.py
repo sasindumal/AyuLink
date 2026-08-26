@@ -89,6 +89,10 @@ class SymptomNode(BaseModel):
     """
     Neo4j Node:
     (:Symptom)
+
+    `embedding` is populated separately by seed_neo4j.py's embedding pass
+    (not at row-validation time here) — it backs the symptom_embedding_idx
+    vector index used for semantic symptom matching.
     """
 
     id: UUID = Field(default_factory=uuid4)
@@ -96,6 +100,8 @@ class SymptomNode(BaseModel):
     name: str = Field(..., min_length=1)
 
     description: Optional[str] = None
+
+    embedding: Optional[list[float]] = None
 
     @field_validator("name")
     @classmethod

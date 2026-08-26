@@ -14,7 +14,10 @@ from langgraph.types import Command, interrupt
 from utils.llm import text_llm
 from src.agent_workflow.retrevel.schemas import DoctorSearchQuery
 from src.agent_workflow.retrevel.state import DoctorCard, GraphState
-from src.agent_workflow.retrevel.tools.neo4j_tools import find_diseases_for_symptoms, list_specialty_names
+from src.agent_workflow.retrevel.tools.neo4j_tools import (
+    find_diseases_for_symptoms_hybrid,
+    list_specialty_names,
+)
 from src.agent_workflow.retrevel.tools.postgres_tools import get_doctor_availability, search_doctors
 
 _NONE_OF_THESE = "None of these"
@@ -82,7 +85,7 @@ def _specialty_from_graph(symptoms: list[str]) -> str | None:
     if not symptoms:
         return None
     try:
-        candidates = find_diseases_for_symptoms(symptoms)
+        candidates = find_diseases_for_symptoms_hybrid(symptoms)
     except Exception:  # noqa: BLE001 - Neo4j hiccup shouldn't break doctor search
         return None
     return candidates[0].get("specialty") if candidates else None

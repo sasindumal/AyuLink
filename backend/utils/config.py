@@ -30,6 +30,9 @@ LM_STUDIO_BASE_URL = os.environ.get("LM_STUDIO_BASE_URL", "http://localhost:1234
 LM_STUDIO_API_KEY = os.environ.get("LM_STUDIO_API_KEY", "lm-studio")
 LM_STUDIO_MODEL = os.environ.get("LM_STUDIO_MODEL", "local-model")
 LM_STUDIO_VISION_MODEL = os.environ.get("LM_STUDIO_VISION_MODEL", "local-vision-model")
+LM_STUDIO_EMBEDDING_MODEL = os.environ.get(
+    "LM_STUDIO_EMBEDDING_MODEL", "text-embedding-nomic-embed-text-v1.5"
+)
 
 CONFIDENCE_THRESHOLD = 0.6
 MAX_FOLLOWUP_ROUNDS = 3
@@ -39,3 +42,10 @@ MAX_FOLLOWUP_ROUNDS = 3
 # trivially hit 100% match against whichever disease the graph returns
 # first, which isn't the same as actually being confident).
 MIN_SYMPTOMS_BEFORE_DIAGNOSIS = 3
+
+# Symptom.embedding vector similarity below this floor is discarded before
+# it ever reaches disease scoring — otherwise a barely-related symptom
+# would still contribute partial "matches" weight and quietly inflate
+# disease_agent's confidence score.
+SYMPTOM_VECTOR_SIMILARITY_FLOOR = 0.55
+SYMPTOM_VECTOR_TOP_K = 3

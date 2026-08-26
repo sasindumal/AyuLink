@@ -10,18 +10,26 @@ Graph model:
     (:Doctor {id, first_name, last_name, slmc_id})
     (:Specialty {id, name, description})
     (:Disease {id, name, description})
-    (:Symptom {id, name, description})
+    (:Symptom {id, name, description, embedding})
 
     (:Doctor)-[:SPECIALIZES_IN]->(:Specialty)
     (:Specialty)-[:MANAGES]->(:Disease)
     (:Disease)-[:HAS_SYMPTOM]->(:Symptom)
     (:Doctor)-[:TREATS]->(:Disease)
 
-Usage:
-    python knowledge-graph/seed_neo4j.py
+    symptom_embedding_idx — a native Neo4j vector index on
+    Symptom.embedding (cosine similarity), backing the semantic half of
+    the disease/doctor-finder agents' hybrid retrieval. See
+    src/agent_workflow/retrevel/tools/neo4j_tools.py.
 
-Requires NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE
-in the project-root .env file.
+Usage:
+    python backend/src/agent_workflow/ingestion/seed_neo4j.py
+
+Requires NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE in
+backend/.env. Embedding requires an embedding-capable model loaded in
+LM Studio (see LM_STUDIO_EMBEDDING_MODEL in backend/.env.example) — if
+LM Studio/the embedding model isn't reachable, this script still seeds
+the graph and skips the embedding + vector index step with a warning.
 """
 
 import os
@@ -50,6 +58,10 @@ NEO4J_URI = os.getenv("NEO4J_URI")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD")
 NEO4J_DATABASE = os.getenv("NEO4J_DATABASE")
+
+# backend/ must be on sys.path to import utils.llm (this script is normally
+# invoked directly, so only its own directory is on sys.path by default).
+sys.path.insert(0, str(BACKEND_DIR))
 
 
 # ──────────────────────────────────────────────
@@ -261,6 +273,88 @@ def seed_doctors(session) -> int:
     session.run(query, rows=data)
     print(f"   ✓ {len(data)} Doctor nodes merged ({errors} invalid rows skipped)\n")
     return len(data)
+
+
+# ──────────────────────────────────────────────
+# Symptom embeddings + vector index
+# ──────────────────────────────────────────────
+
+def embed_missing_symptoms(session, batch_size: int = 64) -> int:
+    """Embeds every Symptom node without an embedding yet (via LM Studio)
+    and writes the vector back. Idempotent — safe to rerun the seeder
+    without re-embedding symptoms that already have one, including
+    Symptom nodes lazily created by create_has_symptom_relationships
+    (which don't go through seed_symptoms)."""
+    print("🧠 Embedding Symptom nodes ...")
+
+    try:
+        from utils.llm import embed_texts
+    except Exception as exc:  # noqa: BLE001 - missing/misconfigured deps
+        print(f"   ⚠ Skipping embeddings — could not import embedding client: {exc}\n")
+        return 0
+
+    rows = [
+        dict(r)
+        for r in session.run(
+            "MATCH (s:Symptom) WHERE s.embedding IS NULL "
+            "RETURN s.id AS id, s.name AS name, s.description AS description"
+        )
+    ]
+    if not rows:
+        print("   ✓ All Symptom nodes already embedded\n")
+        return 0
+
+    texts = [f"{r['name']}. {r['description']}" if r["description"] else r["name"] for r in rows]
+
+    total = 0
+    try:
+        for i in range(0, len(rows), batch_size):
+            batch_rows = rows[i : i + batch_size]
+            batch_texts = texts[i : i + batch_size]
+            vectors = embed_texts(batch_texts)
+            updates = [{"id": r["id"], "embedding": vec} for r, vec in zip(batch_rows, vectors)]
+            session.run(
+                "UNWIND $rows AS row MATCH (s:Symptom {id: row.id}) SET s.embedding = row.embedding",
+                rows=updates,
+            )
+            total += len(updates)
+    except Exception as exc:  # noqa: BLE001 - LM Studio down/model not loaded
+        print(f"   ⚠ Embedding failed after {total} nodes ({exc}) — continuing without it\n")
+        return total
+
+    print(f"   ✓ Embedded {total} Symptom nodes\n")
+    return total
+
+
+def get_embedding_dimensions(session) -> int | None:
+    result = session.run(
+        "MATCH (s:Symptom) WHERE s.embedding IS NOT NULL RETURN size(s.embedding) AS dims LIMIT 1"
+    )
+    record = result.single()
+    return record["dims"] if record else None
+
+
+def create_vector_index(session) -> None:
+    """Native Neo4j vector index over Symptom.embedding (cosine similarity),
+    queried via db.index.vector.queryNodes in neo4j_tools.py's hybrid
+    retrieval. Requires Neo4j 5.11+ (AuraDB has this by default)."""
+    dimensions = get_embedding_dimensions(session)
+    if dimensions is None:
+        print("⚠ No embedded Symptom nodes — skipping vector index creation\n")
+        return
+
+    print(f"📐 Creating vector index on Symptom.embedding ({dimensions} dims) ...")
+    session.run(
+        f"""
+        CREATE VECTOR INDEX symptom_embedding_idx IF NOT EXISTS
+        FOR (s:Symptom) ON (s.embedding)
+        OPTIONS {{indexConfig: {{
+            `vector.dimensions`: {dimensions},
+            `vector.similarity_function`: 'cosine'
+        }}}}
+        """
+    )
+    print("   ✓ symptom_embedding_idx (cosine)\n")
 
 
 # ──────────────────────────────────────────────
@@ -479,6 +573,11 @@ def main():
         counts["manages"] = create_manages_relationships(session)
         counts["has_symptom"] = create_has_symptom_relationships(session)
         counts["treats"] = create_treats_relationships(session)
+
+        # After HAS_SYMPTOM, since it can lazily MERGE-create Symptom nodes
+        # not present in the ontology CSV that seed_symptoms() reads.
+        embed_missing_symptoms(session)
+        create_vector_index(session)
 
         verify_counts(session)
 
