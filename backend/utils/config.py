@@ -45,8 +45,8 @@ LM_STUDIO_EMBEDDING_MODEL = os.environ.get(
 )
 
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "")
-GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-2.0-flash")
-GOOGLE_VISION_MODEL = os.environ.get("GOOGLE_VISION_MODEL", "gemini-2.0-flash")
+GOOGLE_MODEL = os.environ.get("GOOGLE_MODEL", "gemini-2.5-flash")
+GOOGLE_VISION_MODEL = os.environ.get("GOOGLE_VISION_MODEL", "gemini-2.5-flash")
 GOOGLE_EMBEDDING_MODEL = os.environ.get("GOOGLE_EMBEDDING_MODEL", "models/text-embedding-004")
 
 if LLM_PROVIDER == "google" and not GOOGLE_API_KEY:
