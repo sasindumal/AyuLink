@@ -33,19 +33,6 @@
                 "android.permission.ACCESS_FINE_LOCATION"
             ]
         },
-        "plugins": [
-            "expo-router",
-            "expo-secure-store",
-            "expo-location",
-            "expo-notifications",
-            [
-                "expo-speech-recognition",
-                {
-                    "microphonePermission": "AyuLink uses the microphone for voice chat in Diagnosis.",
-                    "speechRecognitionPermission": "AyuLink uses speech recognition to understand what you say in voice chat.",
-                    "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
-                }
-            ]
-        ]
+        "plugins": ["expo-router", "expo-secure-store", "expo-location", "expo-notifications"]
     }
 }

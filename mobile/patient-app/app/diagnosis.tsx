@@ -26,10 +26,6 @@ import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import * as Speech from "expo-speech";
 import {
-    ExpoSpeechRecognitionModule,
-    useSpeechRecognitionEvent,
-} from "expo-speech-recognition";
-import {
     type AgentEvent,
     type DoctorCard,
     type InterruptPayload,
@@ -92,17 +88,13 @@ export default function Diagnosis() {
 
     useEffect(() => {
         voiceModeRef.current = voiceMode;
-        if (!voiceMode) {
-            Speech.stop();
-            ExpoSpeechRecognitionModule.stop();
-        }
+        if (!voiceMode) Speech.stop();
     }, [voiceMode]);
 
     useEffect(() => {
-        // Stop any in-flight mic/speech when leaving this screen.
+        // Stop any in-flight speech when leaving this screen.
         return () => {
             Speech.stop();
-            ExpoSpeechRecognitionModule.stop();
         };
     }, []);
 
@@ -298,65 +290,26 @@ export default function Diagnosis() {
         [awaitingInterrupt, resolveInterrupt, sendText]
     );
 
-    const finalTranscript = useRef("");
-    const interimTranscriptRef = useRef("");
-
-    useSpeechRecognitionEvent("start", () => setListening(true));
-
-    useSpeechRecognitionEvent("result", (event) => {
-        const transcript = event.results[0]?.transcript ?? "";
-        interimTranscriptRef.current = transcript;
-        setInterimTranscript(transcript);
-        if (event.isFinal) finalTranscript.current = transcript;
-    });
-
-    useSpeechRecognitionEvent("end", () => {
-        setListening(false);
-        setInterimTranscript("");
-        const transcript = finalTranscript.current || interimTranscriptRef.current;
-        finalTranscript.current = "";
-        interimTranscriptRef.current = "";
-        if (transcript.trim()) submitVoiceTranscript(transcript);
-    });
-
-    useSpeechRecognitionEvent("error", (event) => {
-        setListening(false);
-        setInterimTranscript("");
-        if (event.error === "no-speech" || event.error === "aborted") return;
+    // Voice INPUT (mic listening) is a placeholder for now — it needs a
+    // speech-recognition module, which (unlike expo-speech for playback)
+    // isn't part of Expo's own bundled module set and requires a custom
+    // dev client rebuild. Deferred until that's set up; submitVoiceTranscript
+    // above is already wired and ready to receive a transcript once real
+    // recognition is added back here.
+    const startListening = useCallback(() => {
         setItems((prev) => [
             ...prev,
-            { id: nextId(), kind: "system", tone: "error", text: `Voice input error: ${event.message || event.error}` },
+            {
+                id: nextId(),
+                kind: "system",
+                tone: "info",
+                text: "🎙️ Voice input is coming soon — switch back to text for now.",
+            },
         ]);
-    });
-
-    const startListening = useCallback(async () => {
-        Speech.stop();
-        setSpeaking(false);
-        const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-        if (!permission.granted) {
-            setItems((prev) => [
-                ...prev,
-                {
-                    id: nextId(),
-                    kind: "system",
-                    tone: "error",
-                    text: "Microphone/speech recognition permission was denied — enable it in Settings to use voice chat.",
-                },
-            ]);
-            return;
-        }
-        finalTranscript.current = "";
-        interimTranscriptRef.current = "";
-        ExpoSpeechRecognitionModule.start({
-            lang: VOICE_LANG,
-            interimResults: true,
-            continuous: false,
-        });
+        scrollToEnd();
     }, []);
 
-    const stopListening = useCallback(() => {
-        ExpoSpeechRecognitionModule.stop();
-    }, []);
+    const stopListening = useCallback(() => {}, []);
 
     const confirmBooking = useCallback(() => {
         if (!pendingBooking) return;
