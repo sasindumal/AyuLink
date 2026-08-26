@@ -78,8 +78,10 @@ Reads `Dataset_ref/` at the repo root, populates Neo4j (Doctor/Specialty/Disease
 ```bash
 cd backend            # if not already there
 source .venv/bin/activate
-uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+`python -m uvicorn` (not a bare `uvicorn`) is deliberate — see the conda note in Troubleshooting below.
 
 `--host 0.0.0.0` is required, not optional — a physical phone or the iOS Simulator can't reach a server bound only to `127.0.0.1`. Check it's up with `curl http://localhost:8000/health` → `{"status":"ok"}`.
 
@@ -96,6 +98,6 @@ A live end-to-end script (not pytest) — hits the running server over HTTP/SSE,
 
 ## Troubleshooting
 
-- **`ModuleNotFoundError` for a package that's in `requirements.txt`** — almost always means the venv isn't activated (check your prompt for `(.venv)`, or run `which python3` and confirm it points inside `backend/.venv`), or `pip install -r requirements.txt` was run against a different environment than the one `uvicorn`/`python3` is now using.
+- **`ModuleNotFoundError` for a package that's in `requirements.txt`, even with the venv activated** — run `which uvicorn` (or check the traceback's first line — it names the exact file that got run). If it points outside `backend/.venv` (e.g. `/opt/anaconda3/bin/uvicorn`), your shell resolved the command to a different Python install instead of the venv's, even though the venv looks active. This happens when a conda `base` environment is also active — your prompt shows `(.venv) (base) ...` — and conda's `bin/` is still ahead of the venv's on `PATH`. Fix: `conda deactivate` before activating the venv, or just always run `python -m uvicorn ...` / `.venv/bin/uvicorn ...` instead of a bare `uvicorn` — both bypass `PATH` lookup and use the venv's own interpreter directly.
 - **`source .venv/bin/activate` → "no such file or directory"** — the venv doesn't exist yet (or was deleted/moved). Recreate it: step 1 above.
 - **Neo4j `Untitled index` / vector search errors** — the `symptom_embedding_idx` vector index doesn't exist yet; run step 3's seeder once with an embedding provider reachable.
