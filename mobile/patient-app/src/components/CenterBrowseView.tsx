@@ -9,7 +9,8 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-nativ
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../lib/api";
 import { colors, spacing } from "../theme";
-import { Banner, Button, Card, EmptyState, Input, formatDate } from "./ui";
+import { Banner, Button, Card, EmptyState, Input } from "./ui";
+import { SlotCard } from "./SlotCard";
 import type { CenterAvailabilitySlot, ChannelingCenterSummary } from "../types";
 
 export function CenterBrowseView({
@@ -101,22 +102,16 @@ export function CenterBrowseView({
                         keyExtractor={(s, i) => `${s.doctorScheduleId}-${s.date}-${i}`}
                         scrollEnabled={false}
                         renderItem={({ item }) => (
-                            <Card style={styles.slotCard}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.slotDate}>
-                                        {formatDate(item.date)}, {item.startTime.slice(0, 5)}–{item.endTime.slice(0, 5)}
-                                    </Text>
-                                    <Text style={styles.slotCenter}>
-                                        Dr. {item.doctorFirstName} {item.doctorLastName}
-                                        {item.specialty ? `  ·  ${item.specialty}` : ""}
-                                    </Text>
-                                </View>
-                                <Button
-                                    title="Book"
-                                    onPress={() => onBook(item.doctorScheduleId, item.date)}
-                                    loading={bookingKey === `${item.doctorScheduleId}-${item.date}`}
-                                />
-                            </Card>
+                            <SlotCard
+                                doctorName={`Dr. ${item.doctorFirstName} ${item.doctorLastName}`}
+                                specialty={item.specialty}
+                                rating={item.rating}
+                                date={item.date}
+                                startTime={item.startTime}
+                                endTime={item.endTime}
+                                onBook={() => onBook(item.doctorScheduleId, item.date)}
+                                booking={bookingKey === `${item.doctorScheduleId}-${item.date}`}
+                            />
                         )}
                         ListEmptyComponent={
                             <EmptyState
@@ -187,12 +182,4 @@ const styles = StyleSheet.create({
     },
     centerName: { fontSize: 14.5, fontWeight: "700", color: colors.primaryDark },
     centerAddress: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
-    slotCard: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: spacing.sm,
-    },
-    slotDate: { fontSize: 14, fontWeight: "700", color: colors.text },
-    slotCenter: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
 });

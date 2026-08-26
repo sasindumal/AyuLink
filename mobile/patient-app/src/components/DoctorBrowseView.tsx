@@ -2,6 +2,9 @@
 // AyuLink Patient - Browse by Doctor
 // Search doctors -> pick one -> see their available
 // places and times for the next few days -> book.
+// Can also be handed a doctor directly (initialDoctor)
+// to jump straight to their availability — used by
+// Quick Search's "See other times with this doctor".
 // ==============================================
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -9,20 +12,25 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-nativ
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../lib/api";
 import { colors, spacing } from "../theme";
-import { Banner, Button, Card, EmptyState, Input, formatDate } from "./ui";
+import { Banner, Button, Card, EmptyState, Input } from "./ui";
+import { SlotCard } from "./SlotCard";
 import type { DoctorAvailabilitySlot, DoctorSummary } from "../types";
 
 export function DoctorBrowseView({
     onBook,
     bookingKey,
+    initialDoctor,
+    onLeaveInitialDoctor,
 }: {
     onBook: (scheduleId: string, date: string) => void;
     bookingKey: string | null;
+    initialDoctor?: DoctorSummary | null;
+    onLeaveInitialDoctor?: () => void;
 }) {
     const [specialty, setSpecialty] = useState("");
     const [city, setCity] = useState("");
     const [doctors, setDoctors] = useState<DoctorSummary[]>([]);
-    const [selected, setSelected] = useState<DoctorSummary | null>(null);
+    const [selected, setSelected] = useState<DoctorSummary | null>(initialDoctor ?? null);
     const [availability, setAvailability] = useState<DoctorAvailabilitySlot[]>([]);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -44,11 +52,7 @@ export function DoctorBrowseView({
         }
     }, [specialty, city]);
 
-    useEffect(() => {
-        search();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    const openDoctor = async (doctor: DoctorSummary) => {
+    const openDoctor = useCallback(async (doctor: DoctorSummary) => {
         setSelected(doctor);
         setLoadingAvail(true);
         setError(null);
@@ -63,19 +67,28 @@ export function DoctorBrowseView({
         } finally {
             setLoadingAvail(false);
         }
+    }, []);
+
+    useEffect(() => {
+        if (initialDoctor) {
+            openDoctor(initialDoctor);
+        } else {
+            search();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const goBackToDoctors = () => {
+        setSelected(null);
+        if (initialDoctor) onLeaveInitialDoctor?.();
     };
 
     if (selected) {
         return (
             <View>
                 <View style={styles.backRow}>
-                    <Ionicons
-                        name="arrow-back"
-                        size={18}
-                        color={colors.primary}
-                        onPress={() => setSelected(null)}
-                    />
-                    <Text style={styles.backText} onPress={() => setSelected(null)}>
+                    <Ionicons name="arrow-back" size={18} color={colors.primary} onPress={goBackToDoctors} />
+                    <Text style={styles.backText} onPress={goBackToDoctors}>
                         Back to doctors
                     </Text>
                 </View>
@@ -97,22 +110,16 @@ export function DoctorBrowseView({
                         keyExtractor={(s, i) => `${s.doctorScheduleId}-${s.date}-${i}`}
                         scrollEnabled={false}
                         renderItem={({ item }) => (
-                            <Card style={styles.slotCard}>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.slotDate}>
-                                        {formatDate(item.date)}, {item.startTime.slice(0, 5)}–{item.endTime.slice(0, 5)}
-                                    </Text>
-                                    <Text style={styles.slotCenter}>
-                                        {item.channelingCenterName}
-                                        {item.city ? `  ·  ${item.city}` : ""}
-                                    </Text>
-                                </View>
-                                <Button
-                                    title="Book"
-                                    onPress={() => onBook(item.doctorScheduleId, item.date)}
-                                    loading={bookingKey === `${item.doctorScheduleId}-${item.date}`}
-                                />
-                            </Card>
+                            <SlotCard
+                                centerName={item.channelingCenterName}
+                                address={item.address}
+                                city={item.city}
+                                date={item.date}
+                                startTime={item.startTime}
+                                endTime={item.endTime}
+                                onBook={() => onBook(item.doctorScheduleId, item.date)}
+                                booking={bookingKey === `${item.doctorScheduleId}-${item.date}`}
+                            />
                         )}
                         ListEmptyComponent={
                             <EmptyState
@@ -186,12 +193,4 @@ const styles = StyleSheet.create({
     },
     doctorName: { fontSize: 14.5, fontWeight: "700", color: colors.primaryDark },
     doctorSpecialty: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
-    slotCard: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: spacing.sm,
-    },
-    slotDate: { fontSize: 14, fontWeight: "700", color: colors.text },
-    slotCenter: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
 });

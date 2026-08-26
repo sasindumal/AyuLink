@@ -1,16 +1,18 @@
 // ==============================================
 // AyuLink Patient - Appointment Detail Modal
-// Full booking detail + "Open in Maps" for the
-// channeling center's address.
+// The action surface for one appointment: full detail,
+// Open in Maps, Reschedule/Cancel (when still booked),
+// an audit trail (booked on / cancelled by), and a link
+// back to the AI diagnosis that led here, if any.
 // ==============================================
 
 import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appointmentStatusMeta, colors, radius, spacing } from "../theme";
-import { Button, formatDate } from "./ui";
+import { Button, formatDate, formatTime } from "./ui";
 import { openInMaps } from "../lib/maps";
-import type { Appointment } from "../types";
+import type { Appointment, Treatment } from "../types";
 
 function DetailRow({
     icon,
@@ -34,14 +36,25 @@ function DetailRow({
 
 export function AppointmentDetailModal({
     appointment,
+    linkedTreatment,
+    cancelling = false,
     onClose,
+    onReschedule,
+    onRequestCancel,
+    onViewTreatment,
 }: {
     appointment: Appointment | null;
+    linkedTreatment?: Treatment | null;
+    cancelling?: boolean;
     onClose: () => void;
+    onReschedule: (appointment: Appointment) => void;
+    onRequestCancel: (appointment: Appointment) => void;
+    onViewTreatment?: (treatment: Treatment) => void;
 }) {
     if (!appointment) return null;
     const a = appointment;
     const meta = appointmentStatusMeta[a.status];
+    const cancelledByPatient = a.cancelled_by === a.patient.id;
 
     return (
         <Modal visible transparent animationType="fade" onRequestClose={onClose}>
@@ -54,7 +67,23 @@ export function AppointmentDetailModal({
                         </View>
                     </View>
 
-                    <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                        {linkedTreatment && (
+                            <Pressable
+                                style={styles.treatmentLink}
+                                onPress={() => onViewTreatment?.(linkedTreatment)}
+                                disabled={!onViewTreatment}
+                            >
+                                <Ionicons name="pulse" size={16} color={colors.primaryDark} />
+                                <Text style={styles.treatmentLinkText} numberOfLines={1}>
+                                    Diagnosed via AI chat: {linkedTreatment.disease_name}
+                                </Text>
+                                {onViewTreatment && (
+                                    <Ionicons name="chevron-forward" size={14} color={colors.primaryDark} />
+                                )}
+                            </Pressable>
+                        )}
+
                         <DetailRow
                             icon="medkit"
                             label="Doctor"
@@ -82,8 +111,22 @@ export function AppointmentDetailModal({
                         />
                         <DetailRow icon="call" label="Contact" value={a.channelingCenter.contactNumber} />
                         {a.reason && <DetailRow icon="document-text" label="Reason" value={a.reason} />}
-                        {a.status === "CANCELLED" && a.cancelled_reason && (
-                            <DetailRow icon="close-circle" label="Cancellation Reason" value={a.cancelled_reason} />
+
+                        <View style={styles.divider} />
+
+                        <DetailRow
+                            icon="time-outline"
+                            label="Booked on"
+                            value={`${formatDate(a.created_at)} · ${formatTime(a.created_at)}`}
+                        />
+                        {a.status === "CANCELLED" && (
+                            <DetailRow
+                                icon="close-circle"
+                                label="Cancelled"
+                                value={`By ${cancelledByPatient ? "you" : "the clinic"}${
+                                    a.cancelled_at ? ` on ${formatDate(a.cancelled_at)}` : ""
+                                }${a.cancelled_reason ? ` — ${a.cancelled_reason}` : ""}`}
+                            />
                         )}
                     </ScrollView>
 
@@ -102,6 +145,22 @@ export function AppointmentDetailModal({
                             style={{ flex: 1 }}
                         />
                     </View>
+
+                    {a.status === "BOOKED" && (
+                        <View style={styles.actions}>
+                            <View style={{ flex: 1 }}>
+                                <Button title="Reschedule" onPress={() => onReschedule(a)} />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Button
+                                    title="Cancel"
+                                    variant="danger-ghost"
+                                    loading={cancelling}
+                                    onPress={() => onRequestCancel(a)}
+                                />
+                            </View>
+                        </View>
+                    )}
 
                     <Pressable style={styles.closeBtn} onPress={onClose}>
                         <Text style={styles.closeText}>Close</Text>
@@ -131,9 +190,20 @@ const styles = StyleSheet.create({
     order: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.primaryDark, fontFamily: "monospace" },
     badge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
     badgeText: { fontSize: 11.5, fontWeight: "700" },
+    treatmentLink: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: colors.primarySoft,
+        borderRadius: radius.sm,
+        padding: spacing.sm,
+        marginBottom: spacing.md,
+    },
+    treatmentLinkText: { flex: 1, fontSize: 12.5, fontWeight: "700", color: colors.primaryDark },
     detailRow: { flexDirection: "row", gap: 10, marginBottom: spacing.md },
     detailLabel: { fontSize: 11.5, color: colors.textMuted, fontWeight: "600" },
     detailValue: { fontSize: 13.5, color: colors.text, marginTop: 2, lineHeight: 18 },
+    divider: { height: 1, backgroundColor: colors.border, marginBottom: spacing.md },
     actions: { flexDirection: "row", gap: 10, marginTop: spacing.sm },
     closeBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
     closeText: { color: colors.textMuted, fontWeight: "700", fontSize: 13.5 },

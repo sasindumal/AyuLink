@@ -47,7 +47,7 @@ export default function Notifications() {
             rpc("app_mark_notification_read", { p_notification_id: n.id }).catch(() => {});
         }
         if (n.appointment_id) {
-            router.push("/(tabs)/appointments");
+            router.push({ pathname: "/(tabs)/appointments", params: { appointmentId: n.appointment_id } });
         }
     };
 

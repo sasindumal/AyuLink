@@ -1,29 +1,32 @@
 // ==============================================
 // AyuLink Patient - Appointment Card
+// A lighter summary card — Reschedule/Cancel confirm
+// and the full detail view now live in
+// AppointmentDetailModal (tap the card to open it);
+// the buttons here are shortcuts that go through the
+// same shared confirmation flow the parent screen owns.
 // ==============================================
 
-import React, { useState } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appointmentStatusMeta, colors, radius, spacing } from "../theme";
 import { Button, Card, formatDate } from "./ui";
-import { ConfirmModal } from "./ConfirmModal";
 import type { Appointment } from "../types";
 
 export function AppointmentCard({
     appointment,
-    onCancel,
     onReschedule,
+    onRequestCancel,
     onPress,
     cancelling = false,
 }: {
     appointment: Appointment;
-    onCancel: (id: string, reason: string) => void;
     onReschedule: (appointment: Appointment) => void;
+    onRequestCancel: (appointment: Appointment) => void;
     onPress?: (appointment: Appointment) => void;
     cancelling?: boolean;
 }) {
-    const [confirmCancel, setConfirmCancel] = useState(false);
     const a = appointment;
     const meta = appointmentStatusMeta[a.status];
 
@@ -53,6 +56,13 @@ export function AppointmentCard({
                     <Ionicons name="business" size={15} color={colors.textMuted} />
                     <Text style={styles.infoText}>{a.channelingCenter.name}</Text>
                 </View>
+
+                {onPress && (
+                    <View style={styles.detailsHint}>
+                        <Text style={styles.detailsHintText}>Tap for details</Text>
+                        <Ionicons name="chevron-forward" size={13} color={colors.textMuted} />
+                    </View>
+                )}
             </Pressable>
 
             {a.status === "BOOKED" && (
@@ -69,26 +79,11 @@ export function AppointmentCard({
                             title="Cancel"
                             variant="danger-ghost"
                             loading={cancelling}
-                            onPress={() => setConfirmCancel(true)}
+                            onPress={() => onRequestCancel(a)}
                         />
                     </View>
                 </View>
             )}
-
-            <ConfirmModal
-                visible={confirmCancel}
-                title="Cancel this appointment?"
-                message={`Dr. ${a.doctor.firstName} ${a.doctor.lastName} at ${a.channelingCenter.name} will be notified.`}
-                confirmLabel="Cancel Appointment"
-                destructive
-                showReasonInput
-                loading={cancelling}
-                onConfirm={(reason) => {
-                    setConfirmCancel(false);
-                    onCancel(a.id, reason);
-                }}
-                onCancel={() => setConfirmCancel(false)}
-            />
         </Card>
     );
 }
@@ -102,5 +97,7 @@ const styles = StyleSheet.create({
     badgeText: { fontSize: 11.5, fontWeight: "700" },
     infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
     infoText: { fontSize: 13, color: colors.text, flex: 1 },
+    detailsHint: { flexDirection: "row", alignItems: "center", gap: 2, marginTop: 8 },
+    detailsHintText: { fontSize: 11, color: colors.textMuted, fontWeight: "600" },
     actions: { flexDirection: "row", gap: 10, marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
 });

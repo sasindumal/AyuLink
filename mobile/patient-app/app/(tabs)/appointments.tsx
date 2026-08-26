@@ -2,19 +2,24 @@
 // AyuLink Patient - Appointments
 // Three ways to find a slot (kept side by side):
 //   - Quick Search: filter by specialty/city/rating/
-//     nearest, shows the soonest slot per doctor.
+//     nearest, shows the soonest slot per doctor, with
+//     a link into that doctor's full availability.
 //   - By Doctor: search doctors, pick one, see every
 //     upcoming slot they hold over the next 14 days.
 //   - By Center: browse channeling centers, pick one,
 //     see every doctor available there over the next
 //     14 days.
-// Plus My Appointments to manage existing bookings.
-// Rescheduling reuses whichever browse mode is active:
+// Plus My Appointments (Upcoming / Past) to manage
+// existing bookings — the detail modal is the action
+// surface (Reschedule/Cancel/Open in Maps), reachable
+// from either the list card or a notification deep link.
+// Rescheduling reuses whichever browse mode is active —
+// the mode switcher stays visible the whole time now —
 // selecting a slot calls app_reschedule_appointment
 // instead of app_book_appointment.
 // ==============================================
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -26,21 +31,23 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
 import { colors, spacing } from "../../src/theme";
 import { Banner, Button, EmptyState, FilterChips, ScreenHeader } from "../../src/components/ui";
-import { DoctorSlotCard } from "../../src/components/DoctorSlotCard";
+import { SlotCard } from "../../src/components/SlotCard";
 import { AppointmentCard } from "../../src/components/AppointmentCard";
 import { SearchFilters, type SearchFilterState } from "../../src/components/SearchFilters";
 import { DoctorBrowseView } from "../../src/components/DoctorBrowseView";
 import { CenterBrowseView } from "../../src/components/CenterBrowseView";
 import { AppointmentDetailModal } from "../../src/components/AppointmentDetailModal";
-import type { Appointment, DoctorSlot } from "../../src/types";
+import { ConfirmModal } from "../../src/components/ConfirmModal";
+import type { Appointment, DoctorSlot, DoctorSummary, Treatment } from "../../src/types";
 
 type Mode = "quick" | "byDoctor" | "byCenter" | "mine";
+type MineFilter = "upcoming" | "past";
 
 const DEFAULT_FILTERS: SearchFilterState = {
     specialty: "",
@@ -53,12 +60,17 @@ const DEFAULT_FILTERS: SearchFilterState = {
 
 export default function Appointments() {
     const { user } = useAuth();
+    const params = useLocalSearchParams<{ appointmentId?: string }>();
     const [mode, setMode] = useState<Mode>("mine");
+    const [mineFilter, setMineFilter] = useState<MineFilter>("upcoming");
     const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_FILTERS);
     const [slots, setSlots] = useState<DoctorSlot[]>([]);
+    const [viewingDoctor, setViewingDoctor] = useState<DoctorSummary | null>(null);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
+    const [treatments, setTreatments] = useState<Treatment[]>([]);
     const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
     const [detailTarget, setDetailTarget] = useState<Appointment | null>(null);
+    const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [searching, setSearching] = useState(false);
     const [loadingMine, setLoadingMine] = useState(true);
@@ -67,8 +79,12 @@ export default function Appointments() {
 
     const loadMine = useCallback(async () => {
         try {
-            const data = await rpc<Appointment[]>("app_list_my_appointments");
-            setAppointments(data ?? []);
+            const [appts, tx] = await Promise.all([
+                rpc<Appointment[]>("app_list_my_appointments"),
+                rpc<Treatment[]>("app_list_my_treatments").catch(() => []),
+            ]);
+            setAppointments(appts ?? []);
+            setTreatments(tx ?? []);
             setError(null);
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load your appointments");
@@ -86,6 +102,18 @@ export default function Appointments() {
             if (user) loadMine();
         }, [user, loadMine])
     );
+
+    // Deep link from a notification: jump straight to "mine" and open
+    // that appointment's detail once it's loaded.
+    useEffect(() => {
+        if (!params.appointmentId || loadingMine) return;
+        const target = appointments.find((a) => a.id === params.appointmentId);
+        if (target) {
+            setMode("mine");
+            setDetailTarget(target);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.appointmentId, loadingMine]);
 
     const search = useCallback(async () => {
         setSearching(true);
@@ -112,6 +140,7 @@ export default function Appointments() {
     }, [mode, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const startReschedule = (appointment: Appointment) => {
+        setDetailTarget(null);
         setRescheduleTarget(appointment);
         setFilters({ ...DEFAULT_FILTERS, specialty: appointment.doctor.specialty ?? "" });
         setMode("quick");
@@ -137,7 +166,9 @@ export default function Appointments() {
                 });
                 Alert.alert("Booked!", `Your order number is ${booked.order_number}.`);
             }
+            setViewingDoctor(null);
             setMode("mine");
+            setMineFilter("upcoming");
             await loadMine();
         } catch (e) {
             setError(e instanceof Error ? e.message : "Booking failed");
@@ -160,8 +191,40 @@ export default function Appointments() {
 
     const cancelReschedule = () => {
         setRescheduleTarget(null);
+        setViewingDoctor(null);
         setMode("mine");
     };
+
+    const changeMode = (next: Mode) => {
+        setViewingDoctor(null);
+        setMode(next);
+    };
+
+    const viewOtherTimes = (slot: DoctorSlot) => {
+        setViewingDoctor({
+            doctorId: slot.doctorId,
+            doctorFirstName: slot.doctorFirstName,
+            doctorLastName: slot.doctorLastName,
+            specialty: slot.specialty,
+            rating: slot.rating,
+        });
+        setMode("byDoctor");
+    };
+
+    const goToTreatment = (treatment: Treatment) => {
+        setDetailTarget(null);
+        router.push({ pathname: "/diagnosis", params: { threadId: treatment.thread_id } });
+    };
+
+    const mineList = useMemo(() => {
+        const upcoming = appointments.filter((a) => a.status === "BOOKED");
+        const past = appointments.filter((a) => a.status !== "BOOKED");
+        return mineFilter === "upcoming" ? upcoming : past;
+    }, [appointments, mineFilter]);
+
+    const linkedTreatment = detailTarget
+        ? treatments.find((t) => t.appointment_id === detailTarget.id) ?? null
+        : null;
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -189,18 +252,16 @@ export default function Appointments() {
                     </View>
                 )}
 
-                {!rescheduleTarget && (
-                    <FilterChips<Mode>
-                        value={mode}
-                        onChange={setMode}
-                        options={[
-                            { key: "quick", label: "Quick Search" },
-                            { key: "byDoctor", label: "By Doctor" },
-                            { key: "byCenter", label: "By Center" },
-                            { key: "mine", label: "My Appointments", count: appointments.length },
-                        ]}
-                    />
-                )}
+                <FilterChips<Mode>
+                    value={mode}
+                    onChange={changeMode}
+                    options={[
+                        { key: "quick", label: "Quick Search" },
+                        { key: "byDoctor", label: "By Doctor" },
+                        { key: "byCenter", label: "By Center" },
+                        { key: "mine", label: "My Appointments", count: appointments.length },
+                    ]}
+                />
 
                 {mode === "quick" && (
                     <FlatList
@@ -213,10 +274,20 @@ export default function Appointments() {
                             </View>
                         }
                         renderItem={({ item }) => (
-                            <DoctorSlotCard
-                                slot={item}
-                                onBook={(s) => book(s.doctorScheduleId, s.nextAvailableDate)}
+                            <SlotCard
+                                doctorName={`Dr. ${item.doctorFirstName} ${item.doctorLastName}`}
+                                specialty={item.specialty}
+                                rating={item.rating}
+                                centerName={item.channelingCenterName}
+                                address={item.address}
+                                city={item.city}
+                                distanceKm={item.distanceKm}
+                                date={item.nextAvailableDate}
+                                startTime={item.startTime}
+                                endTime={item.endTime}
+                                onBook={() => book(item.doctorScheduleId, item.nextAvailableDate)}
                                 booking={busyKey === `${item.doctorScheduleId}-${item.nextAvailableDate}`}
+                                onViewOtherTimes={() => viewOtherTimes(item)}
                             />
                         )}
                         contentContainerStyle={{ paddingBottom: spacing.xl }}
@@ -235,7 +306,12 @@ export default function Appointments() {
 
                 {mode === "byDoctor" && (
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
-                        <DoctorBrowseView onBook={book} bookingKey={busyKey} />
+                        <DoctorBrowseView
+                            onBook={book}
+                            bookingKey={busyKey}
+                            initialDoctor={viewingDoctor}
+                            onLeaveInitialDoctor={() => setViewingDoctor(null)}
+                        />
                     </ScrollView>
                 )}
 
@@ -250,12 +326,22 @@ export default function Appointments() {
                         <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginTop: spacing.xl }} />
                     ) : (
                         <FlatList
-                            data={appointments}
+                            data={mineList}
                             keyExtractor={(a) => a.id}
+                            ListHeaderComponent={
+                                <FilterChips<MineFilter>
+                                    value={mineFilter}
+                                    onChange={setMineFilter}
+                                    options={[
+                                        { key: "upcoming", label: "Upcoming", count: appointments.filter((a) => a.status === "BOOKED").length },
+                                        { key: "past", label: "Past & Cancelled", count: appointments.filter((a) => a.status !== "BOOKED").length },
+                                    ]}
+                                />
+                            }
                             renderItem={({ item }) => (
                                 <AppointmentCard
                                     appointment={item}
-                                    onCancel={cancel}
+                                    onRequestCancel={setCancelTarget}
                                     onReschedule={startReschedule}
                                     onPress={setDetailTarget}
                                     cancelling={busyKey === item.id}
@@ -276,14 +362,50 @@ export default function Appointments() {
                             ListEmptyComponent={
                                 <EmptyState
                                     icon="calendar-outline"
-                                    title="No appointments yet"
-                                    message="Search and book a doctor's slot to see it here."
+                                    title={mineFilter === "upcoming" ? "No upcoming appointments" : "No past appointments"}
+                                    message={
+                                        mineFilter === "upcoming"
+                                            ? "Search and book a doctor's slot to see it here."
+                                            : "Completed and cancelled appointments will show up here."
+                                    }
                                 />
                             }
                         />
                     ))}
 
-                <AppointmentDetailModal appointment={detailTarget} onClose={() => setDetailTarget(null)} />
+                <AppointmentDetailModal
+                    appointment={detailTarget}
+                    linkedTreatment={linkedTreatment}
+                    cancelling={!!detailTarget && busyKey === detailTarget.id}
+                    onClose={() => setDetailTarget(null)}
+                    onReschedule={startReschedule}
+                    onRequestCancel={(a) => {
+                        setDetailTarget(null);
+                        setCancelTarget(a);
+                    }}
+                    onViewTreatment={goToTreatment}
+                />
+
+                <ConfirmModal
+                    visible={!!cancelTarget}
+                    title="Cancel this appointment?"
+                    message={
+                        cancelTarget
+                            ? `Dr. ${cancelTarget.doctor.firstName} ${cancelTarget.doctor.lastName} at ${cancelTarget.channelingCenter.name} will be notified.`
+                            : ""
+                    }
+                    confirmLabel="Cancel Appointment"
+                    destructive
+                    showReasonInput
+                    loading={!!cancelTarget && busyKey === cancelTarget.id}
+                    onConfirm={(reason) => {
+                        if (!cancelTarget) return;
+                        const target = cancelTarget;
+                        setCancelTarget(null);
+                        cancel(target.id, reason);
+                    }}
+                    onCancel={() => setCancelTarget(null)}
+                />
             </View>
         </SafeAreaView>
     );
