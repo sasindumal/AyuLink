@@ -27,8 +27,8 @@ Usage:
 
 Requires NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE in
 backend/.env. Embedding requires an embedding-capable model loaded in
-LM Studio (see LM_STUDIO_EMBEDDING_MODEL in backend/.env.example) — if
-LM Studio/the embedding model isn't reachable, this script still seeds
+the configured LLM_PROVIDER (see LM_STUDIO_EMBEDDING_MODEL /
+GOOGLE_EMBEDDING_MODEL in backend/.env.example) — if it isn't reachable, this script still seeds
 the graph and skips the embedding + vector index step with a warning.
 """
 
@@ -280,7 +280,7 @@ def seed_doctors(session) -> int:
 # ──────────────────────────────────────────────
 
 def embed_missing_symptoms(session, batch_size: int = 64) -> int:
-    """Embeds every Symptom node without an embedding yet (via LM Studio)
+    """Embeds every Symptom node without an embedding yet (via config.LLM_PROVIDER)
     and writes the vector back. Idempotent — safe to rerun the seeder
     without re-embedding symptoms that already have one, including
     Symptom nodes lazily created by create_has_symptom_relationships
@@ -318,7 +318,7 @@ def embed_missing_symptoms(session, batch_size: int = 64) -> int:
                 rows=updates,
             )
             total += len(updates)
-    except Exception as exc:  # noqa: BLE001 - LM Studio down/model not loaded
+    except Exception as exc:  # noqa: BLE001 - embedding provider down/model not loaded
         print(f"   ⚠ Embedding failed after {total} nodes ({exc}) — continuing without it\n")
         return total
 

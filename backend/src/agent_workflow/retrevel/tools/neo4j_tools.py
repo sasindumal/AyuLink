@@ -8,7 +8,7 @@ search over the symptom_embedding_idx vector index (weight = similarity
 score, floored at config.SYMPTOM_VECTOR_SIMILARITY_FLOOR), so phrasing
 that doesn't literally contain a catalog term (e.g. "tummy ache" vs.
 "abdominal pain") can still surface the right Symptom node. It falls
-back to find_diseases_for_symptoms() (CONTAINS-only, no LM Studio call)
+back to find_diseases_for_symptoms() (CONTAINS-only, no embedding call)
 if embedding generation fails for any reason.
 
 Queries run via session.execute_read (a managed transaction), not a
@@ -111,7 +111,7 @@ def find_diseases_for_symptoms_hybrid(
     matched_symptoms), so it's a drop-in replacement at call sites.
 
     Falls back to find_diseases_for_symptoms() if embedding the patient's
-    symptom phrases fails (e.g. LM Studio/embedding model unavailable) —
+    symptom phrases fails (e.g. the configured provider/embedding model is unavailable) —
     the vector index requires it to have been created by seed_neo4j.py's
     embedding pass, so a fresh/unembedded graph degrades the same way."""
     if not symptoms:
@@ -119,7 +119,7 @@ def find_diseases_for_symptoms_hybrid(
 
     try:
         embeddings = embed_texts(symptoms)
-    except Exception:  # noqa: BLE001 - LM Studio down/model not loaded
+    except Exception:  # noqa: BLE001 - embedding provider down/model not loaded
         return find_diseases_for_symptoms(symptoms)
 
     def _run(tx):
