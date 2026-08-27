@@ -66,12 +66,20 @@ export function SlotCard({
                     <Text style={styles.infoText}>{centerName}</Text>
                 </View>
             )}
+            {/* Own row, not buried after a possibly-long address — city
+                matters for deciding whether this appointment is even
+                reachable, so it gets a dedicated, bolder line. */}
+            {city && (
+                <View style={styles.infoRow}>
+                    <Ionicons name="location-outline" size={15} color={colors.textMuted} />
+                    <Text style={styles.cityText}>{city}</Text>
+                </View>
+            )}
             {address && (
                 <View style={styles.infoRow}>
                     <Ionicons name="location" size={15} color={colors.textMuted} />
                     <Text style={styles.infoText}>
                         {address}
-                        {city ? `  ·  ${city}` : ""}
                         {distanceKm != null ? `  ·  ${distanceKm.toFixed(1)} km` : ""}
                     </Text>
                 </View>
@@ -119,6 +127,7 @@ const styles = StyleSheet.create({
     ratingText: { fontSize: 12.5, fontWeight: "700", color: "#9A6F00" },
     infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
     infoText: { fontSize: 13, color: colors.text, flex: 1 },
+    cityText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark, flex: 1 },
     actionsRow: { marginTop: spacing.sm, gap: 10 },
     otherTimesBtn: {
         flexDirection: "row",

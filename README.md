@@ -21,6 +21,7 @@ AyuLink/
 │   ├── doctor-app/             AyuLink Doctor
 │   ├── pharmacy-app/           AyuLink Pharmacy
 │   └── channeling-center-app/  AyuLink Channeling Center
+├── frontend/web/            Marketing website (not an app) — see frontend/web/README.md
 ├── backend/                 LangGraph + FastAPI agent service — see backend/README.md
 ├── supabase/                Database schema (migrations), seed data, reset script
 └── docs/                    Full project documentation (this is the index)
@@ -34,6 +35,7 @@ AyuLink/
 | Understand the AI assistant's multi-agent system in depth | [`docs/AGENTIC_SYSTEM.md`](docs/AGENTIC_SYSTEM.md) |
 | Run the mobile apps | [`frontend/mobile/README.md`](frontend/mobile/README.md) |
 | Run the agent backend | [`backend/README.md`](backend/README.md) |
+| Run the marketing website | [`frontend/web/README.md`](frontend/web/README.md) |
 
 ## Quick start
 

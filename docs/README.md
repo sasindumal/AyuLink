@@ -42,11 +42,15 @@ Sri Lankan healthcare context:
   — confirm, reschedule, cancel, mark complete — independent of whichever
   app the patient used to book.
 
-Everything is one Supabase Postgres database shared by all four apps
-(and, optionally, a Next.js web app — not covered here, see its own
-directory if present). There is no custom backend server for the CRUD
-apps — every mobile app talks to Supabase directly via `supabase-js`. The
-one exception is the patient app's **Assistant** tab, which talks to a
+There is also a small static marketing website ([`frontend/web/`](../frontend/web))
+— a Next.js site that just describes AyuLink and links out to the four
+apps (see §4). It is not itself one of the four apps, has no login of
+its own, and doesn't call Supabase, Neo4j, or anything else.
+
+The four apps share one Supabase Postgres database. There is no custom
+backend server for the CRUD apps — every mobile app talks to Supabase
+directly via `supabase-js`. The one exception is the patient app's
+**Assistant** tab, which talks to a
 separate LangGraph + FastAPI service (`backend/`) for the parts a plain
 CRUD API can't do: LLM-driven conversation, a symptom→disease→specialty
 knowledge graph, and human-in-the-loop booking.
@@ -144,6 +148,15 @@ See [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) for the AI backend in depth.
 
 - **Home**: center identity, today/upcoming/completed stats, notification bell.
 - **Appointments**: every appointment booked at this center — confirm, reschedule, cancel, or mark complete.
+
+### The website (`frontend/web/`)
+
+A single static marketing page — not an app: what AyuLink is, a features
+section, a "how it works" walkthrough, and a "Get the app" section with a
+card for each of the four apps above (linking out to app store listings
+once published; today those buttons are honestly marked "Coming Soon"
+rather than pointing anywhere). No login, no dashboards, no database
+calls — see [`frontend/web/README.md`](../frontend/web/README.md).
 
 ## 5. Database Schema
 

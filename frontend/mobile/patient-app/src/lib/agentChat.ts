@@ -170,6 +170,18 @@ export async function sendImage(
     await streamSSE(response as unknown as Response, onEvent);
 }
 
+// Fire-and-forget "wake up" ping for a sleeping free-tier backend (e.g.
+// Render's free instance spins down after 15 min idle and pays a ~30-60s
+// cold-start penalty on the next request). Call this once on app launch
+// so that penalty lands during normal app navigation instead of when the
+// patient actually opens the Assistant tab. Never throws and is never
+// awaited by the caller — if it fails, the real request later just
+// cold-starts normally, same as if this didn't exist. No auth needed,
+// /health doesn't require it.
+export function warmUpBackend(): void {
+    fetch(`${AGENT_API_URL}/health`).catch(() => {});
+}
+
 export interface ChatHistory {
     messages: { role: "user" | "assistant"; content: string }[];
     interrupt: InterruptPayload | null;
