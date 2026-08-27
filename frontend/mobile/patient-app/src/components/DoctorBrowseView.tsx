@@ -8,11 +8,11 @@
 // ==============================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { rpc } from "../lib/api";
-import { colors, spacing } from "../theme";
+import { colors, radius, spacing } from "../theme";
 import { Banner, Button, Card, EmptyState, FilterChips, Input } from "./ui";
 import { SelectField } from "./SelectField";
 import { SlotCard } from "./SlotCard";
@@ -249,11 +249,20 @@ export function DoctorBrowseView({
 
             <View style={styles.sortRow}>
                 <Text style={styles.sortLabel}>{sortedDoctors.length} doctor{sortedDoctors.length === 1 ? "" : "s"}</Text>
-                <FilterChips<"off" | "on">
-                    value={sortByRating ? "on" : "off"}
-                    onChange={() => setSortByRating((v) => !v)}
-                    options={[{ key: "on", label: sortByRating ? "Sorted by rating ✓" : "Sort by rating" }]}
-                />
+                <Pressable
+                    onPress={() => setSortByRating((v) => !v)}
+                    style={[styles.sortToggle, sortByRating && styles.sortToggleActive]}
+                    hitSlop={4}
+                >
+                    <Ionicons
+                        name={sortByRating ? "star" : "star-outline"}
+                        size={14}
+                        color={sortByRating ? "#fff" : colors.textMuted}
+                    />
+                    <Text style={[styles.sortToggleText, sortByRating && styles.sortToggleTextActive]}>
+                        {sortByRating ? "Sorted by rating" : "Sort by rating"}
+                    </Text>
+                </Pressable>
             </View>
 
             <FlatList
@@ -298,6 +307,23 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     sortLabel: { fontSize: 12.5, color: colors.textMuted, fontWeight: "600" },
+    sortToggle: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: radius.full,
+        backgroundColor: colors.surface,
+        borderWidth: 1,
+        borderColor: colors.border,
+    },
+    sortToggleActive: {
+        backgroundColor: colors.primaryDark,
+        borderColor: colors.primaryDark,
+    },
+    sortToggleText: { fontSize: 12.5, fontWeight: "600", color: colors.textMuted },
+    sortToggleTextActive: { color: "#fff" },
     backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
     backText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
     selectedTitle: { fontSize: 17, fontWeight: "800", color: colors.primaryDark },

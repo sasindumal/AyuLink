@@ -99,7 +99,7 @@ export default function Home() {
                 {user?.verified === false && (
                     <Banner
                         kind="info"
-                        message="Your center is pending verification. Managing appointments is enabled once approved (sign in again once approved)."
+                        message="Your center is still being verified — you can use the app as normal in the meantime."
                     />
                 )}
                 {error && <Banner kind="error" message={error} />}

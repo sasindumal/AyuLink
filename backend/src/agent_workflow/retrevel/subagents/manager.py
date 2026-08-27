@@ -14,6 +14,7 @@ downgraded rather than trusted outright."""
 from utils.llm import text_llm
 from src.agent_workflow.retrevel.schemas import RouteDecision
 from src.agent_workflow.retrevel.state import GraphState
+from src.agent_workflow.retrevel.streaming import emit_thinking
 
 ROUTES = ("clinical", "doctor_search", "booking")
 
@@ -82,6 +83,7 @@ def manager_agent(state: GraphState) -> dict:
 
     route = None
     try:
+        emit_thinking("Figuring out how to help...")
         structured = text_llm.with_structured_output(RouteDecision, method="json_schema")
         decision: RouteDecision = structured.invoke(
             [

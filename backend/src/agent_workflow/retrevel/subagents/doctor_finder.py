@@ -19,6 +19,7 @@ from src.agent_workflow.retrevel.tools.neo4j_tools import (
     list_specialty_names,
 )
 from src.agent_workflow.retrevel.tools.postgres_tools import get_doctor_availability, search_doctors
+from src.agent_workflow.retrevel.streaming import emit_thinking
 
 _NONE_OF_THESE = "None of these"
 GENERAL_PRACTITIONER = "General Practitioner"
@@ -48,6 +49,7 @@ def _match_specialty_name(query: str) -> str | None:
     )
 
     try:
+        emit_thinking("Matching that to a specialty...")
         structured = text_llm.with_structured_output(SpecialtyChoice, method="json_schema")
         result = structured.invoke(
             [
@@ -105,6 +107,7 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
     symptoms: list[str] = []
     is_general_case = False
     try:
+        emit_thinking("Looking for a doctor...")
         structured = text_llm.with_structured_output(DoctorSearchQuery, method="json_schema")
         result: DoctorSearchQuery = structured.invoke(
             [

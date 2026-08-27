@@ -70,6 +70,8 @@ export interface Prescription {
     diagnosis: string;
     status: PrescriptionStatus;
     expiresAt: string | null;
+    patientAge: number | null;
+    patientWeightKg: number | null;
     items: PrescriptionItem[];
     patient?: PersonRef;
     doctor?: PersonRef;

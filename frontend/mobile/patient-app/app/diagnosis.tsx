@@ -74,6 +74,11 @@ export default function Diagnosis() {
     const [hydrating, setHydrating] = useState(continuing);
     const [input, setInput] = useState("");
     const [busy, setBusy] = useState(false);
+    // Ephemeral only — set from the SSE "thinking" event, never written into
+    // `items`. The backend never persists this to graph state/history either
+    // (see src/agent_workflow/retrevel/streaming.py), so it exists purely
+    // for this one render while a structured-output LLM call is in flight.
+    const [thinkingMessage, setThinkingMessage] = useState<string | null>(null);
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
     const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
     const [attachMenuVisible, setAttachMenuVisible] = useState(false);
@@ -171,11 +176,17 @@ export default function Diagnosis() {
         if (currentAssistantText.current) speak(currentAssistantText.current);
         currentAssistantId.current = null;
         currentAssistantText.current = "";
+        setThinkingMessage(null);
     };
 
     const handleEvent = useCallback((evt: AgentEvent) => {
         switch (evt.event) {
+            case "thinking": {
+                setThinkingMessage(evt.data.message);
+                break;
+            }
             case "token": {
+                setThinkingMessage(null);
                 currentAssistantText.current += evt.data.content;
                 if (!currentAssistantId.current) {
                     const id = nextId();
@@ -228,6 +239,7 @@ export default function Diagnosis() {
             setBusy(true);
             currentAssistantId.current = null;
             currentAssistantText.current = "";
+            setThinkingMessage(null);
             try {
                 await fn(handleEvent);
             } catch (e) {
@@ -408,7 +420,7 @@ export default function Diagnosis() {
                     {busy && (
                         <View style={styles.thinkingRow}>
                             <ActivityIndicator size="small" color={colors.primaryDark} />
-                            <Text style={styles.thinkingText}>Thinking…</Text>
+                            <Text style={styles.thinkingText}>{thinkingMessage ?? "Thinking…"}</Text>
                         </View>
                     )}
 
@@ -418,7 +430,7 @@ export default function Diagnosis() {
                                 listening={listening}
                                 speaking={speaking}
                                 disabled={busy || (!!awaitingInterrupt && awaitingInterrupt.type !== "ask_followup")}
-                                disabledReason={busy ? "Thinking…" : "Respond above first…"}
+                                disabledReason={busy ? (thinkingMessage ?? "Thinking…") : "Respond above first…"}
                                 interimTranscript={interimTranscript}
                                 onStart={startListening}
                                 onStop={stopListening}

@@ -8,12 +8,12 @@
 --     so no enum change needed. A null expires_at ('Never')
 --     means the prescription can never become EXPIRED, no matter
 --     its dispensed state.
---   * "Treatment".confirmed_diagnosis - the AI's disease_name is
---     never shown to the patient directly; treatment_json() shows
---     a stable demo placeholder ("DiagnosisXXXX") until a doctor
---     who saw this patient for the linked appointment issues a
---     prescription, at which point that prescription's diagnosis
---     text becomes the confirmed, displayed treatment name.
+--   * "Treatment".confirmed_diagnosis - treatment_json() shows the
+--     AI's own disease_name (from the current symptoms/diagnosis)
+--     as a temporary name until a doctor who saw this patient for
+--     the linked appointment issues a prescription, at which point
+--     that prescription's diagnosis text becomes the confirmed,
+--     permanently displayed treatment name.
 -- ==============================================
 
 alter table "Prescription" add column if not exists "expires_at" timestamptz null;
@@ -123,13 +123,13 @@ language sql stable security definer set search_path = public as $$
     )
 $$;
 
--- Displayed treatment name: a stable demo placeholder until a
+-- Displayed treatment name: the AI's own disease_name until a
 -- doctor's prescription confirms it (see app_create_prescription).
 create or replace function treatment_json(t "Treatment")
 returns jsonb
 language sql stable security definer set search_path = public as $$
     select to_jsonb(t) || jsonb_build_object(
-        'disease_name', coalesce(t."confirmed_diagnosis", 'Diagnosis' || upper(substr(t."id"::text, 1, 4))),
+        'disease_name', coalesce(t."confirmed_diagnosis", t."disease_name"),
         'status', case
             when exists (
                 select 1 from "Appointment" a

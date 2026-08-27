@@ -6,6 +6,7 @@ import re
 from utils.llm import text_llm
 from src.agent_workflow.retrevel.schemas import SymptomExtraction
 from src.agent_workflow.retrevel.state import GraphState
+from src.agent_workflow.retrevel.streaming import emit_thinking
 
 EXTRACTION_PROMPT = """Extract the patient's symptoms from this conversation as a short \
 list of normalized, catalog-style medical terms (e.g. "headache" not "my head hurts", \
@@ -32,6 +33,7 @@ def symptom_agent(state: GraphState) -> dict:
 
     extracted: list[str] = []
     try:
+        emit_thinking("Reading your symptoms...")
         structured = text_llm.with_structured_output(SymptomExtraction, method="json_schema")
         result: SymptomExtraction = structured.invoke(
             [

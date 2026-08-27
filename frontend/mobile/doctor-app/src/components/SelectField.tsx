@@ -1,7 +1,9 @@
 // ==============================================
 // AyuLink Doctor - Select Field
 // A tappable "Input"-styled field that opens a modal
-// with a searchable list of options.
+// with a searchable dropdown list of options. Typing a
+// value that isn't in the list offers a "Use <value>" row,
+// so a custom entry is always possible too.
 // ==============================================
 
 import React, { useMemo, useState } from "react";
@@ -11,16 +13,19 @@ import { colors, radius, spacing } from "../theme";
 
 export function SelectField({
     label,
-    placeholder = "Any",
+    placeholder = "Select",
     value,
     options,
     onChange,
+    allowCustom = true,
 }: {
     label?: string;
     placeholder?: string;
     value: string;
     options: string[];
     onChange: (value: string) => void;
+    /** Lets typing a value not in `options` be used as-is. */
+    allowCustom?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
@@ -31,9 +36,19 @@ export function SelectField({
         return options.filter((o) => o.toLowerCase().includes(q));
     }, [options, query]);
 
+    const exactMatch = useMemo(
+        () => options.some((o) => o.toLowerCase() === query.trim().toLowerCase()),
+        [options, query]
+    );
+
     const close = () => {
         setOpen(false);
         setQuery("");
+    };
+
+    const choose = (v: string) => {
+        onChange(v);
+        close();
     };
 
     return (
@@ -52,40 +67,33 @@ export function SelectField({
                         <Text style={styles.sheetTitle}>{label || "Select"}</Text>
                         <TextInput
                             style={styles.search}
-                            placeholder="Search…"
+                            placeholder={allowCustom ? "Search or type a custom value…" : "Search…"}
                             placeholderTextColor={colors.textMuted}
                             value={query}
                             onChangeText={setQuery}
                             autoCorrect={false}
+                            onSubmitEditing={() => {
+                                if (allowCustom && query.trim() && !exactMatch) choose(query.trim());
+                            }}
                         />
                         <FlatList
                             data={filtered}
                             keyExtractor={(o) => o}
                             style={{ maxHeight: 320 }}
                             ListHeaderComponent={
-                                <Pressable
-                                    style={styles.option}
-                                    onPress={() => {
-                                        onChange("");
-                                        close();
-                                    }}
-                                >
-                                    <Text style={[styles.optionText, !value && styles.optionTextActive]}>
-                                        {placeholder}
-                                    </Text>
-                                    {!value && <Ionicons name="checkmark" size={17} color={colors.primary} />}
-                                </Pressable>
+                                allowCustom && query.trim() && !exactMatch ? (
+                                    <Pressable style={styles.option} onPress={() => choose(query.trim())}>
+                                        <Ionicons name="add-circle-outline" size={17} color={colors.primary} />
+                                        <Text style={styles.customText} numberOfLines={1}>
+                                            Use "{query.trim()}"
+                                        </Text>
+                                    </Pressable>
+                                ) : null
                             }
                             renderItem={({ item }) => {
                                 const active = item === value;
                                 return (
-                                    <Pressable
-                                        style={styles.option}
-                                        onPress={() => {
-                                            onChange(item);
-                                            close();
-                                        }}
-                                    >
+                                    <Pressable style={styles.option} onPress={() => choose(item)}>
                                         <Text style={[styles.optionText, active && styles.optionTextActive]} numberOfLines={1}>
                                             {item}
                                         </Text>
@@ -94,7 +102,9 @@ export function SelectField({
                                 );
                             }}
                             ListEmptyComponent={
-                                <Text style={styles.empty}>No matches</Text>
+                                !allowCustom || !query.trim() ? (
+                                    <Text style={styles.empty}>No matches</Text>
+                                ) : null
                             }
                         />
                         <Pressable style={styles.closeBtn} onPress={close}>
@@ -148,12 +158,14 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
+        gap: 8,
         paddingVertical: 13,
         borderBottomWidth: 1,
         borderBottomColor: colors.border,
     },
     optionText: { fontSize: 14.5, color: colors.text, flex: 1 },
     optionTextActive: { color: colors.primaryDark, fontWeight: "700" },
+    customText: { fontSize: 14.5, color: colors.primary, fontWeight: "700", flex: 1 },
     empty: { textAlign: "center", color: colors.textMuted, paddingVertical: spacing.lg, fontSize: 13 },
     closeBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
     closeText: { color: colors.textMuted, fontWeight: "700", fontSize: 13.5 },

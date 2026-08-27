@@ -19,6 +19,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
@@ -33,7 +34,17 @@ import {
 } from "../../src/components/ui";
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
 import { QRScannerModal } from "../../src/components/QRScannerModal";
+import { ConfirmModal } from "../../src/components/ConfirmModal";
 import type { Prescription } from "../../src/types";
+
+const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function canModify(p: Prescription): boolean {
+    const withinWindow = Date.now() - new Date(p.dateIssued).getTime() < EDIT_WINDOW_MS;
+    // status is the server-derived value (prescription_json()) — anything
+    // other than NOT_DISPENSED means partially/fully dispensed or expired.
+    return withinWindow && p.status === "NOT_DISPENSED";
+}
 
 export default function Prescriptions() {
     const { user } = useAuth();
@@ -43,6 +54,8 @@ export default function Prescriptions() {
     const [patientFilter, setPatientFilter] = useState<string | null>(null);
     const [patientIdInput, setPatientIdInput] = useState("");
     const [scannerOpen, setScannerOpen] = useState(false);
+    const [deleteTarget, setDeleteTarget] = useState<Prescription | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -63,6 +76,29 @@ export default function Prescriptions() {
     useEffect(() => {
         if (user) load();
     }, [user, load]);
+
+    const startEdit = (p: Prescription) => {
+        router.push({
+            pathname: "/(tabs)/scan",
+            params: { editId: p.id, editPayload: JSON.stringify(p) },
+        });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteTarget) return;
+        const target = deleteTarget;
+        setDeleteTarget(null);
+        setDeletingId(target.id);
+        setError(null);
+        try {
+            await rpc("app_delete_prescription", { p_prescription_id: target.id });
+            setPrescriptions((list) => list.filter((p) => p.id !== target.id));
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to delete prescription");
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     const applyPatientFilter = (medicalId: string) => {
         setScannerOpen(false);
@@ -190,7 +226,14 @@ export default function Prescriptions() {
                         data={filtered}
                         keyExtractor={(p) => p.id}
                         renderItem={({ item }) => (
-                            <PrescriptionCard prescription={item} perspective="doctor" />
+                            <PrescriptionCard
+                                prescription={item}
+                                perspective="doctor"
+                                canModify={canModify(item)}
+                                modifying={deletingId === item.id}
+                                onEdit={() => startEdit(item)}
+                                onDelete={() => setDeleteTarget(item)}
+                            />
                         )}
                         contentContainerStyle={{ paddingBottom: spacing.xl }}
                         showsVerticalScrollIndicator={false}
@@ -224,6 +267,23 @@ export default function Prescriptions() {
                 onClose={() => setScannerOpen(false)}
                 onScanned={applyPatientFilter}
                 title="Scan Patient Medical ID"
+            />
+
+            <ConfirmModal
+                visible={!!deleteTarget}
+                title="Delete this prescription?"
+                message={
+                    deleteTarget
+                        ? `"${deleteTarget.diagnosis}" for ${deleteTarget.patient?.firstName ?? ""} ${
+                              deleteTarget.patient?.lastName ?? ""
+                          } will be permanently removed. This can't be undone.`
+                        : ""
+                }
+                confirmLabel="Delete"
+                destructive
+                loading={!!deleteTarget && deletingId === deleteTarget.id}
+                onConfirm={confirmDelete}
+                onCancel={() => setDeleteTarget(null)}
             />
         </SafeAreaView>
     );

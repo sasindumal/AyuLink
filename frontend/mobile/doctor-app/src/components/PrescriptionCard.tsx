@@ -8,17 +8,26 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, shadow, spacing, statusMeta } from "../theme";
 import type { Prescription } from "../types";
-import { StatusBadge, formatDate, formatTime } from "./ui";
+import { Button, StatusBadge, formatDate, formatTime } from "./ui";
 
 export function PrescriptionCard({
     prescription,
     perspective,
     initiallyExpanded = false,
+    canModify = false,
+    modifying = false,
+    onEdit,
+    onDelete,
 }: {
     prescription: Prescription;
     /** Which counterpart to show in the header */
     perspective: "patient" | "doctor" | "pharmacy";
     initiallyExpanded?: boolean;
+    /** Doctor perspective only — within the 1-day edit window and nothing dispensed yet */
+    canModify?: boolean;
+    modifying?: boolean;
+    onEdit?: () => void;
+    onDelete?: () => void;
 }) {
     const [expanded, setExpanded] = useState(initiallyExpanded);
     const meta = statusMeta[prescription.status];
@@ -69,6 +78,16 @@ export function PrescriptionCard({
 
             {expanded && (
                 <View style={styles.itemsWrap}>
+                    {(prescription.patientAge != null || prescription.patientWeightKg != null) && (
+                        <Text style={styles.ageWeight}>
+                            {[
+                                prescription.patientAge != null ? `Age ${prescription.patientAge}` : null,
+                                prescription.patientWeightKg != null ? `${prescription.patientWeightKg} kg` : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                        </Text>
+                    )}
                     {prescription.items.map((item) => (
                         <View key={item.id} style={styles.item}>
                             <View style={styles.itemHeader}>
@@ -115,6 +134,33 @@ export function PrescriptionCard({
                     <Text style={styles.rxId}>
                         Rx #{prescription.id.slice(0, 8).toUpperCase()}
                     </Text>
+
+                    {perspective === "doctor" && canModify && (onEdit || onDelete) && (
+                        <View style={styles.actionsRow}>
+                            {onEdit && (
+                                <View style={{ flex: 1 }}>
+                                    <Button
+                                        title="Edit"
+                                        variant="secondary"
+                                        icon="create-outline"
+                                        onPress={onEdit}
+                                        disabled={modifying}
+                                    />
+                                </View>
+                            )}
+                            {onDelete && (
+                                <View style={{ flex: 1 }}>
+                                    <Button
+                                        title="Delete"
+                                        variant="danger-ghost"
+                                        icon="trash-outline"
+                                        onPress={onDelete}
+                                        loading={modifying}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                    )}
                 </View>
             )}
         </Pressable>
@@ -155,6 +201,12 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: colors.border,
         paddingTop: spacing.sm,
+    },
+    ageWeight: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: colors.textMuted,
+        marginBottom: spacing.sm,
     },
     item: {
         paddingVertical: 8,
@@ -201,4 +253,5 @@ const styles = StyleSheet.create({
         fontFamily: Platform.select({ ios: "Courier", default: "monospace" }),
         marginTop: 8,
     },
+    actionsRow: { flexDirection: "row", gap: 10, marginTop: spacing.sm },
 });

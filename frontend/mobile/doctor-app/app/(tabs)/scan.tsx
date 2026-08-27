@@ -1,9 +1,13 @@
 // ==============================================
 // AyuLink Doctor - Scan & Prescribe
-// QR / manual patient lookup + prescription builder
+// QR / manual patient lookup + prescription builder.
+// Also doubles as the Edit Prescription screen — reached
+// from the Issued tab with ?editId=&editPayload= params,
+// prefilling the same form and calling the update RPC
+// instead of create.
 // ==============================================
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
     KeyboardAvoidingView,
     Platform,
@@ -14,6 +18,7 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { colors, radius, spacing } from "../../src/theme";
@@ -21,7 +26,8 @@ import { Banner, Button, Card, FilterChips, Input, ScreenHeader } from "../../sr
 import { QRScannerModal } from "../../src/components/QRScannerModal";
 import { QuickPickField } from "../../src/components/QuickPickField";
 import { SelectField } from "../../src/components/SelectField";
-import type { PatientLookup } from "../../src/types";
+import { PrescriptionConfirmModal } from "../../src/components/PrescriptionConfirmModal";
+import type { PatientLookup, Prescription } from "../../src/types";
 
 const DOSAGE_UNITS = ["mg", "g", "mcg", "ml", "IU", "tablet(s)", "capsule(s)", "drop(s)", "puff(s)", "tsp"];
 const FREQUENCY_PRESETS = [
@@ -43,30 +49,96 @@ interface MedInput {
 const emptyMed = (): MedInput => ({
     drugName: "",
     dosageAmount: "",
-    dosageUnit: "",
+    dosageUnit: "mg",
     frequency: "",
     duration: "",
     instructions: "",
 });
 
+function splitDosage(dosage: string): { amount: string; unit: string } {
+    const idx = dosage.indexOf(" ");
+    if (idx === -1) return { amount: dosage, unit: "" };
+    return { amount: dosage.slice(0, idx), unit: dosage.slice(idx + 1) };
+}
+
 export default function Scan() {
+    const params = useLocalSearchParams<{ editId?: string; editPayload?: string }>();
+    const [editingId, setEditingId] = useState<string | null>(null);
+
     const [scannerOpen, setScannerOpen] = useState(false);
     const [manualId, setManualId] = useState("");
     const [lookupLoading, setLookupLoading] = useState(false);
     const [patient, setPatient] = useState<PatientLookup | null>(null);
 
     const [diagnosis, setDiagnosis] = useState("");
+    const [age, setAge] = useState("");
+    const [weight, setWeight] = useState("");
     const [meds, setMeds] = useState<MedInput[]>([emptyMed()]);
     const [expiryDays, setExpiryDays] = useState<number | null>(30);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
+    const [confirmResult, setConfirmResult] = useState<Prescription | null>(null);
+    const [wasEdit, setWasEdit] = useState(false);
+
+    // Prefill the form from an existing prescription when reached
+    // via "Edit" on the Issued tab.
+    useEffect(() => {
+        if (!params.editId || !params.editPayload) return;
+        try {
+            const p: Prescription = JSON.parse(params.editPayload);
+            setEditingId(p.id);
+            setPatient({
+                id: p.patient?.id ?? p.patientId,
+                firstName: p.patient?.firstName ?? "",
+                lastName: p.patient?.lastName ?? "",
+                nicNumber: p.patient?.nicNumber ?? "",
+                medicalId: p.patient?.medicalId ?? "",
+                dob: "",
+                mobileNumber: "",
+                prescriptionsAsPatient: [],
+            });
+            setDiagnosis(p.diagnosis);
+            setAge(p.patientAge != null ? String(p.patientAge) : "");
+            setWeight(p.patientWeightKg != null ? String(p.patientWeightKg) : "");
+            setMeds(
+                p.items.map((item) => {
+                    const { amount, unit } = splitDosage(item.dosage);
+                    return {
+                        drugName: item.drugName,
+                        dosageAmount: amount,
+                        dosageUnit: unit,
+                        frequency: item.frequency,
+                        duration: item.duration,
+                        instructions: item.instructions,
+                    };
+                })
+            );
+            setExpiryDays(
+                p.expiresAt
+                    ? Math.max(1, Math.round((new Date(p.expiresAt).getTime() - new Date(p.dateIssued).getTime()) / 86400000))
+                    : null
+            );
+        } catch {
+            // malformed payload — just fall through to the normal scan flow
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.editId]);
+
+    const cancelEdit = () => {
+        setEditingId(null);
+        setPatient(null);
+        setDiagnosis("");
+        setAge("");
+        setWeight("");
+        setMeds([emptyMed()]);
+        setExpiryDays(30);
+        router.replace("/(tabs)/prescriptions");
+    };
 
     const lookup = async (medicalId: string) => {
         setScannerOpen(false);
         if (!medicalId.trim()) return;
         setError(null);
-        setSuccess(null);
         setLookupLoading(true);
         try {
             const data = await rpc<PatientLookup>("app_lookup_patient", {
@@ -110,34 +182,68 @@ export default function Scan() {
             );
             return;
         }
+        const ageNum = age.trim() ? Number(age.trim()) : null;
+        if (ageNum !== null && (Number.isNaN(ageNum) || ageNum < 0 || ageNum > 150)) {
+            setError("Age must be a number between 0 and 150");
+            return;
+        }
+        const weightNum = weight.trim() ? Number(weight.trim()) : null;
+        if (weightNum !== null && (Number.isNaN(weightNum) || weightNum <= 0 || weightNum > 500)) {
+            setError("Weight must be a number between 0 and 500 kg");
+            return;
+        }
         setError(null);
         setSubmitting(true);
         try {
-            await rpc("app_create_prescription", {
-                p_patient_id: patient.id,
-                p_diagnosis: diagnosis.trim(),
-                p_items: cleaned.map((m) => ({
-                    drugName: m.drugName.trim(),
-                    dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
-                    frequency: m.frequency.trim(),
-                    duration: m.duration.trim(),
-                    instructions: m.instructions.trim(),
-                })),
-                p_expiry_days: expiryDays,
-            });
-            setSuccess(
-                `Prescription issued for ${patient.firstName} ${patient.lastName}`
-            );
-            setPatient(null);
-            setManualId("");
-            setDiagnosis("");
-            setMeds([emptyMed()]);
-            setExpiryDays(30);
+            const items = cleaned.map((m) => ({
+                drugName: m.drugName.trim(),
+                dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
+                frequency: m.frequency.trim(),
+                duration: m.duration.trim(),
+                instructions: m.instructions.trim(),
+            }));
+
+            const result = editingId
+                ? await rpc<Prescription>("app_update_prescription", {
+                      p_prescription_id: editingId,
+                      p_diagnosis: diagnosis.trim(),
+                      p_items: items,
+                      p_expiry_days: expiryDays,
+                      p_patient_age: ageNum,
+                      p_patient_weight: weightNum,
+                  })
+                : await rpc<Prescription>("app_create_prescription", {
+                      p_patient_id: patient.id,
+                      p_diagnosis: diagnosis.trim(),
+                      p_items: items,
+                      p_expiry_days: expiryDays,
+                      p_patient_age: ageNum,
+                      p_patient_weight: weightNum,
+                  });
+
+            setWasEdit(!!editingId);
+            setConfirmResult(result);
         } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to issue prescription");
+            setError(e instanceof Error ? e.message : "Failed to save prescription");
         } finally {
             setSubmitting(false);
         }
+    };
+
+    const closeConfirm = () => {
+        setConfirmResult(null);
+        if (editingId) {
+            setEditingId(null);
+            router.replace("/(tabs)/prescriptions");
+            return;
+        }
+        setPatient(null);
+        setManualId("");
+        setDiagnosis("");
+        setAge("");
+        setWeight("");
+        setMeds([emptyMed()]);
+        setExpiryDays(30);
     };
 
     return (
@@ -151,11 +257,14 @@ export default function Scan() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <ScreenHeader
-                        title="Scan & Prescribe"
-                        subtitle="Identify the patient, then build the prescription"
+                        title={editingId ? "Edit Prescription" : "Scan & Prescribe"}
+                        subtitle={
+                            editingId
+                                ? "Editable for 1 day after issuing, until anything is dispensed"
+                                : "Identify the patient, then build the prescription"
+                        }
                     />
 
-                    {success && <Banner kind="success" message={success} />}
                     {error && <Banner kind="error" message={error} />}
 
                     {!patient ? (
@@ -196,23 +305,29 @@ export default function Scan() {
                                         {patient.firstName} {patient.lastName}
                                     </Text>
                                     <Text style={styles.patientMeta}>
-                                        NIC {patient.nicNumber} ·{" "}
-                                        {
-                                            patient.prescriptionsAsPatient.filter(
-                                                (p) => p.status !== "FULLY_DISPENSED" && p.status !== "EXPIRED"
-                                            ).length
-                                        }{" "}
-                                        active Rx
+                                        {editingId
+                                            ? `NIC ${patient.nicNumber} · Editing this prescription`
+                                            : `NIC ${patient.nicNumber} · ${
+                                                  patient.prescriptionsAsPatient.filter(
+                                                      (p) => p.status !== "FULLY_DISPENSED" && p.status !== "EXPIRED"
+                                                  ).length
+                                              } active Rx`}
                                     </Text>
                                 </View>
                                 <Pressable
-                                    onPress={() => {
-                                        setPatient(null);
-                                        setManualId("");
-                                    }}
+                                    onPress={
+                                        editingId
+                                            ? cancelEdit
+                                            : () => {
+                                                  setPatient(null);
+                                                  setManualId("");
+                                              }
+                                    }
                                     style={styles.changeBtn}
                                 >
-                                    <Text style={styles.changeBtnText}>Change</Text>
+                                    <Text style={styles.changeBtnText}>
+                                        {editingId ? "Cancel" : "Change"}
+                                    </Text>
                                 </Pressable>
                             </Card>
 
@@ -224,6 +339,32 @@ export default function Scan() {
                                     onChangeText={setDiagnosis}
                                     style={{ marginBottom: 0 }}
                                 />
+                            </Card>
+
+                            <Text style={styles.sectionTitle}>Age &amp; Weight (optional)</Text>
+                            <Card style={{ marginBottom: spacing.md }}>
+                                <View style={styles.row}>
+                                    <View style={{ flex: 1 }}>
+                                        <Input
+                                            label="Age (years)"
+                                            placeholder="e.g. 34"
+                                            value={age}
+                                            onChangeText={setAge}
+                                            keyboardType="numeric"
+                                            style={{ marginBottom: 0 }}
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Input
+                                            label="Weight (kg)"
+                                            placeholder="e.g. 68"
+                                            value={weight}
+                                            onChangeText={setWeight}
+                                            keyboardType="numeric"
+                                            style={{ marginBottom: 0 }}
+                                        />
+                                    </View>
+                                </View>
                             </Card>
 
                             <Text style={styles.sectionTitle}>Medications</Text>
@@ -327,8 +468,8 @@ export default function Scan() {
                             </Card>
 
                             <Button
-                                title="Sign & Issue Prescription"
-                                icon="send"
+                                title={editingId ? "Save Changes" : "Sign & Issue Prescription"}
+                                icon={editingId ? "checkmark" : "send"}
                                 loading={submitting}
                                 onPress={submit}
                             />
@@ -342,6 +483,12 @@ export default function Scan() {
                 onClose={() => setScannerOpen(false)}
                 onScanned={lookup}
                 title="Scan Patient Medical ID"
+            />
+
+            <PrescriptionConfirmModal
+                prescription={confirmResult}
+                edited={wasEdit}
+                onClose={closeConfirm}
             />
         </SafeAreaView>
     );
