@@ -46,7 +46,26 @@ severity, timing, what triggers or relieves it, or an associated symptom — wha
 medically most useful, not necessarily one of the "known differentiating symptoms" \
 listed below (that list is reference context from the graph, not a required menu to pick \
 from). Phrase it naturally, in plain everyday language, as one short question. Never ask \
-about something the patient already told you."""
+about something the patient already told you.
+
+The candidate conditions and known symptoms below are in English regardless of what \
+language the patient is using — that's just the knowledge base's own language, not a cue. \
+Write the "question" field itself in the SAME language the patient's own messages are in \
+(a sample of their most recent message is given below) — if they've been writing in \
+Sinhala, ask in Sinhala; if English, ask in English."""
+
+
+def _last_human_text(messages: list, max_len: int = 300) -> str:
+    """Most recent patient message, as a language cue for LLM calls that
+    generate patient-facing text — everything else in this module (symptom
+    names, disease/specialty names, graph data) stays English regardless
+    of what language the patient is using, since that's what the
+    knowledge graph and Postgres are seeded in; only the phrasing of
+    what's actually shown to the patient should mirror their language."""
+    for m in reversed(messages or []):
+        if getattr(m, "type", "") == "human":
+            return str(getattr(m, "content", ""))[:max_len]
+    return ""
 
 
 def _decide_followup(
@@ -55,6 +74,7 @@ def _decide_followup(
     confidence: float,
     round_: int,
     history: list[dict],
+    patient_message_sample: str = "",
     force_continue: bool = False,
 ) -> tuple[bool, str | None]:
     """One LLM call, fully dynamic — informed by the current Neo4j
@@ -99,7 +119,10 @@ def _decide_followup(
                         f"Follow-up questions already asked this conversation, and how the "
                         f"patient answered — do NOT ask about the same thing again: {prior_qa}.\n"
                         f"Graph match confidence so far: {confidence:.2f} (0-1). This would be "
-                        f"follow-up question #{round_ + 1}."
+                        f"follow-up question #{round_ + 1}.\n"
+                        f"Sample of the patient's own most recent message, for language only "
+                        f"(write your question in this same language): "
+                        f"{patient_message_sample or 'not available, use English'}"
                     ),
                 },
             ]
@@ -156,8 +179,11 @@ def disease_agent(state: GraphState) -> dict:
     # path, only a "you may not conclude yet" constraint on the same call.
     force_continue = len(symptoms) < MIN_SYMPTOMS_BEFORE_DIAGNOSIS
     history = state.get("followup_history", [])
+    patient_message_sample = _last_human_text(state.get("messages", []))
 
-    ready, question = _decide_followup(candidates, symptoms, confidence, round_, history, force_continue)
+    ready, question = _decide_followup(
+        candidates, symptoms, confidence, round_, history, patient_message_sample, force_continue
+    )
     update["llm_ready_to_conclude"] = ready
     update["llm_followup_question"] = question
     return update
@@ -231,6 +257,7 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
         }
 
     specialty = confirmed.get("specialty") or "a doctor"
+    patient_message_sample = _last_human_text(state.get("messages", []))
     prompt = (
         f"The patient's symptoms most closely match '{confirmed.get('disease_name')}' "
         f"(description: {confirmed.get('disease_description') or 'n/a'}) in our knowledge "
@@ -243,7 +270,12 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
         f"2. Recommends seeing a {specialty} to get it properly checked out, as the "
         "natural next step — phrase it like \"it would be best to see a "
         f"{specialty}\" or similar, not a bare instruction.\n"
-        "3. Ends with a clear disclaimer that this is not a medical diagnosis."
+        "3. Ends with a clear disclaimer that this is not a medical diagnosis.\n\n"
+        "The disease/specialty names above are in English regardless of what language the "
+        "patient is using — that's just the knowledge base's own language, not a cue. Write "
+        "the message itself in the SAME language the patient has been writing in. Sample of "
+        f"their most recent message, for language only: "
+        f"{patient_message_sample or 'not available, use English'}"
     )
     response = text_llm.invoke([{"role": "user", "content": prompt}])
     explanation = str(response.content)
