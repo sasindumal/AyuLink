@@ -674,10 +674,15 @@ function DoctorResultCard({
                         <Text style={styles.doctorMeta}>{doctor.rating.toFixed(1)}</Text>
                     </View>
                 )}
+                {doctor.city && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                        <Ionicons name="location-outline" size={12} color={colors.textMuted} />
+                        <Text style={styles.doctorCity}>{doctor.city}</Text>
+                    </View>
+                )}
                 {doctor.channeling_center_name && (
                     <Text style={styles.doctorMeta} numberOfLines={1}>
                         {doctor.channeling_center_name}
-                        {doctor.city ? ` · ${doctor.city}` : ""}
                     </Text>
                 )}
                 {doctor.date && (
@@ -766,5 +771,10 @@ const styles = StyleSheet.create({
     },
     doctorName: { fontSize: 14.5, fontWeight: "700", color: colors.text },
     doctorMeta: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    // Its own row + icon + bolder weight than doctorMeta — city matters
+    // for an in-person appointment and used to get silently truncated
+    // when crammed onto the same numberOfLines={1} line as a long
+    // channeling center name.
+    doctorCity: { fontSize: 12.5, fontWeight: "700", color: colors.primaryDark },
     doctorSlot: { fontSize: 12, fontWeight: "600", color: colors.primaryDark, marginTop: 4 },
 });
