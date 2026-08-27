@@ -108,6 +108,85 @@ Full setup, running, seeding, and troubleshooting: **[backend/README.md](../../b
 3. **Channeling Center app** — sign in as the matching center, open *Appointments*: the new booking is there. Mark it complete or cancel it.
 4. **Patient app** — under *My Appointments*, reschedule or cancel from your side too; either side's action updates instantly for the other.
 
+## Building & releasing APKs
+
+All 4 apps are linked to EAS projects (`@orton.com/ayulink-*`, see each
+app's `eas.json` / `app.json`) and built as APKs by
+[`.github/workflows/build-mobile-apps.yml`](../../.github/workflows/build-mobile-apps.yml)
+— not locally. The workflow builds all 4 apps on EAS, then publishes them
+to a GitHub Release with **fixed filenames**, so the download links never
+change between releases:
+
+| App | Download URL |
+|---|---|
+| Patient | `https://github.com/sasindumal/AyuLink/releases/latest/download/patient-app.apk` |
+| Doctor | `https://github.com/sasindumal/AyuLink/releases/latest/download/doctor-app.apk` |
+| Pharmacy | `https://github.com/sasindumal/AyuLink/releases/latest/download/pharmacy-app.apk` |
+| Channeling Center | `https://github.com/sasindumal/AyuLink/releases/latest/download/channeling-center-app.apk` |
+
+These are the same links the marketing website's *Get the app* section
+uses ([`frontend/web/src/app/page.tsx`](../web/src/app/page.tsx)), so a
+new release needs no website change — only the file behind the link
+updates.
+
+### One-time setup (already done for this repo)
+
+- `npx eas-cli login`, then `npx eas-cli init --account orton.com` in each
+  app directory — links the app to an EAS project (writes
+  `extra.eas.projectId` into `app.json`).
+- A GitHub repository secret **`EXPO_TOKEN`** — an Expo personal access
+  token from
+  [expo.dev/accounts/orton.com/settings/access-tokens](https://expo.dev/accounts/orton.com/settings/access-tokens),
+  added under repo **Settings → Secrets and variables → Actions**. Without
+  this the workflow runs but fails at the build step.
+
+### Cutting a new release
+
+The workflow triggers on **a pushed version tag** or **manual dispatch**
+only — never on every push, to stay inside EAS's free-tier build minutes.
+
+```bash
+# 1. Land your changes as normal
+git add -A
+git commit -m "..."
+git push
+
+# 2. Note what changed — move the bullets from "Unreleased" into a new
+#    version heading in CHANGELOG.md (see the template comment in that file)
+
+# 3. Tag the release. Use an ANNOTATED tag (-a -m) — unlike a plain tag,
+#    it records who tagged it, when, and why, which is what makes
+#    `git tag -n99` below actually useful later.
+git tag -a v1.0.1 -m "Short summary of this release"
+git push origin v1.0.1
+```
+
+Pushing the tag fires the workflow — watch it under the repo's **Actions**
+tab. When it finishes, all 4 APKs are attached to a new GitHub Release
+(named after the tag) and immediately live at the stable URLs above.
+
+**No version tag yet, just want to test the pipeline or ship an ad hoc
+build?** Use manual dispatch instead: Actions tab → *Build Mobile Apps* →
+**Run workflow**. This publishes a release tagged `manual-<run number>`
+and still becomes the new "latest" — no commit or tag needed on your end.
+
+### Keeping a record of previous versions
+
+Three places, in order of convenience:
+
+1. **[`CHANGELOG.md`](../../CHANGELOG.md)** at the repo root — one
+   short entry per version, sitting next to the code. Fastest to read.
+2. **`git tag -n99`** — lists every annotated tag with its full message,
+   locally, no GitHub round-trip:
+   ```bash
+   git tag -n99 "v*"
+   ```
+3. **GitHub's [Releases page](https://github.com/sasindumal/AyuLink/releases)**
+   — the permanent, authoritative record. Every past release (and its 4
+   APK files) stays there forever; publishing a new one only moves which
+   release is "latest," it never deletes an older one. Use this when you
+   need the actual APK from an old version, not just what changed.
+
 ## Notes
 
 - Self-registered doctors/pharmacies/channeling centers start **unverified** — a pending banner shows on their home screen, and issuing/dispensing/managing appointments is blocked until `verified = true` is set on their row in the Supabase `User` table (Table Editor). All seeded/bulk-imported demo accounts are pre-verified.
