@@ -58,7 +58,7 @@ jobs:
         run: npm ci --legacy-peer-deps
 
       - name: Build APK on EAS
-        run: eas build --platform android --profile apk --non-interactive --wait --json --output build-result.json
+        run: eas build --platform android --profile apk --non-interactive --wait --json > build-result.json
 
       - name: Download built APK
         run: |
