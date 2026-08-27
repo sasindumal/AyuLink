@@ -152,3 +152,29 @@ async def treatment_timeline(jwt: str, treatment_id: str) -> dict:
 async def complete_treatment(jwt: str, treatment_id: str) -> dict:
     data = await _call(jwt, "app_complete_treatment", {"p_treatment_id": treatment_id})
     return data
+
+
+async def treatment_doctors_to_rate(jwt: str, treatment_id: str) -> list[dict]:
+    """Every doctor the patient was actually seen by for this diagnosis
+    (GP, then whoever they were referred to, ...) who they haven't
+    already rated — see app_treatment_doctors_to_rate. Re-queried fresh
+    each round rather than cached in graph state, so the rating loop is
+    safe to resume even after a crash mid-loop: whichever doctors are
+    still unrated is always derived from the database, not from state
+    that might be stale."""
+    data = await _call(jwt, "app_treatment_doctors_to_rate", {"p_treatment_id": treatment_id})
+    return data or []
+
+
+async def rate_doctor(jwt: str, treatment_id: str, doctor_id: str, rating: int, feedback: str | None) -> dict:
+    data = await _call(
+        jwt,
+        "app_rate_doctor",
+        {
+            "p_treatment_id": treatment_id,
+            "p_doctor_id": doctor_id,
+            "p_rating": rating,
+            "p_feedback": feedback,
+        },
+    )
+    return data

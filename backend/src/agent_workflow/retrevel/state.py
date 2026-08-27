@@ -73,6 +73,12 @@ class GraphState(TypedDict):
     # they were referred to, rather than searching a specialty at large.
     preferred_doctor_id: Optional[str]
     last_seen_doctor_id: Optional[str]
+    # Doctor ids the patient chose to skip rating, this completion pass
+    # only — app_treatment_doctors_to_rate only knows about doctors
+    # actually rated (a real DoctorRating row), nothing about a "not
+    # now" answer, so without this the rating loop would re-query the
+    # same skipped doctor forever instead of moving on.
+    rating_skipped: list[str]
 
     booking_result: Optional[dict]
     # Set when the chat is rescheduling an existing appointment (rather than

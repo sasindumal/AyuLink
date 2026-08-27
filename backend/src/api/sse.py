@@ -8,7 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 # Nodes that both persist their question into state["messages"] and send
 # it to the client as an "interrupt" event. Their message stream is
 # suppressed so the client renders the question once, from the interrupt.
-INTERRUPT_ECHO_NODES = {"ask_followup", "course_followup"}
+INTERRUPT_ECHO_NODES = {"ask_followup", "course_followup", "rate_doctor_node"}
 
 
 def sse_event(event: str, data: dict) -> str:
