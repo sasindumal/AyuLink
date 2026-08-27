@@ -230,11 +230,20 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
             "messages": [AIMessage(content=explanation)],
         }
 
+    specialty = confirmed.get("specialty") or "a doctor"
     prompt = (
-        f"Write a short, plain-language, non-alarming explanation of the condition "
-        f"'{confirmed.get('disease_name')}' "
-        f"(description: {confirmed.get('disease_description') or 'n/a'}) for a patient. "
-        "End with a clear disclaimer that this is not a medical diagnosis."
+        f"The patient's symptoms most closely match '{confirmed.get('disease_name')}' "
+        f"(description: {confirmed.get('disease_description') or 'n/a'}) in our knowledge "
+        "base — but this is a graph match, not a confirmed diagnosis. Write a short, "
+        "plain-language, non-alarming message for the patient that:\n"
+        "1. Describes what their symptoms seem to point to, using tentative language "
+        "throughout — \"it seems like this could be...\", \"this sounds like it may be...\", "
+        "\"this looks similar to...\". Never state the condition as settled fact (never "
+        "\"you have X\" or \"this is X\").\n"
+        f"2. Recommends seeing a {specialty} to get it properly checked out, as the "
+        "natural next step — phrase it like \"it would be best to see a "
+        f"{specialty}\" or similar, not a bare instruction.\n"
+        "3. Ends with a clear disclaimer that this is not a medical diagnosis."
     )
     response = text_llm.invoke([{"role": "user", "content": prompt}])
     explanation = str(response.content)
@@ -267,12 +276,32 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
 def offer_doctor(state: GraphState) -> Command:
     confirmed = state.get("confirmed_disease")
     condition_name = confirmed.get("disease_name") if confirmed else "this"
+    specialty = confirmed.get("specialty") if confirmed else None
+    # Same "don't state it sharply" rule as explain_condition_node's message
+    # above — offer a specialty, not the graph-matched disease name, since
+    # that reads like confirming a diagnosis rather than suggesting a
+    # next step. `condition_name` stays on the interrupt payload as
+    # internal metadata (unused by the client UI) for anything that
+    # later wants it.
+    #
+    # "a specialist in {specialty}" reads correctly for every specialty
+    # name in the graph (Cardiology, Infectious Diseases, Obstetrics and
+    # Gynaecology, ...) without needing a/an logic — none of them are
+    # actually doctor-type nouns like "Cardiologist", so "find a
+    # {specialty}" alone doesn't parse. General Practitioner is the one
+    # exception — it already reads as a role, not a field.
+    if not specialty:
+        offer_message = "Would you like me to find a doctor for you?"
+    elif specialty == "General Practitioner":
+        offer_message = "Would you like me to find a General Practitioner for you?"
+    else:
+        offer_message = f"Would you like me to find a specialist in {specialty} for you?"
 
     answer = interrupt(
         {
             "type": "offer_doctor",
             "condition": condition_name,
-            "message": f"Would you like me to find a doctor for {condition_name}?",
+            "message": offer_message,
         }
     )
 
