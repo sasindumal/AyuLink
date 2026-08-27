@@ -21,9 +21,23 @@ import {
     UserRound,
     Apple,
     PlayCircle,
+    Sparkles,
+    CalendarSearch,
 } from "lucide-react";
 
 const features = [
+    {
+        icon: Sparkles,
+        title: "AI Symptom Triage",
+        description:
+            "Describe how you're feeling in a chat — an AI assistant, grounded in a real medical knowledge graph, narrows things down and points you to the right specialist.",
+    },
+    {
+        icon: CalendarSearch,
+        title: "Find & Book Doctors",
+        description:
+            "Search by specialty, city, or rating — or browse by doctor or by channeling center — and book, reschedule, or cancel a real appointment slot in seconds.",
+    },
     {
         icon: QrCode,
         title: "Digital Medical ID",
@@ -34,13 +48,13 @@ const features = [
         icon: Stethoscope,
         title: "Digital Prescriptions",
         description:
-            "Doctors issue prescriptions digitally — no more lost paper chits or illegible handwriting.",
+            "Doctors issue structured prescriptions digitally — no more lost paper chits or illegible handwriting, with an expiry so old prescriptions archive themselves.",
     },
     {
         icon: Pill,
         title: "Instant Dispensing",
         description:
-            "Pharmacies scan a patient's Medical ID — or a single prescription's own QR — to verify and dispense medication, item by item.",
+            "Pharmacies scan a patient's Medical ID — or a single prescription's own QR, so nothing else is revealed — to verify and dispense medication, item by item.",
     },
     {
         icon: Shield,
@@ -53,8 +67,8 @@ const features = [
 const steps = [
     { step: "01", title: "Download the app", description: "Install AyuLink and register with your NIC" },
     { step: "02", title: "Get your Medical ID", description: "Your account comes with a unique QR-based Digital Medical ID" },
-    { step: "03", title: "Visit a doctor", description: "Show your QR code — the doctor issues a digital prescription" },
-    { step: "04", title: "Collect your medicine", description: "A pharmacy scans your QR to dispense your medication" },
+    { step: "03", title: "Find a doctor, or ask the AI", description: "Search by specialty, city, or rating — or describe your symptoms and let the AI assistant point you the right way" },
+    { step: "04", title: "Visit & collect", description: "Show your QR at the doctor for a digital prescription, then at the pharmacy to collect it" },
 ];
 
 const apps = [
@@ -63,19 +77,21 @@ const apps = [
         name: "AyuLink",
         audience: "For patients",
         description:
-            "Your Digital Medical ID, prescription history, appointment booking, and an AI assistant for symptom triage.",
+            "Your Digital Medical ID, an AI assistant for symptom triage, doctor & appointment discovery, and your full prescription history in one place.",
     },
     {
         icon: Stethoscope,
         name: "AyuLink Doctor",
         audience: "For doctors",
-        description: "Scan a patient's Medical ID and issue a structured digital prescription in minutes.",
+        description:
+            "Scan a patient's Medical ID and issue a structured digital prescription in minutes — editable for a day, with automatic expiry so nothing lingers.",
     },
     {
         icon: Pill,
         name: "AyuLink Pharmacy",
         audience: "For pharmacies",
-        description: "Scan and dispense against a prescription, item by item, with a 15-minute undo window.",
+        description:
+            "Scan a Medical ID or a single prescription's own QR and dispense item by item, with a 15-minute undo window.",
     },
     {
         icon: Building2,
@@ -124,9 +140,11 @@ export default function LandingPage() {
                         </h1>
 
                         <p className="text-lg text-text-secondary mt-6 max-w-lg leading-relaxed">
-                            AyuLink replaces paper prescriptions with a secure Digital Medical ID,
-                            connecting patients, doctors, pharmacies, and channeling centers on one
-                            platform — four free apps, one for each of you.
+                            From an AI symptom check-in to finding and booking a doctor to a
+                            digital prescription you can collect at any pharmacy — AyuLink
+                            connects patients, doctors, pharmacies, and channeling centers on
+                            one platform, with a QR-based Digital Medical ID at the center of
+                            it. Four free apps, one for each of you.
                         </p>
 
                         <div className="flex flex-wrap gap-4 mt-10">
@@ -243,11 +261,12 @@ export default function LandingPage() {
                             Why <span className="text-primary-action">AyuLink</span>?
                         </h2>
                         <p className="text-text-muted mt-3 max-w-lg mx-auto">
-                            A complete digital healthcare solution built for modern Sri Lanka
+                            From an AI-assisted first check-in to picking up medication —
+                            one connected platform for the whole visit
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {features.map((feature) => {
                             const Icon = feature.icon;
                             return (
