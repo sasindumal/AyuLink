@@ -46,6 +46,17 @@ export function PrescriptionConfirmModal({
                         <Text style={styles.diagnosisLabel}>Diagnosis</Text>
                         <Text style={styles.diagnosis}>{prescription.diagnosis}</Text>
 
+                        {(prescription.patientAge != null || prescription.patientWeightKg != null) && (
+                            <Text style={styles.ageWeight}>
+                                {[
+                                    prescription.patientAge != null ? `Age ${prescription.patientAge}` : null,
+                                    prescription.patientWeightKg != null ? `${prescription.patientWeightKg} kg` : null,
+                                ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                            </Text>
+                        )}
+
                         <Text style={styles.sectionTitle}>
                             Medications ({prescription.items.length})
                         </Text>
@@ -112,7 +123,8 @@ const styles = StyleSheet.create({
     title: { fontSize: 16, fontWeight: "800", color: colors.text },
     subtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
     diagnosisLabel: { fontSize: 11.5, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
-    diagnosis: { fontSize: 14.5, fontWeight: "700", color: colors.text, marginTop: 2, marginBottom: spacing.md },
+    diagnosis: { fontSize: 14.5, fontWeight: "700", color: colors.text, marginTop: 2, marginBottom: spacing.sm },
+    ageWeight: { fontSize: 12, color: colors.textMuted, marginTop: -4, marginBottom: spacing.md },
     sectionTitle: { fontSize: 12.5, fontWeight: "800", color: colors.primaryDark, marginBottom: spacing.sm },
     item: {
         borderTopWidth: 1,

@@ -55,6 +55,16 @@ function RxDispenseCard({
                         {rx.doctor ? `Dr. ${rx.doctor.firstName} ${rx.doctor.lastName}` : ""}
                         {rx.doctor?.doctorProfile ? ` · ${rx.doctor.doctorProfile.specialization}` : ""}
                     </Text>
+                    {(rx.patientAge != null || rx.patientWeightKg != null) && (
+                        <Text style={styles.rxMeta}>
+                            {[
+                                rx.patientAge != null ? `Age ${rx.patientAge}` : null,
+                                rx.patientWeightKg != null ? `${rx.patientWeightKg} kg` : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                        </Text>
+                    )}
                 </View>
                 <StatusBadge status={rx.status} />
             </View>

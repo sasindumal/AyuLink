@@ -71,6 +71,8 @@ export default function Scan() {
     const [patient, setPatient] = useState<PatientLookup | null>(null);
 
     const [diagnosis, setDiagnosis] = useState("");
+    const [age, setAge] = useState("");
+    const [weight, setWeight] = useState("");
     const [meds, setMeds] = useState<MedInput[]>([emptyMed()]);
     const [expiryDays, setExpiryDays] = useState<number | null>(30);
     const [submitting, setSubmitting] = useState(false);
@@ -96,6 +98,8 @@ export default function Scan() {
                 prescriptionsAsPatient: [],
             });
             setDiagnosis(p.diagnosis);
+            setAge(p.patientAge != null ? String(p.patientAge) : "");
+            setWeight(p.patientWeightKg != null ? String(p.patientWeightKg) : "");
             setMeds(
                 p.items.map((item) => {
                     const { amount, unit } = splitDosage(item.dosage);
@@ -124,6 +128,8 @@ export default function Scan() {
         setEditingId(null);
         setPatient(null);
         setDiagnosis("");
+        setAge("");
+        setWeight("");
         setMeds([emptyMed()]);
         setExpiryDays(30);
         router.replace("/(tabs)/prescriptions");
@@ -176,6 +182,16 @@ export default function Scan() {
             );
             return;
         }
+        const ageNum = age.trim() ? Number(age.trim()) : null;
+        if (ageNum !== null && (Number.isNaN(ageNum) || ageNum < 0 || ageNum > 150)) {
+            setError("Age must be a number between 0 and 150");
+            return;
+        }
+        const weightNum = weight.trim() ? Number(weight.trim()) : null;
+        if (weightNum !== null && (Number.isNaN(weightNum) || weightNum <= 0 || weightNum > 500)) {
+            setError("Weight must be a number between 0 and 500 kg");
+            return;
+        }
         setError(null);
         setSubmitting(true);
         try {
@@ -193,12 +209,16 @@ export default function Scan() {
                       p_diagnosis: diagnosis.trim(),
                       p_items: items,
                       p_expiry_days: expiryDays,
+                      p_patient_age: ageNum,
+                      p_patient_weight: weightNum,
                   })
                 : await rpc<Prescription>("app_create_prescription", {
                       p_patient_id: patient.id,
                       p_diagnosis: diagnosis.trim(),
                       p_items: items,
                       p_expiry_days: expiryDays,
+                      p_patient_age: ageNum,
+                      p_patient_weight: weightNum,
                   });
 
             setWasEdit(!!editingId);
@@ -220,6 +240,8 @@ export default function Scan() {
         setPatient(null);
         setManualId("");
         setDiagnosis("");
+        setAge("");
+        setWeight("");
         setMeds([emptyMed()]);
         setExpiryDays(30);
     };
@@ -317,6 +339,32 @@ export default function Scan() {
                                     onChangeText={setDiagnosis}
                                     style={{ marginBottom: 0 }}
                                 />
+                            </Card>
+
+                            <Text style={styles.sectionTitle}>Age &amp; Weight (optional)</Text>
+                            <Card style={{ marginBottom: spacing.md }}>
+                                <View style={styles.row}>
+                                    <View style={{ flex: 1 }}>
+                                        <Input
+                                            label="Age (years)"
+                                            placeholder="e.g. 34"
+                                            value={age}
+                                            onChangeText={setAge}
+                                            keyboardType="numeric"
+                                            style={{ marginBottom: 0 }}
+                                        />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Input
+                                            label="Weight (kg)"
+                                            placeholder="e.g. 68"
+                                            value={weight}
+                                            onChangeText={setWeight}
+                                            keyboardType="numeric"
+                                            style={{ marginBottom: 0 }}
+                                        />
+                                    </View>
+                                </View>
                             </Card>
 
                             <Text style={styles.sectionTitle}>Medications</Text>

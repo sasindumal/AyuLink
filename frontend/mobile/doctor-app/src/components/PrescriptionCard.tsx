@@ -78,6 +78,16 @@ export function PrescriptionCard({
 
             {expanded && (
                 <View style={styles.itemsWrap}>
+                    {(prescription.patientAge != null || prescription.patientWeightKg != null) && (
+                        <Text style={styles.ageWeight}>
+                            {[
+                                prescription.patientAge != null ? `Age ${prescription.patientAge}` : null,
+                                prescription.patientWeightKg != null ? `${prescription.patientWeightKg} kg` : null,
+                            ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                        </Text>
+                    )}
                     {prescription.items.map((item) => (
                         <View key={item.id} style={styles.item}>
                             <View style={styles.itemHeader}>
@@ -191,6 +201,12 @@ const styles = StyleSheet.create({
         borderTopWidth: 1,
         borderTopColor: colors.border,
         paddingTop: spacing.sm,
+    },
+    ageWeight: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: colors.textMuted,
+        marginBottom: spacing.sm,
     },
     item: {
         paddingVertical: 8,
