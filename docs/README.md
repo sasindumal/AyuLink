@@ -1,856 +1,311 @@
-# AyuLink – Digital Healthcare Platform
+# AyuLink — Full Project Documentation
 
-> **Complete Documentation** — Architecture · Setup · Run · Test · Build · Deploy
+This is the index/reference document for the whole AyuLink platform. For
+just getting something running, use the shorter per-package guides
+([`frontend/mobile/README.md`](../frontend/mobile/README.md),
+[`backend/README.md`](../backend/README.md)) — come back here for how
+everything fits together, the full database schema, and cross-app flows.
+For the AI assistant's multi-agent system specifically, see
+[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md).
 
----
+## Contents
 
-## Table of Contents
-
-1. [Project Overview](#1-project-overview)
-2. [Tech Stack](#2-tech-stack)
-3. [Architecture](#3-architecture)
-4. [Directory Structure](#4-directory-structure)
-5. [Prerequisites](#5-prerequisites)
-6. [Setup & Installation](#6-setup--installation)
-7. [Running the Application](#7-running-the-application)
+1. [Overview](#1-overview)
+2. [Architecture](#2-architecture)
+3. [Tech Stack](#3-tech-stack)
+4. [The Four Mobile Apps](#4-the-four-mobile-apps)
+5. [Database Schema](#5-database-schema)
+6. [Key Data Flows](#6-key-data-flows)
+7. [AI Assistant (Agentic System)](#7-ai-assistant-agentic-system)
 8. [Database Management](#8-database-management)
-9. [Authentication & Security](#9-authentication--security)
-10. [API Reference](#10-api-reference)
-11. [Frontend Pages & Components](#11-frontend-pages--components)
-12. [Environment Variables](#12-environment-variables)
-13. [Building for Production](#13-building-for-production)
-14. [Testing Guide](#14-testing-guide)
-15. [Deployment](#15-deployment)
-16. [Troubleshooting](#16-troubleshooting)
+9. [Known Gaps / Notes](#9-known-gaps--notes)
 
 ---
 
-## 1. Project Overview
+## 1. Overview
 
-AyuLink is a **digital healthcare platform** built for Sri Lanka's healthcare ecosystem. It replaces paper prescriptions with a secure **Digital Medical ID** and digital prescription system, connecting **Patients**, **Doctors**, and **Pharmacists** through a unified web application.
+AyuLink digitizes the patient-doctor-pharmacy-channeling-center loop for a
+Sri Lankan healthcare context:
 
-### Core Features
+- A **patient** carries one QR code (their Medical ID) instead of a paper
+  record, can find and book a doctor's appointment several ways, and can
+  talk to an AI assistant that triages symptoms against a real medical
+  knowledge graph and can search for and book a doctor on their behalf.
+- A **doctor** scans that QR (or types the Medical ID), sees the patient's
+  history, and issues a structured digital prescription — no handwriting,
+  no paper.
+- A **pharmacy** scans either the patient's Medical ID (sees every active
+  prescription) or a *specific prescription's own* QR (patients can show
+  just one, so the pharmacy never sees the others) and dispenses
+  medication item-by-item, with a 15-minute undo window.
+- A **channeling center** manages the appointments booked at its location
+  — confirm, reschedule, cancel, mark complete — independent of whichever
+  app the patient used to book.
 
-| Feature | Description |
-|---------|-------------|
-| **Digital Medical ID** | NIC-derived QR code identity (`AYU-<NIC>`) for every patient |
-| **Role-Based Dashboards** | Tailored UIs for Patient, Doctor, and Pharmacist |
-| **Digital Prescriptions** | Doctors create structured prescriptions with medication items |
-| **QR Code Scanning** | Doctors/Pharmacists scan patient QR codes to look up records |
-| **Pharmacy Dispensing** | Per-item dispensing with 15-minute revert window |
-| **Three-State Tracking** | `NOT_DISPENSED` → `PARTIALLY_DISPENSED` → `FULLY_DISPENSED` |
-| **Provider Verification** | Self-registered doctors/pharmacists must be approved before issuing or dispensing |
+Everything is one Supabase Postgres database shared by all four apps
+(and, optionally, a Next.js web app — not covered here, see its own
+directory if present). There is no custom backend server for the CRUD
+apps — every mobile app talks to Supabase directly via `supabase-js`. The
+one exception is the patient app's **Assistant** tab, which talks to a
+separate LangGraph + FastAPI service (`backend/`) for the parts a plain
+CRUD API can't do: LLM-driven conversation, a symptom→disease→specialty
+knowledge graph, and human-in-the-loop booking.
 
-### Demo Credentials
-
-| Role | NIC Number | Password |
-|------|-----------|----------|
-| 👤 Patient | `200012345678` | `password123` |
-| 🩺 Doctor | `199812345678` | `password123` |
-| 💊 Pharmacist | `199512345678` | `password123` |
-
----
-
-## 2. Tech Stack
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Framework** | Next.js (App Router) | 15.1+ |
-| **Runtime** | React | 19.0 |
-| **Language** | TypeScript | 5.7+ |
-| **Styling** | Tailwind CSS v4 | 4.0 |
-| **Database** | Supabase (managed PostgreSQL) | — |
-| **DB Client** | @supabase/supabase-js | 2.x |
-| **Auth** | NextAuth.js (Credentials) | 4.24 |
-| **Validation** | zod | 4.x |
-| **Password Hashing** | bcryptjs | 2.4 |
-| **QR Generation** | qrcode.react | 4.2 |
-| **QR Scanning** | html5-qrcode | 2.3 |
-| **Icons** | lucide-react | 0.474 |
-| **Font** | Plus Jakarta Sans | Google Fonts |
-| **Bundler** | Turbopack (dev) | Built-in |
-
----
-
-## 3. Architecture
-
-### 3.1 System Architecture
+## 2. Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│                 Browser (React 19)              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────────────┐ │
-│  │ Landing  │ │  Login / │ │  Role Dashboards │ │
-│  │  Page    │ │ Register │ │ Patient/Doctor/  │ │
-│  │          │ │          │ │ Pharmacist       │ │
-│  └──────────┘ └──────────┘ └──────────────────┘ │
-└─────────────────────┬───────────────────────────┘
-                      │ HTTP/HTTPS
-┌─────────────────────▼───────────────────────────┐
-│              Next.js 15 Server                  │
-│  ┌──────────────┐ ┌───────────┐ ┌─────────────┐ │
-│  │ API Routes   │ │ NextAuth  │ │ zod input   │ │
-│  │ (Handlers)   │ │ (JWT)     │ │ validation  │ │
-│  └──────┬───────┘ └───────────┘ └─────────────┘ │
-│         │  supabase-js (service role key)       │
-└─────────┼───────────────────────────────────────┘
-          │ PostgREST over HTTPS
-┌─────────▼───────────────────────────────────────┐
-│           Supabase (PostgreSQL)                 │
-│  ┌──────┐ ┌───────────┐ ┌────────────┐          │
-│  │ User │ │ Prescrip- │ │ Doctor/    │          │
-│  │      │ │ tion      │ │ Pharmacy   │          │
-│  │      │ │ + Items   │ │ Profiles   │          │
-│  └──────┘ └───────────┘ └────────────┘          │
-│  RLS enabled (deny-all; service role only)      │
-│  3 SQL functions for transactional writes       │
-└─────────────────────────────────────────────────┘
+┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────────────┐
+│   Patient app    │  │   Doctor app    │  │  Pharmacy app   │  │ Channeling Center app     │
+│  (Expo/RN)       │  │  (Expo/RN)      │  │  (Expo/RN)      │  │  (Expo/RN)                │
+└────────┬─────────┘  └────────┬────────┘  └────────┬────────┘  └────────┬──────────────────┘
+         │  supabase-js (anon key) — every op is an RPC call, RLS deny-all otherwise
+         └──────────────────────────┬──────────────────────────────────────┘
+                                     ▼
+                       ┌────────────────────────────┐
+                       │   Supabase Postgres          │
+                       │   - RLS (deny-all)            │
+                       │   - SECURITY DEFINER app_* RPCs│
+                       │   - Supabase Auth              │
+                       │   - pg_net → Expo push API      │
+                       └────────────────────────────┘
+                                     ▲
+                                     │ Postgres RPCs (patient's own JWT)
+                                     │ + LangGraph checkpoints
+                       ┌────────────────────────────┐
+                       │  backend/ — FastAPI + LangGraph │
+                       │  multi-agent StateGraph          │
+                       │  (patient app's Assistant tab only)│
+                       └───────────┬────────────────┘
+                                   │ Cypher (read-only)
+                                   ▼
+                       ┌────────────────────────────┐
+                       │   Neo4j Aura knowledge graph │
+                       │  Specialty→Disease→Symptom     │
+                       │  + vector index for hybrid search│
+                       └────────────────────────────┘
 ```
 
-**Key architectural decisions**
+Each mobile app is fully independent (own `package.json`, own Expo
+project, own `app.json`/bundle id) but shares the same `src/components/ui.tsx`
+design-system pattern, the same `src/lib/api.ts` thin RPC wrapper, and the
+same Postgres schema/RPCs. There is no shared npm package between them —
+consistency is maintained by convention, not by code sharing.
 
-- **All database access is server-side.** API routes use a singleton supabase-js client authenticated with the **service role key** ([src/lib/supabase.ts](../src/lib/supabase.ts)). The browser never talks to Supabase directly.
-- **Row Level Security is enabled on every table with no policies**, so the anon key cannot read or write anything. Only the service role (which bypasses RLS) has access.
-- **Multi-table writes are atomic.** Registration, prescription creation, and dispensing each call a Postgres function via `supabase.rpc()`, so partial writes cannot occur and concurrent dispenses are serialized with row locks.
-- **API response shapes mirror the old ORM output.** Tables and columns keep camelCase names (quoted identifiers), and PostgREST embedded selects reproduce the nested `items` / `patient` / `doctor` structure the frontend expects.
+## 3. Tech Stack
 
-### 3.2 Page Navigation Flow
+| Layer | Technology |
+|---|---|
+| Mobile UI | React Native 0.81, Expo SDK 54, Expo Router (file-based routing), TypeScript |
+| Mobile data | `supabase-js` (anon key), calling `rpc()` exclusively — no direct table access |
+| QR | `react-native-qrcode-svg` (generate), `expo-camera` (scan) |
+| Push notifications | `expo-notifications` + Expo's push API, triggered from a Postgres trigger via `pg_net` |
+| Database | Supabase Postgres — Row Level Security (deny-all), `SECURITY DEFINER` PL/pgSQL functions (`app_*`) as the only access path |
+| Auth | Supabase Auth (email/password) — NIC/license number mapped to a synthetic email under the hood |
+| AI backend framework | FastAPI (Python), Server-Sent Events for streaming |
+| Agent orchestration | LangGraph (`StateGraph`, `interrupt()`/`Command(resume=...)` for human-in-the-loop, Postgres-backed checkpointing) |
+| LLM abstraction | LangChain (`BaseChatModel`, `Embeddings`) — provider-agnostic call sites |
+| LLM providers (choose one) | Local [LM Studio](https://lmstudio.ai) (fully offline), Google AI Studio (Gemini), or OpenRouter |
+| Knowledge graph | Neo4j Aura — `Specialty`→`Disease`→`Symptom` graph + a vector index for embedding-based symptom search |
+| PDF/image ingestion | PyMuPDF (text/page extraction), a vision-capable LLM (report image description) |
 
-```
-Landing (/) ──► Login (/login) ──► Role-based redirect
-            └─► Register (/register)
+See [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) for the AI backend in depth.
 
-Patient:    /patient/dashboard ──► /patient/medical-id
-                               └─► /patient/prescriptions
+## 4. The Four Mobile Apps
 
-Doctor:     /doctor/dashboard  ──► /doctor/scan
-                               └─► /doctor/prescriptions
+### AyuLink (patient app)
 
-Pharmacist: /pharmacy/dashboard ──► /pharmacy/dispense
-                                └─► /pharmacy/records
-```
+- **Auth**: register/sign in with NIC + password.
+- **Home**: greeting, notification bell (unread badge), recent AI treatments, quick actions.
+- **Medical ID**: a full-screen QR code encoding the patient's Medical ID (`AYU-<NIC>`) — shown to doctors and pharmacies for lookup.
+- **Appointments** tab, four discovery modes:
+  - **Quick Search** — filter by specialty (category picker from the DB), city, minimum rating; sort by soonest/nearest/rating; each result shows the soonest slot for that doctor, with a link into their full availability.
+  - **By Doctor** — search doctors by specialty/city/min-rating, pick one, see every upcoming slot they hold over the next 14 days (searchable/sortable by center, nearest, soonest).
+  - **By Center** — browse channeling centers (searchable, sortable by name/nearest), pick one, see every doctor available there.
+  - **My Appointments** — upcoming/past split, searchable, filterable by specialty/city, sortable by doctor/center/date-time; each card opens a detail modal with Reschedule/Cancel/Open-in-Maps and, if it came from an AI diagnosis, a link back to that chat.
+- **Prescriptions** tab — always sorted by most recent; an **Active** section (not/partially dispensed) and a **Dispensed** archive section below it (fully dispensed or expired); searching looks across every status at once. Each prescription can show a QR unique to itself (not the patient's Medical ID) so a pharmacy scanning it sees *only that one prescription*.
+- **Treatments** tab — the patient's AI-diagnosis history; a treatment's displayed name is the AI's own working diagnosis until a doctor who saw them for that booked appointment issues a prescription, at which point the prescription's diagnosis text becomes the permanent, confirmed name.
+- **Diagnosis (Assistant)** — a chat screen backed by `backend/`: symptom triage, doctor search, and booking, all through one conversation. Renders full Markdown (bold, lists, headings, code, links). Voice UI is present but currently stubbed ("coming soon") — see §9.
+- **Notifications** — persisted history of appointment events (booked/rescheduled/cancelled/completed).
 
-### 3.3 Prescription Lifecycle
+### AyuLink Doctor
 
-```
-1. Patient visits Doctor (shows QR Medical ID)
-2. Doctor scans QR → GET /api/patients/[medicalId] → Patient info
-3. Doctor creates Rx → POST /api/prescriptions → Status: NOT_DISPENSED
-   (doctor must be verified)
-4. Patient views Rx in their dashboard
-5. Patient visits Pharmacy (shows QR)
-6. Pharmacist looks up patient → active prescriptions listed
-7. Pharmacist dispenses items → PUT /api/prescriptions/[id]
-   - Each item toggles individually (pharmacist must be verified)
-   - Status auto-computes atomically: NOT_DISPENSED → PARTIALLY → FULLY_DISPENSED
-   - 15-minute revert window for undoing a dispense
-```
+- **Home**: greeting, notification bell, "Scan & Prescribe" shortcut, recent prescriptions.
+- **Scan & Prescribe**: scan a patient's Medical ID QR (or type it), then build a prescription — diagnosis, optional age/weight, and one or more medications (drug name; dosage as a separate manually-typed amount + a unit **dropdown** that also accepts a typed custom unit; frequency and duration as free text with one-tap common presets, e.g. `1-0-1`, `7 days`); set an expiry duration (7/14/30/60/90 days, or *Never*, default 30). Submitting shows a full-detail confirmation modal before returning to the patient lookup screen.
+- **Issued** tab: every prescription this doctor has issued, always sorted by most recent; search by patient/medical ID/diagnosis; filter by exact issue date; "look up by patient" (scan or type a Medical ID) narrows the list to one patient. A prescription can be **edited or deleted only within 1 day of issuing, and only while nothing on it has been dispensed or it hasn't expired** — enforced both in the UI and in the database RPC.
+- Registration collects up to 5 specialties (multi-select from the canonical DB list) — a doctor is then searchable under any one of them.
 
-### 3.4 Database Schema (ERD)
+### AyuLink Pharmacy
 
-```
-┌──────────────────────┐       ┌──────────────────────┐
-│        User          │       │    DoctorProfile     │
-├──────────────────────┤       ├──────────────────────┤
-│ id          text PK  │──┐    │ id          text PK  │
-│ nicNumber   text UK  │  │    │ userId      text FK  │◄──┐
-│ firstName   text     │  │    │ slmcRegNo   text UK  │   │
-│ lastName    text     │  │    │ specialization text  │   │
-│ mobileNumber text    │  │    │ hospitalName text    │   │
-│ dob         timestamptz│ │    └──────────────────────┘   │
-│ passwordHash text    │  │                               │
-│ role        Role     │  ├───────────────────────────────┘
-│ verified    boolean  │  │
-│ medicalId   text UK  │  │    ┌──────────────────────┐
-│ createdAt   timestamptz│ │    │   PharmacyProfile    │
-│ updatedAt   timestamptz│ │    ├──────────────────────┤
-└──────────────────────┘  │    │ id            text PK│
-         │                └───►│ userId        text FK│
-         │                     │ pharmacyName  text   │
-         │                     │ licenseNumber text UK│
-         ▼                     │ pharmacyAddress text │
-┌──────────────────────┐       └──────────────────────┘
-│    Prescription      │
-├──────────────────────┤
-│ id         text PK   │
-│ patientId  text FK   │◄── User (patient)
-│ doctorId   text FK   │◄── User (doctor)
-│ dateIssued timestamptz│
-│ diagnosis  text      │
-│ status     Enum      │  NOT_DISPENSED | PARTIALLY_DISPENSED | FULLY_DISPENSED
-└──────────┬───────────┘
-           │
-           ▼ (1:many)
-┌──────────────────────┐
-│  PrescriptionItem    │
-├──────────────────────┤
-│ id             text PK│
-│ prescriptionId text FK│
-│ drugName       text   │
-│ dosage         text   │
-│ frequency      text   │
-│ duration       text   │
-│ instructions   text   │
-│ dispensed      boolean│
-│ dispensedAt    timestamptz?│
-│ dispensedById  text FK?│◄── User (pharmacist)
-└──────────────────────┘
-```
+- **Home**: pharmacy identity card, stats (prescriptions seen / items dispensed / patients served), notification bell.
+- **Dispense**: scan a QR. If it's a patient's Medical ID, shows every active (not fully dispensed, not expired) prescription for that patient. If it's a *specific prescription's* own QR, shows **only that one prescription** — the patient's other pending prescriptions are never revealed this way. Dispensing is per medication item, with a 15-minute undo window; a fully dispensed or expired prescription refuses further dispensing at the database level, not just in the UI.
+- **Records**: everything this pharmacy has ever dispensed.
 
-All IDs are UUIDs stored as `text` (`gen_random_uuid()::text`). `updatedAt` is maintained by a database trigger.
+### AyuLink Channeling Center
 
-### 3.5 Database Functions (RPC)
+- **Home**: center identity, today/upcoming/completed stats, notification bell.
+- **Appointments**: every appointment booked at this center — confirm, reschedule, cancel, or mark complete.
 
-| Function | Called by | Purpose |
-|----------|-----------|---------|
-| `create_user_with_profile(p_user, p_doctor, p_pharmacy)` | `POST /api/auth/register` | Inserts the user and their doctor/pharmacy profile in one transaction. Sets `verified = true` only for patients. |
-| `create_prescription_with_items(p_patient_id, p_doctor_id, p_diagnosis, p_items)` | `POST /api/prescriptions` | Inserts a prescription and all of its items in one transaction. |
-| `dispense_prescription_item(p_prescription_id, p_item_id, p_dispensed, p_pharmacist_id)` | `PUT /api/prescriptions/[id]` | Locks the prescription row, updates the item, enforces the 15-minute revert window, and recomputes the three-state status — all atomically. |
+## 5. Database Schema
 
----
+All access goes through role-checked `SECURITY DEFINER` functions
+(`app_*`) called via `supabase.rpc()`. Every table has Row Level Security
+enabled with **no** policies, so the anon key shipped in every app cannot
+read or write a table directly — only these functions can, and each one
+starts by resolving `auth.uid()` and checking the caller's role. This is
+the single access-control pattern for the entire platform; there is no
+separate authorization layer to keep in sync.
 
-## 4. Directory Structure
+### Core tables
 
-```
-AyuLink/
-├── supabase/
-│   └── migrations/
-│       └── 20260719000000_init.sql   # Full schema: tables, enums, indexes,
-│                                     # triggers, RPC functions, RLS
-├── public/
-│   ├── logo.png                   # Brand logo (PNG)
-│   ├── logo.svg                   # Brand logo (SVG)
-│   ├── logo-white.jpg             # White variant for dark backgrounds
-│   └── screenshots/               # README screenshots
-│
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx             # Root layout (font, metadata, AuthProvider)
-│   │   ├── page.tsx               # Landing page (/)
-│   │   ├── globals.css            # Design tokens + component styles
-│   │   ├── login/page.tsx         # Login page
-│   │   ├── register/page.tsx      # Multi-step registration
-│   │   │
-│   │   ├── patient/               # Patient dashboard pages
-│   │   │   ├── layout.tsx         # Role guard (PATIENT only)
-│   │   │   ├── dashboard/page.tsx
-│   │   │   ├── medical-id/page.tsx
-│   │   │   └── prescriptions/page.tsx
-│   │   │
-│   │   ├── doctor/                # Doctor dashboard pages
-│   │   │   ├── layout.tsx         # Role guard (DOCTOR only)
-│   │   │   ├── dashboard/page.tsx
-│   │   │   ├── scan/page.tsx
-│   │   │   └── prescriptions/page.tsx
-│   │   │
-│   │   ├── pharmacy/              # Pharmacy dashboard pages
-│   │   │   ├── layout.tsx         # Role guard (PHARMACIST only)
-│   │   │   ├── dashboard/page.tsx
-│   │   │   ├── dispense/page.tsx
-│   │   │   └── records/page.tsx
-│   │   │
-│   │   └── api/                   # API Route Handlers
-│   │       ├── auth/[...nextauth]/route.ts   # NextAuth handler
-│   │       ├── auth/register/route.ts        # POST registration
-│   │       ├── patients/[medicalId]/route.ts # GET patient lookup
-│   │       ├── prescriptions/route.ts        # GET list / POST create
-│   │       ├── prescriptions/[id]/route.ts   # GET detail / PUT dispense
-│   │       ├── pharmacy/profile/route.ts     # GET pharmacy profile
-│   │       └── seed/route.ts                 # GET seed (dev only)
-│   │
-│   ├── components/
-│   │   ├── AuthProvider.tsx       # NextAuth SessionProvider wrapper
-│   │   ├── DashboardLayout.tsx    # Sidebar + main content + role guard
-│   │   ├── Sidebar.tsx            # Role-based navigation sidebar
-│   │   ├── PrescriptionCard.tsx   # Expandable prescription display
-│   │   ├── QRCodeDisplay.tsx      # QR code generator component
-│   │   └── QRScanner.tsx          # Camera-based QR scanner
-│   │
-│   ├── lib/
-│   │   ├── auth.ts                # NextAuth config (credentials, JWT, throttling)
-│   │   ├── supabase.ts            # Supabase server client (service role, singleton)
-│   │   ├── rate-limit.ts          # In-memory fixed-window rate limiter
-│   │   ├── validation.ts          # zod schemas for all mutating routes
-│   │   └── utils.ts               # cn() utility (clsx + tailwind-merge)
-│   │
-│   └── types/
-│       ├── db.ts                  # Role / PrescriptionStatus enums
-│       └── next-auth.d.ts         # NextAuth type augmentations
-│
-├── .env.example                   # Template for environment variables
-├── .env                           # Environment variables (not committed)
-├── next.config.ts                 # Next.js configuration
-├── tsconfig.json                  # TypeScript configuration
-├── postcss.config.mjs             # PostCSS (Tailwind v4)
-└── package.json                   # Dependencies & scripts
+| Table | Purpose |
+|---|---|
+| `User` | Every account, one row regardless of role (`PATIENT`/`DOCTOR`/`PHARMACIST`/`CHANNELING_CENTER`). Holds the Medical ID (`AYU-<NIC>`), `verified` flag (self-registered non-patients start unverified). |
+| `DoctorProfile` | 1:1 with a doctor `User` — SLMC registration number, legacy free-text specialty, rating. |
+| `PharmacyProfile` | 1:1 with a pharmacist `User` — pharmacy name, license number, location (`point`). |
+| `ChannelingCenter` | 1:1 with a channeling-center `User` — name, address, contact number, location (`point`). |
+| `Specialty` | Canonical specialty reference list (30+ names, matching the Neo4j graph's `Specialty` nodes 1:1) — powers every specialty picker in every app. |
+| `DoctorSpecialty` | Join table: a doctor can hold up to 5 specialties; search matches on any of them. |
+| `DoctorSchedule` | A doctor's *recurring weekly template* at one center (day of week + time range) — distinct from a dated `Appointment`. |
+| `Appointment` | One booked slot: patient, doctor, center, date/time, status (`BOOKED`/`COMPLETED`/`CANCELLED`), a per-patient order number (`APT-<NIC>-0001`, ascending, assigned once), symptom-only `reason` (never a disease name — generated fresh by the AI at booking time when booked via chat), cancellation audit fields. |
+| `Prescription` | Diagnosis text, status (`NOT_DISPENSED`/`PARTIALLY_DISPENSED`/`FULLY_DISPENSED`, plus a *derived* `EXPIRED` — see below), optional patient age/weight recorded at issue time, `expires_at` (null = never expires). |
+| `PrescriptionItem` | One medication line: drug name, dosage, frequency, duration, instructions, dispensed state + who/when. |
+| `Treatment` | One AI-assisted diagnosis session (from `backend/`), linkable to a booked `Appointment`; displayed name is the AI's own `disease_name` until a doctor's prescription confirms it (`confirmed_diagnosis` + `confirming_prescription_id`). |
+| `Notification` | Persisted history of appointment events (booked/rescheduled/cancelled/completed), delivered to patient + doctor + channeling center. |
+| `DeviceToken` | Expo push tokens, per user. |
+| `MobileOtp` | (Reserved) OTP support. |
+
+### The `EXPIRED` status is derived, not stored
+
+`Prescription.status` in the database only ever holds
+`NOT_DISPENSED`/`PARTIALLY_DISPENSED`/`FULLY_DISPENSED` — there is no
+`EXPIRED` value in the Postgres enum. `prescription_json()` computes the
+value every app actually sees:
+
+```sql
+case when expires_at is not null and now() > expires_at
+     then 'EXPIRED' else status::text end
 ```
 
----
+A `null` `expires_at` ("Never" at issue time) means a prescription can
+never become `EXPIRED`, no matter how long ago it was fully dispensed.
+Any other prescription — fully, partially, or not dispensed — becomes
+`EXPIRED` once its time is up, at which point the patient app moves it
+into the Dispensed/archive section and the pharmacy refuses to dispense
+against it. The same pattern (a computed field overriding the raw column
+in the JSON the RPC returns) is used for `Treatment.disease_name`.
 
-## 5. Prerequisites
+### RPC functions, by area
 
-| Requirement | Version | Check Command |
-|-------------|---------|---------------|
-| **Node.js** | 18.17+ | `node -v` |
-| **npm** | 9+ | `npm -v` |
-| **Supabase account** | Free tier is fine | [supabase.com](https://supabase.com) |
-| **Git** | Any | `git --version` |
-| **Supabase CLI** (optional) | Latest | `supabase --version` |
+*(Full source: [`supabase/migrations/`](../supabase/migrations), applied in filename order.)*
 
-No local PostgreSQL installation is needed — the database is hosted by Supabase.
+- **Profile/auth**: `app_get_my_profile`, `app_register_profile`, `app_login_email_for_license`, `app_register_push_token`
+- **Doctor discovery**: `app_search_doctors`, `app_search_doctor_slots`, `app_get_doctor_availability`, `app_get_center_availability`, `app_list_channeling_centers`, `app_list_specialties`, `app_list_cities`
+- **Doctor's own schedule**: `app_get_my_schedule`, `app_upsert_schedule_slot`, `app_delete_schedule_slot`
+- **Appointments**: `app_book_appointment`, `app_reschedule_appointment`, `app_cancel_appointment`, `app_complete_appointment`, `app_list_my_appointments`, `app_list_center_appointments`
+- **Prescriptions**: `app_create_prescription`, `app_update_prescription` (doctor, within 1 day, nothing dispensed, not expired), `app_delete_prescription` (same guard), `app_list_prescriptions` (role-filtered: a patient's own, a doctor's issued, a pharmacist's dispensed-from), `app_lookup_patient` (Medical ID → patient + all their prescriptions), `app_lookup_prescription_by_id` (a *single* prescription's own QR → just that one, refuses a fully-dispensed or expired one), `app_dispense_item` (per-item dispense/undo, 15-minute window)
+- **Treatments (AI diagnoses)**: `app_create_treatment`, `app_link_treatment_appointment`, `app_unlink_treatment_appointment`, `app_delete_treatment`, `app_list_my_treatments`
+- **Notifications**: `app_list_notifications`, `app_mark_notification_read`, `app_mark_all_notifications_read`, `app_unread_notification_count`
+- **Role profiles**: `app_get_pharmacy_profile`, `app_get_my_channeling_center_profile`
 
----
+## 6. Key Data Flows
 
-## 6. Setup & Installation
+**Booking an appointment (either app UI or AI chat)** — search →
+pick a slot → `app_book_appointment` (or, via chat, the agent's
+`booking_agent` node calling the same RPC with the patient's own JWT) →
+a Postgres trigger on `Appointment` inserts `Notification` rows for the
+patient, the doctor, and the channeling center, and best-effort fires an
+Expo push via `pg_net` → the channeling center's app shows it; the
+patient can reschedule/cancel from either side.
 
-### Step 1: Clone the Repository
+**Prescription lifecycle** — doctor issues (`app_create_prescription`,
+optional expiry) → patient sees it as *Active*, can show its own QR →
+pharmacy scans (either the patient's Medical ID for the full active list,
+or the prescription's own QR for just that one) → dispenses items
+(`app_dispense_item`) → once every item is dispensed, or once
+`expires_at` passes (whichever happens first, per the derived-status rule
+above), it moves to the patient's Dispensed/archive section and can no
+longer be edited, deleted, or dispensed against.
 
-```bash
-git clone https://github.com/your-username/AyuLink.git
-cd AyuLink
-```
+**AI diagnosis → confirmed treatment name** — a patient's Diagnosis chat
+creates a `Treatment` with the AI's own tentative name; if the chat books
+an appointment, that gets linked. If the doctor the patient actually sees
+for that appointment later issues a prescription, `app_create_prescription`
+finds the matching unconfirmed `Treatment` (by patient + that doctor's
+linked appointment) and sets its `confirmed_diagnosis` to the doctor's own
+diagnosis text — from then on, that's the name shown in the Treatments
+tab, not the AI's guess.
 
-### Step 2: Install Dependencies
+**Per-prescription QR vs. Medical ID QR** — the Medical ID QR is a
+standing "show me everything" credential (any pharmacist scanning it sees
+every active prescription); a prescription's own QR is scoped to just
+that one record. Both are validated purely by Postgres RPC role/ownership
+checks at scan time — there is no separate signing/expiry scheme on the
+QR payload itself, consistent with how every other permission in this
+system is enforced at the database layer, not client-side.
 
-```bash
-npm install
-```
+## 7. AI Assistant (Agentic System)
 
-### Step 3: Create a Supabase Project
+The patient app's Diagnosis/Assistant tab is a LangGraph multi-agent
+system: a manager routes each turn to a clinical-triage branch (grounded
+in a Neo4j symptom→disease→specialty knowledge graph, with hybrid
+exact+vector retrieval), a doctor-search branch, or a booking branch, with
+human-in-the-loop `interrupt()`s wherever the patient needs to make a
+choice, all streamed to the client over Server-Sent Events and persisted
+via a Postgres-backed checkpointer so a conversation survives a server
+restart or a resumed thread days later.
 
-1. Sign in at [supabase.com](https://supabase.com) and create a new project.
-2. From **Project Settings → API**, note your **Project URL** and **service_role key**.
-
-### Step 4: Configure Environment
-
-Copy the template and fill in your values:
-
-```bash
-cp .env.example .env
-```
-
-```env
-# Supabase (Project Settings -> API)
-NEXT_PUBLIC_SUPABASE_URL="https://YOUR_PROJECT_REF.supabase.co"
-SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY"
-
-# NextAuth.js configuration
-NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="generate-a-strong-random-secret-here"
-```
-
-> **Generate a secret:** `openssl rand -base64 32`
->
-> ⚠️ The **service role key bypasses Row Level Security**. It must only ever live
-> in server-side environment variables — never expose it to the browser or
-> commit it to version control.
-
-### Step 5: Apply the Database Schema
-
-Run [supabase/migrations/20260719000000_init.sql](../supabase/migrations/20260719000000_init.sql) against your project. Either:
-
-**Option A — Dashboard:** open **SQL Editor** in the Supabase Dashboard, paste the file's contents, and run it.
-
-**Option B — Supabase CLI:**
-
-```bash
-supabase link --project-ref YOUR_PROJECT_REF
-supabase db push
-```
-
-This creates the tables, enums, indexes, `updatedAt` triggers, the database functions, and enables RLS.
-
-> **Re-running on an existing project?** The migration needs a clean database.
-> Run [`supabase/reset.sql`](../supabase/reset.sql) in the SQL Editor first —
-> ⚠️ it drops every AyuLink table, function, and enum, and deletes **all app
-> logins** (`auth.users`) — then run the init migration again.
-
-### Step 6: Seed Demo Data
-
-Run [`supabase/seed.sql`](../supabase/seed.sql) in the Supabase **SQL Editor** —
-it creates the auth accounts, profiles, and sample prescriptions directly, with
-no server required. Alternatively, start the dev server (`npm run dev`) and
-visit `http://localhost:3000/api/seed`.
-
-Either way you get 3 pre-verified demo accounts (Patient, Doctor, Pharmacist
-with the "MediCare Pharmacy" profile, license `PL-2024-001`) and 2 sample
-prescriptions. Both seeding paths are idempotent; the API route is blocked in
-production.
-
----
-
-## 7. Running the Application
-
-### Development Server (Turbopack)
-
-```bash
-npm run dev
-```
-
-Opens at **http://localhost:3000** with hot module replacement via Turbopack.
-
-### Available Scripts
-
-| Script | Command | Description |
-|--------|---------|-------------|
-| `dev` | `next dev --turbopack` | Start dev server with Turbopack |
-| `build` | `next build` | Create production build |
-| `start` | `next start` | Start production server |
-| `lint` | `next lint` | Run ESLint |
-
----
+Full architecture, every node's responsibility, the state schema, the SSE
+event vocabulary, and the LLM-provider abstraction: **[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md)**.
 
 ## 8. Database Management
 
-### Everyday Tasks
-
-| Task | How |
-|------|-----|
-| Browse / edit data | Supabase Dashboard → **Table Editor** |
-| Run ad-hoc SQL | Supabase Dashboard → **SQL Editor** |
-| Apply schema changes | Add a new file to `supabase/migrations/` and run `supabase db push` (or paste into the SQL Editor) |
-| Verify a doctor/pharmacist | Table Editor → `User` → set `verified = true` on their row |
-| Reset demo data | Delete rows in the Table Editor, then re-run `supabase/seed.sql` (or visit `/api/seed`) |
-| Inspect logs | Supabase Dashboard → **Logs** |
-
-### Browser-Based Seeding (Dev Only)
-
-Visit **http://localhost:3000/api/seed** to seed via browser. Blocked when `NODE_ENV=production`.
-
-### Provider Verification
-
-Doctors and pharmacists who self-register start with `verified = false` and receive
-`403` responses from issue/dispense endpoints until an administrator flips
-`verified` to `true` in the `User` table. Patients are auto-verified at
-registration. Seeded demo accounts are pre-verified.
-
----
-
-## 9. Authentication & Security
-
-### How Login Works
-
-```
-1. User submits NIC + password (or License Number for pharmacists)
-2. Attempt is rate-limited: max 5 tries per 15 minutes per IP + identifier
-3. NextAuth CredentialsProvider looks up the user in Supabase
-4. bcrypt.compare() validates the password (12 salt rounds)
-5. Any failure returns the same generic "Invalid credentials" error
-   (no user enumeration)
-6. JWT token is issued with: id, role, medicalId, firstName, lastName, nicNumber
-7. Token stored as HTTP-only cookie (24-hour expiry)
-8. Subsequent requests: JWT is verified, session populated from token
-```
-
-### Security Measures
-
-| Concern | Implementation |
-|---------|----------------|
-| **Passwords** | bcrypt, 12 salt rounds; 8-character minimum enforced server-side |
-| **Sessions** | JWT, 24-hour expiry, HTTP-only cookies |
-| **Login throttling** | 5 attempts / 15 min per IP+identifier; registration 10 / hour per IP |
-| **User enumeration** | Single generic "Invalid credentials" message for all failures |
-| **Input validation** | zod schemas on every mutating route (NIC format, mobile format, past-date DOB, item shape) |
-| **API authorization** | Session + role checks on every endpoint |
-| **Object-level access** | Patients can only read their own prescriptions; doctors only ones they issued; unauthorized lookups return 404 |
-| **Provider gating** | Unverified doctors/pharmacists cannot issue or dispense |
-| **Database exposure** | RLS enabled deny-all; only the server's service role key has access |
-| **Atomic writes** | Multi-table writes run inside Postgres functions (real transactions, row locks) |
-| **Duplicate races** | Unique-violation errors (Postgres `23505`) mapped to clean `409` responses |
-| **QR code safety** | QR contains only the Medical ID (UUID) — no health data |
-| **Seed protection** | `/api/seed` blocked when `NODE_ENV=production` |
-
-> **Note:** the rate limiter is in-memory and per-instance. It is effective for a
-> single server; for multi-instance/serverless deployments, replace it with a
-> shared store (e.g. `@upstash/ratelimit` on Redis).
-
-### Route Protection
-
-Each dashboard section uses a `layout.tsx` that wraps content in `<DashboardLayout allowedRole="ROLE">`:
-
-- **Unauthenticated** → redirect to `/login`
-- **Wrong role** → redirect to correct dashboard
-- **Correct role** → render content with sidebar
-
-This client-side guard is a UX convenience; the actual enforcement happens in the API routes, which all validate the session server-side.
-
----
-
-## 10. API Reference
-
-### Authentication
-
-#### `POST /api/auth/register`
-
-Register a new user account. **Rate limited:** 10 requests/hour per IP.
-
-**Request Body:**
-
-```json
-{
-  "nicNumber": "200012345678",
-  "firstName": "John",
-  "lastName": "Doe",
-  "mobileNumber": "0771234567",
-  "dob": "2000-01-15",
-  "password": "securePassword",
-  "role": "PATIENT",
-  "slmcRegNo": "SLMC-99999",          // Doctor only
-  "specialization": "Cardiology",      // Doctor only
-  "hospitalName": "National Hospital", // Doctor only
-  "pharmacyName": "MediCare",          // Pharmacist only
-  "pharmacyLicense": "PL-2024-001",    // Pharmacist only
-  "pharmacyAddress": "45 Galle Road"   // Pharmacist only
-}
-```
-
-Validation (zod): NIC must match the Sri Lankan format (9 digits + V/X, or 12 digits),
-mobile must be 9–15 digits, DOB must be a valid past date, password ≥ 8 characters.
-
-Doctors and pharmacists are created **unverified** and cannot issue/dispense until approved.
-
-**Responses:** `201` Created | `400` Validation error | `409` Duplicate NIC/SLMC/License | `429` Rate limited
-
-#### `POST /api/auth/[...nextauth]`
-
-NextAuth.js handler — manages sign-in, sign-out, and session. Login attempts are
-throttled (5 per 15 minutes per IP+identifier) and all credential failures return
-the same generic error.
-
----
-
-### Patient Lookup
-
-#### `GET /api/patients/[medicalId]`
-
-Look up a patient by their Medical ID (after QR scan). **Doctor/Pharmacist only.**
-
-**Response (200):**
-
-```json
-{
-  "patient": {
-    "id": "uuid",
-    "firstName": "Sasindu",
-    "lastName": "Malhara",
-    "nicNumber": "200012345678",
-    "medicalId": "AYU-200012345678",
-    "dob": "2000-05-15T00:00:00.000Z",
-    "mobileNumber": "0771234567",
-    "prescriptionsAsPatient": [...]
-  }
-}
-```
-
-**Responses:** `401` Unauthorized | `403` Patient role blocked | `404` Not found
-
----
-
-### Prescriptions
-
-#### `GET /api/prescriptions`
-
-Fetch prescriptions filtered by the caller's role:
-- **Patient** → own prescriptions only
-- **Doctor** → own issued prescriptions (or by `?patientId=`)
-- **Pharmacist** → prescriptions containing items they dispensed (or by `?patientId=` / `?medicalId=`; an unknown `medicalId` returns an empty list)
-
-#### `POST /api/prescriptions`
-
-Create a new prescription. **Doctor only — must be verified.**
-Runs atomically via the `create_prescription_with_items` database function.
-
-```json
-{
-  "patientId": "patient-uuid",
-  "diagnosis": "Upper Respiratory Tract Infection",
-  "items": [
-    {
-      "drugName": "Amoxicillin 500mg",
-      "dosage": "1 capsule",
-      "frequency": "Three times daily",
-      "duration": "7 days",
-      "instructions": "Take after meals"
-    }
-  ]
-}
-```
-
-**Responses:** `201` Created | `400` Validation error | `403` Not a doctor / unverified | `404` Patient not found
-
-#### `GET /api/prescriptions/[id]`
-
-Fetch a single prescription with all items, patient, and doctor details.
-
-**Object-level access control:** patients can only fetch their own prescriptions,
-doctors only prescriptions they issued; pharmacists can fetch any (required for
-dispensing scanned prescriptions). Unauthorized requests receive `404` so the
-response does not confirm the prescription exists.
-
-#### `PUT /api/prescriptions/[id]`
-
-Dispense or revert an individual item. **Pharmacist only — must be verified.**
-
-Runs atomically via the `dispense_prescription_item` database function, which
-locks the prescription row, updates the item, and recomputes the three-state
-status in one transaction. Reverts are only allowed within a **15-minute window**
-after dispensing.
-
-```json
-{
-  "itemId": "item-uuid",
-  "dispensed": true
-}
-```
-
-**Responses:** `200` OK | `400` Validation / not dispensed / window expired | `403` Not a pharmacist / unverified | `404` Prescription or item not found
-
----
-
-### Pharmacy
-
-#### `GET /api/pharmacy/profile`
-
-Fetch the authenticated pharmacist's pharmacy profile. **Pharmacist only.**
-
-### Seed (Dev Only)
-
-#### `GET /api/seed`
-
-Seeds the database with demo data. **Blocked in production.**
-
----
-
-## 11. Frontend Pages & Components
-
-### Pages (9 Dashboard + 3 Public = 12 Total)
-
-| Route | Page | Description |
-|-------|------|-------------|
-| `/` | Landing | Hero, features, CTAs |
-| `/login` | Login | NIC/License + password form |
-| `/register` | Register | Multi-step form with role selection |
-| `/patient/dashboard` | Patient Home | Stats, QR preview, prescription timeline |
-| `/patient/medical-id` | Medical ID | Full QR code, personal info, usage guide |
-| `/patient/prescriptions` | My Prescriptions | Filterable list (All/Active/Dispensed) |
-| `/doctor/dashboard` | Doctor Home | Stats, quick actions, recent prescriptions |
-| `/doctor/scan` | Scan & Prescribe | QR scanner + manual ID + prescription builder |
-| `/doctor/prescriptions` | Issued Rxs | All issued prescriptions with filters |
-| `/pharmacy/dashboard` | Pharmacy Home | Stats, quick actions, recent activity |
-| `/pharmacy/dispense` | Scan & Dispense | QR scan + Rx lookup + per-item dispensing |
-| `/pharmacy/records` | Records | Dispensing history with stats and filters |
-
-### Shared Components
-
-| Component | File | Purpose |
-|-----------|------|---------|
-| `AuthProvider` | `AuthProvider.tsx` | Wraps app with NextAuth `SessionProvider` |
-| `DashboardLayout` | `DashboardLayout.tsx` | Sidebar + content area + role guard + loading |
-| `Sidebar` | `Sidebar.tsx` | Role-based nav links, user card, logout button |
-| `PrescriptionCard` | `PrescriptionCard.tsx` | Expandable card: diagnosis, medications, status |
-| `QRCodeDisplay` | `QRCodeDisplay.tsx` | Renders QR code from Medical ID string |
-| `QRScanner` | `QRScanner.tsx` | Camera-based QR scanner using html5-qrcode |
-
-### Design System (globals.css)
-
-| Token | Value | Usage |
-|-------|-------|-------|
-| `--color-background` | `#F7F0F0` | Main app background (Soft Shell) |
-| `--color-primary-dark` | `#25671E` | Headers, primary text (Deep Forest) |
-| `--color-primary-action` | `#48A111` | CTA buttons, active states (Vibrant Lime) |
-| `--color-accent-warning` | `#F2B50B` | Pending statuses, alerts (Golden Amber) |
-| `--color-surface` | `#FFFFFF` | Card backgrounds |
-| `--color-border` | `#E5DFD6` | Borders and dividers |
-
-**Component classes:** `.btn-primary`, `.btn-secondary`, `.card`, `.input-field`, `.badge-active`, `.badge-dispensed`, `.badge-warning`
-
-**Animations:** `animate-fade-in`, `animate-slide-up`, `animate-slide-in-right`, `animate-pulse-soft`
-
----
-
-## 12. Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ | Your Supabase project URL (`https://xxx.supabase.co`) |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Service role key — server-side only, bypasses RLS |
-| `NEXTAUTH_URL` | ✅ | Application URL (`http://localhost:3000`) |
-| `NEXTAUTH_SECRET` | ✅ | Secret for JWT signing (min 32 chars) |
-
-> ⚠️ **Never commit `.env` to version control.** It is in `.gitignore` by default.
-> A template is provided in `.env.example`.
-
----
-
-## 13. Building for Production
-
-### Build
+**Create the schema** (new Supabase project): run every file in
+[`supabase/migrations/`](../supabase/migrations) in filename order, via
+`supabase db push` or pasted into the SQL Editor one at a time.
+
+**Reset** (wipe all AyuLink data and logins — already have an older
+schema, or just want a clean slate): paste
+[`supabase/reset.sql`](../supabase/reset.sql) into the SQL Editor, then
+re-run every migration in order.
+
+**Seed demo data** (idempotent — safe to re-run):
 
 ```bash
-npm run build
+supabase db query --linked -f supabase/seed.sql               # patient, doctor, pharmacist, 2 prescriptions
+supabase db query --linked -f supabase/seed_appointments.sql  # 2 channeling centers, schedules, 1 booking
+
+# Recommended: bulk-import Dataset_ref/ for 90 real doctors + 53 real channeling centers
+python3 backend/src/agent_workflow/ingestion/seed_postgres_dataset.py
+supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres_dataset.sql
 ```
 
-Expected output: **19 routes** (13 pages + 6 API endpoints), 0 TypeScript errors.
+No Supabase CLI installed? Paste each `.sql` file into the Supabase **SQL
+Editor** instead — same effect. Demo logins are listed in
+[`frontend/mobile/README.md`](../frontend/mobile/README.md#demo-accounts).
 
-### Start Production Server
+**Seed the Neo4j knowledge graph** (separate database, only needed for
+the AI assistant): see [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md#12-knowledge-graph--ingestion).
 
-```bash
-npm start
-```
+## 9. Known Gaps / Notes
 
-Runs at **http://localhost:3000** in production mode.
-
-### Production Checklist
-
-- [ ] Set `NEXTAUTH_SECRET` to a strong random value
-- [ ] Set `NEXTAUTH_URL` to your production domain
-- [ ] Set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` for the production Supabase project
-- [ ] Apply `supabase/migrations/20260719000000_init.sql` to the production database
-- [ ] Confirm RLS shows as **enabled** on all 5 tables (Supabase Dashboard → Database → Tables)
-- [ ] Ensure `NODE_ENV=production` (blocks `/api/seed`)
-- [ ] Replace the in-memory rate limiter with a shared store if deploying to multiple instances / serverless
-- [ ] Enable HTTPS (required for camera-based QR scanning)
-
----
-
-## 14. Testing Guide
-
-### Manual Testing Workflow
-
-**Step 1: Seed the database**
-
-Visit `http://localhost:3000/api/seed` with the dev server running.
-
-**Step 2: Test the Patient flow**
-1. Login with NIC `200012345678` / `password123`
-2. Verify dashboard shows stats and QR preview
-3. Navigate to **My Medical ID** — verify QR code and personal info
-4. Navigate to **Prescriptions** — verify filter tabs (All/Active/Dispensed)
-
-**Step 3: Test the Doctor flow**
-1. Login with NIC `199812345678` / `password123`
-2. Verify dashboard stats and quick-action cards
-3. Go to **Scan & Prescribe** — enter Medical ID `AYU-200012345678`
-4. Build and submit a prescription with multiple medications
-5. Go to **My Prescriptions** — verify the new Rx appears
-
-**Step 4: Test the Pharmacist flow**
-1. Login with NIC `199512345678` / `password123`
-2. Navigate to **Scan & Dispense** — look up Medical ID `AYU-200012345678`
-3. Dispense individual items — verify status updates and the Undo window
-4. Navigate to **Records** — verify dispensing history
-
-**Step 5: Verify end-to-end**
-- Log back in as Patient → see newly issued prescription with dispensing status
-- Log in as Pharmacist → see dispensed items with pharmacist info
-
-**Step 6: Verify security behavior**
-- Fail login 6 times → expect "Too many login attempts"
-- Register a new doctor → expect "pending verification" message; issuing a prescription should return 403 until `verified` is set to `true` in the `User` table
-
-### API Testing (cURL)
-
-```bash
-# Register a new patient
-curl -X POST http://localhost:3000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nicNumber":"200099998888",
-    "firstName":"Test",
-    "lastName":"User",
-    "mobileNumber":"0771111111",
-    "dob":"2000-01-01",
-    "password":"test1234",
-    "role":"PATIENT"
-  }'
-
-# Seed database (dev only)
-curl http://localhost:3000/api/seed
-```
-
-### Linting
-
-```bash
-npm run lint
-```
-
-### Type Checking
-
-```bash
-npx tsc --noEmit
-```
-
-### Database Inspection
-
-Use the Supabase Dashboard → **Table Editor**, or connect any Postgres client
-using the connection string from **Project Settings → Database**.
-
----
-
-## 15. Deployment
-
-### Vercel (Recommended)
-
-1. Push code to GitHub
-2. Import project in [Vercel Dashboard](https://vercel.com)
-3. Set environment variables (`NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`)
-4. Vercel auto-detects Next.js — no extra build steps needed
-5. Apply the SQL migration to your production Supabase project (SQL Editor or `supabase db push`)
-
-> On Vercel/serverless, swap the in-memory rate limiter for a shared store
-> (e.g. `@upstash/ratelimit`) — each serverless instance has its own memory.
-
-### Docker
-
-```dockerfile
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:20-alpine AS runner
-WORKDIR /app
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/public ./public
-ENV NODE_ENV=production
-EXPOSE 3000
-CMD ["npm", "start"]
-```
-
-### Self-Hosted (VPS)
-
-```bash
-git pull origin main
-npm ci
-npm run build
-pm2 start npm --name ayulink -- start
-```
-
-The database schema only needs to be applied once per Supabase project.
-
----
-
-## 16. Troubleshooting
-
-| Problem | Solution |
-|---------|----------|
-| `Missing Supabase environment variables` on startup | Set `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` in `.env` |
-| Empty data / `relation "User" does not exist` | The SQL migration hasn't been applied — run `supabase/migrations/20260719000000_init.sql` |
-| Migration fails with `already exists` errors | An older schema is present — run `supabase/reset.sql` first (⚠️ deletes all data and logins), then re-run the migration |
-| `Could not find the function ... in the schema cache` | The RPC functions are missing — re-run the migration; then Dashboard → API → "Reload schema" if needed |
-| `NEXTAUTH_SECRET` warning | Set a secret: `openssl rand -base64 32` |
-| "Invalid credentials" with correct password | Check the account exists in the `User` table; NIC login is for patients/doctors, license login for pharmacists |
-| "Too many login attempts" | Wait 15 minutes, or restart the dev server (limiter is in-memory) |
-| 403 "pending verification" when issuing/dispensing | Set `verified = true` on the user's row in the `User` table |
-| Port 3000 in use | `lsof -i :3000` then `kill -9 <PID>` |
-| QR scanner not working | Requires HTTPS for camera access (or localhost) |
-| Wrong dashboard after login | Clear cookies, check the `role` column in the `User` table |
-| Build fails with TS errors | Run `npx tsc --noEmit` to see type issues |
-
----
-
-> **Last updated:** July 2026 · **Version:** 0.1.0 · **License:** Private
+- **Voice mode** in the patient app's Diagnosis chat is UI-only right now
+  (a "coming soon" placeholder for speech-to-text) — Expo Go cannot load
+  third-party native modules, and the feature was deliberately descoped
+  to keep the app runnable without a custom native build. Text-to-speech
+  (`expo-speech`, an official Expo module) does work.
+- **Doctor schedule management has no screen yet.** The RPCs to create/edit/
+  delete a doctor's recurring weekly availability template
+  (`app_get_my_schedule`, `app_upsert_schedule_slot`,
+  `app_delete_schedule_slot`) exist and work, but no doctor-app screen
+  calls them — today, `DoctorSchedule` rows only come from seed data / the
+  bulk `Dataset_ref/` import.
+- **Push notifications** need an EAS project + custom dev-client build per
+  app for real on-device delivery — Expo Go has not supported remote push
+  since SDK 53. In-app notification history (the `Notification` table)
+  works regardless.
+- **Self-registered doctors/pharmacies/channeling centers start unverified**
+  (`verified = false` on their `User` row) and a "still being verified"
+  banner shows on their home screen, but — per current product decision —
+  this no longer blocks anything: issuing prescriptions, managing a
+  doctor's schedule, and dispensing all work the same either way. The
+  `verified` flag still exists and could gate something again later.

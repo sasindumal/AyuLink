@@ -1,0 +1,44 @@
+{
+    "expo": {
+        "name": "AyuLink Doctor",
+        "slug": "ayulink-doctor",
+        "version": "0.1.0",
+        "scheme": "ayulink-doctor",
+        "orientation": "portrait",
+        "userInterfaceStyle": "light",
+        "newArchEnabled": true,
+        "backgroundColor": "#F7F0F0",
+        "icon": "./assets/icon.png",
+        "splash": {
+            "image": "./assets/splash-icon.png",
+            "resizeMode": "contain",
+            "backgroundColor": "#25671E"
+        },
+        "ios": {
+            "supportsTablet": false,
+            "bundleIdentifier": "lk.ayulink.doctor",
+            "infoPlist": {
+                "NSCameraUsageDescription": "AyuLink Doctor uses the camera to scan patient Medical ID QR codes."
+            }
+        },
+        "android": {
+            "package": "lk.ayulink.doctor",
+            "edgeToEdgeEnabled": true,
+            "adaptiveIcon": {
+                "foregroundImage": "./assets/adaptive-icon.png",
+                "backgroundColor": "#FFFFFF"
+            },
+            "permissions": ["android.permission.CAMERA"]
+        },
+        "plugins": [
+            "expo-router",
+            "expo-secure-store",
+            [
+                "expo-camera",
+                {
+                    "cameraPermission": "AyuLink Doctor uses the camera to scan patient Medical ID QR codes."
+                }
+            ]
+        ]
+    }
+}
