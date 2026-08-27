@@ -30,6 +30,7 @@ export interface DoctorCard {
 
 export type AgentEvent =
     | { event: "token"; data: { content: string } }
+    | { event: "thinking"; data: { message: string } }
     | { event: "node"; data: { node: string } }
     | { event: "cards"; data: { doctors: DoctorCard[] } }
     | { event: "interrupt"; data: InterruptPayload }

@@ -16,6 +16,7 @@ from langgraph.types import Command, interrupt
 from src.agent_workflow.retrevel.schemas import BookingIntent
 from utils.llm import text_llm
 from src.agent_workflow.retrevel.state import GraphState
+from src.agent_workflow.retrevel.streaming import emit_thinking
 from src.agent_workflow.retrevel.tools.postgres_tools import (
     RpcError,
     book_appointment,
@@ -72,6 +73,7 @@ def _format_status(booking: dict) -> str:
 def _classify_intent(state: GraphState) -> str:
     text = str(state["messages"][-1].content) if state.get("messages") else ""
     try:
+        emit_thinking("Checking your booking...")
         structured = text_llm.with_structured_output(BookingIntent, method="json_schema")
         result: BookingIntent = structured.invoke(
             [

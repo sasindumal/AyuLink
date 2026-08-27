@@ -21,6 +21,7 @@ from src.agent_workflow.retrevel.tools.neo4j_tools import (
     get_symptoms_for_diseases,
 )
 from src.agent_workflow.retrevel.tools.postgres_tools import RpcError, create_treatment
+from src.agent_workflow.retrevel.streaming import emit_thinking
 
 
 def disease_agent(state: GraphState) -> dict:
@@ -108,6 +109,7 @@ def ask_followup(state: GraphState) -> dict:
 
     if graph_symptoms:
         try:
+            emit_thinking("Thinking of a follow-up question...")
             structured = text_llm.with_structured_output(FollowupQuestion, method="json_schema")
             result: FollowupQuestion = structured.invoke(
                 [

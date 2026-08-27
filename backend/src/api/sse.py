@@ -15,8 +15,17 @@ async def stream_graph_events(
     input_: Any,
     config: dict,
 ) -> AsyncIterator[str]:
-    """Drives graph.astream in ['messages','updates'] mode and yields SSE-formatted
-    strings following the vocabulary: token, node, cards, interrupt, done, error."""
+    """Drives graph.astream in ['messages','updates','custom'] mode and yields
+    SSE-formatted strings following the vocabulary: token, thinking, node,
+    cards, interrupt, done, error.
+
+    "thinking" chunks come from emit_thinking() (see
+    src/agent_workflow/retrevel/streaming.py) via LangGraph's custom stream
+    writer — a side channel that never touches graph state, so these are
+    display-only: never added to `messages`, never persisted by the
+    Postgres checkpointer, never replayed back to the LLM as history. They
+    exist purely to fill the dead air while a structured-output LLM call
+    (which can't stream token-by-token) is in flight."""
     try:
         seen_nodes: set[str] = set()
         # Some backends (e.g. LM Studio for certain models) emit a final
@@ -25,8 +34,12 @@ async def stream_graph_events(
         # duplicates of what's already been sent.
         accumulated: dict[str, str] = {}
         async for stream_mode, chunk in graph.astream(
-            input_, config=config, stream_mode=["messages", "updates"]
+            input_, config=config, stream_mode=["messages", "updates", "custom"]
         ):
+            if stream_mode == "custom":
+                if isinstance(chunk, dict) and chunk.get("thinking"):
+                    yield sse_event("thinking", {"message": chunk["thinking"]})
+                continue
             if stream_mode == "messages":
                 message_chunk, metadata = chunk
                 content = getattr(message_chunk, "content", None)
