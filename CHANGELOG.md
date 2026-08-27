@@ -16,6 +16,14 @@ is cut.
   heading below at the moment you tag, then leave this section empty
   until the next round of changes)
 
+## [v1.0.3] - failed build, superseded by v1.0.4
+
+- Third attempt. Got past `npm ci` this time and reached the real
+  `eas build` step, which then failed immediately: `--output` is a
+  local-build-only flag (`eas build --local`'s artifact path), invalid
+  on a normal cloud build. Fixed in v1.0.4 by redirecting stdout
+  (`> build-result.json`) instead of passing `--output`.
+
 ## [v1.0.2] - failed build, superseded by v1.0.3
 
 - Second attempt. Got past the yarn-misdetection issue, but all 4
