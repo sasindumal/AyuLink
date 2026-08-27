@@ -16,6 +16,19 @@ is cut.
   heading below at the moment you tag, then leave this section empty
   until the next round of changes)
 
+## [v1.0.5] / [v1.0.6] - cancelled, superseded by v1.0.7
+
+- Both tags were pushed pointing at the same commit (the
+  `.npmrc`/Node-pin fix from v1.0.4's failure) and ended up running
+  as duplicate builds simultaneously. `v1.0.5` was cancelled once
+  noticed; both jobs actually got past dependency install and into
+  the real EAS cloud build step this time (the fix worked), but
+  `v1.0.6` was manually cancelled before finishing, so no APKs were
+  produced. Also identified in this window: `app.json`'s version was
+  static at Expo's scaffolded default (`0.1.0`) regardless of which
+  tag triggered the build — fixed for v1.0.7 onward by writing the
+  tag's version into `app.json` before building.
+
 ## [v1.0.4] - failed build, superseded by v1.0.5
 
 - Fourth attempt. Reached EAS's actual remote build server this time,
