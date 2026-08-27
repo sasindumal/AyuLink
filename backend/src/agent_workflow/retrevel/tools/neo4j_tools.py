@@ -84,8 +84,13 @@ RETURN s.id AS symptom_id, s.name AS symptom_name
 """
 
 _VECTOR_SYMPTOM_MATCH_QUERY = """
-CALL db.index.vector.queryNodes('symptom_embedding_idx', $k, $embedding)
-YIELD node AS s, score
+CYPHER 25
+MATCH (s:Symptom)
+  SEARCH s IN (
+    VECTOR INDEX symptom_embedding_idx
+    FOR $embedding
+    LIMIT $k
+  ) SCORE AS score
 RETURN s.id AS symptom_id, s.name AS symptom_name, score
 """
 
