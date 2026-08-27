@@ -57,11 +57,15 @@ See [`.env.example`](.env.example) for the full list, including the LLM provider
 
 ## 2. Choose an LLM provider
 
-Set `LLM_PROVIDER` in `backend/.env` to `lm_studio` (default, fully local) or `google` (Google AI Studio / Gemini API). Whichever isn't selected can be left blank — only the active provider's variables are required at startup.
+Set `LLM_PROVIDER` in `backend/.env` to `lm_studio` (default, fully local), `google` (Google AI Studio / Gemini API), or `openrouter` (OpenRouter's OpenAI-compatible API). Whichever isn't selected can be left blank — only the active provider's variables are required at startup.
 
 **`lm_studio`** — open [LM Studio](https://lmstudio.ai), load a chat model and start its local server (default `http://localhost:1234/v1`), then set `LM_STUDIO_MODEL` to that model's exact name (`curl http://localhost:1234/v1/models` lists what's loaded). A vision-capable model (`LM_STUDIO_VISION_MODEL`) is optional — without one, image-only PDF report pages degrade to "please describe your symptoms" instead of failing. For hybrid symptom retrieval, also load an **embedding** model and set `LM_STUDIO_EMBEDDING_MODEL` — this is a separate model slot from the chat model.
 
-**`google`** — get an API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and set `GOOGLE_API_KEY`. `GOOGLE_MODEL`, `GOOGLE_VISION_MODEL`, `GOOGLE_EMBEDDING_MODEL` default to `gemini-2.0-flash` / `gemini-2.0-flash` / `models/text-embedding-004`.
+**`google`** — get an API key at [aistudio.google.com/apikey](https://aistudio.google.com/apikey) and set `GOOGLE_API_KEY`. `GOOGLE_MODEL`, `GOOGLE_VISION_MODEL` default to `gemini-2.5-flash`; `GOOGLE_EMBEDDING_MODEL` defaults to `models/gemini-embedding-001`. Google's free tier is rate-limited to ~100 embedding requests/minute — the seeder (step 3) already paces around this with retry/backoff.
+
+**`openrouter`** — get an API key at [openrouter.ai/keys](https://openrouter.ai/keys) and set `OPENROUTER_API_KEY`. `OPENROUTER_MODEL`/`OPENROUTER_VISION_MODEL` default to `deepseek/deepseek-v4-flash-0731`; `OPENROUTER_EMBEDDING_MODEL` defaults to `openai/text-embedding-3-small` — OpenRouter's embedding catalog is narrower than its chat one, so check the model you set is actually listed under [openrouter.ai/models](https://openrouter.ai/models) with embeddings support, otherwise hybrid retrieval silently falls back to substring-only matching.
+
+**Switching providers after the graph is already seeded?** Run step 3 with `--reset-embeddings` — see below. A different embedding model's vectors aren't dimension-compatible or comparable to the old ones; without a reset, `seed_neo4j.py` only fills in symptoms that don't have an embedding yet, so it wouldn't touch anything already embedded under the old provider.
 
 ## 3. Seed the knowledge graph (one-time, or after a reset)
 
@@ -71,7 +75,15 @@ pip install -r requirements.txt   # separate from backend/requirements.txt
 python3 seed_neo4j.py
 ```
 
-Reads `Dataset_ref/` at the repo root, populates Neo4j (Doctor/Specialty/Disease/Symptom nodes + relationships), embeds every `Symptom` node via the configured LLM provider, and creates the `symptom_embedding_idx` vector index used by hybrid retrieval. Safe to rerun — it only embeds `Symptom` nodes that don't have an embedding yet. If the embedding provider isn't reachable, the graph still seeds and the embedding/vector-index step is skipped with a warning (agents fall back to substring-only matching until you rerun this with the provider up).
+Reads `Dataset_ref/` at the repo root, populates Neo4j (`Specialty`/`Disease`/`Symptom` nodes + `MANAGES`/`HAS_SYMPTOM` relationships — doctors/booking live in Postgres, not here), embeds every `Symptom` node via the configured LLM provider, and creates the `symptom_embedding_idx` vector index used by hybrid retrieval. Safe to rerun — it only embeds `Symptom` nodes that don't have an embedding yet. If the embedding provider isn't reachable, the graph still seeds and the embedding/vector-index step is skipped with a warning (agents fall back to substring-only matching until you rerun this with the provider up).
+
+**Changed `LLM_PROVIDER` or an `*_EMBEDDING_MODEL` value?**
+
+```bash
+python3 seed_neo4j.py --reset-embeddings
+```
+
+Drops `symptom_embedding_idx` and clears every `Symptom.embedding` first, then re-embeds everything with the now-active provider and recreates the index at its (possibly different) vector size.
 
 ## 4. Run
 

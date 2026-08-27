@@ -27,13 +27,14 @@ NEO4J_DATABASE = _require("NEO4J_DATABASE")
 AGENTS_CHECKPOINT_DATABASE_URL = _require("AGENTS_CHECKPOINT_DATABASE_URL")
 
 # Which LLM/embedding backend utils/llm.py wires up — "lm_studio" (local,
-# OpenAI-compatible) or "google" (Google AI Studio / Gemini API). Both
-# provider's settings below are read regardless of which is active, so
-# switching is just changing this one value and restarting.
+# OpenAI-compatible), "google" (Google AI Studio / Gemini API), or
+# "openrouter" (OpenRouter's OpenAI-compatible API, proxying many hosted
+# models). Every provider's settings below are read regardless of which
+# is active, so switching is just changing this one value and restarting.
 LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "lm_studio").strip().lower()
-if LLM_PROVIDER not in ("lm_studio", "google"):
+if LLM_PROVIDER not in ("lm_studio", "google", "openrouter"):
     raise RuntimeError(
-        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER!r} (expected 'lm_studio' or 'google')"
+        f"Unsupported LLM_PROVIDER: {LLM_PROVIDER!r} (expected 'lm_studio', 'google', or 'openrouter')"
     )
 
 LM_STUDIO_BASE_URL = os.environ.get("LM_STUDIO_BASE_URL", "http://localhost:1234/v1")
@@ -51,6 +52,15 @@ GOOGLE_EMBEDDING_MODEL = os.environ.get("GOOGLE_EMBEDDING_MODEL", "models/gemini
 
 if LLM_PROVIDER == "google" and not GOOGLE_API_KEY:
     raise RuntimeError("LLM_PROVIDER=google requires GOOGLE_API_KEY to be set")
+
+OPENROUTER_BASE_URL = os.environ.get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "deepseek/deepseek-v4-flash-0731")
+OPENROUTER_VISION_MODEL = os.environ.get("OPENROUTER_VISION_MODEL", "deepseek/deepseek-v4-flash-0731")
+OPENROUTER_EMBEDDING_MODEL = os.environ.get("OPENROUTER_EMBEDDING_MODEL", "openai/text-embedding-3-small")
+
+if LLM_PROVIDER == "openrouter" and not OPENROUTER_API_KEY:
+    raise RuntimeError("LLM_PROVIDER=openrouter requires OPENROUTER_API_KEY to be set")
 
 CONFIDENCE_THRESHOLD = 0.6
 MAX_FOLLOWUP_ROUNDS = 3

@@ -22,14 +22,20 @@ see DoctorProfile/ChannelingCenter/DoctorSchedule in supabase/migrations):
 
 Usage:
     python backend/src/agent_workflow/ingestion/seed_neo4j.py
+    python backend/src/agent_workflow/ingestion/seed_neo4j.py --reset-embeddings
 
 Requires NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, NEO4J_DATABASE in
 backend/.env. Embedding requires an embedding-capable model loaded in
-the configured LLM_PROVIDER (see LM_STUDIO_EMBEDDING_MODEL /
-GOOGLE_EMBEDDING_MODEL in backend/.env.example) — if it isn't reachable, this script still seeds
+the configured LLM_PROVIDER (see *_EMBEDDING_MODEL for each provider in
+backend/.env.example) — if it isn't reachable, this script still seeds
 the graph and skips the embedding + vector index step with a warning.
+
+Pass --reset-embeddings whenever you change LLM_PROVIDER or an
+*_EMBEDDING_MODEL value — see reset_symptom_embeddings() below for why
+that's required, not optional, when switching embedding models.
 """
 
+import argparse
 import os
 import sys
 import csv
@@ -304,6 +310,26 @@ def embed_missing_symptoms(session, batch_size: int = 20, max_retries: int = 6) 
     return total
 
 
+def reset_symptom_embeddings(session) -> None:
+    """Drops symptom_embedding_idx and clears every Symptom.embedding.
+
+    Run this (via --reset-embeddings) whenever LLM_PROVIDER or an
+    *_EMBEDDING_MODEL value changes — a different embedding model produces
+    vectors that are neither the same dimensionality (the index has a
+    fixed size baked in, so a mismatched query vector just errors) nor
+    comparable at all to the old model's vectors (even same-dimension
+    vectors from two different models aren't in the same vector space —
+    mixing them wouldn't error, it would silently make similarity search
+    meaningless). embed_missing_symptoms() only fills in nodes where
+    embedding IS NULL, so switching models without this first would leave
+    every already-embedded Symptom on its old, now-incompatible vector."""
+    print("🧹 Resetting Symptom embeddings ...")
+    session.run("DROP INDEX symptom_embedding_idx IF EXISTS")
+    result = session.run("MATCH (s:Symptom) WHERE s.embedding IS NOT NULL SET s.embedding = NULL RETURN count(s) AS cnt")
+    cleared = result.single()["cnt"]
+    print(f"   ✓ Dropped symptom_embedding_idx, cleared {cleared} Symptom embeddings\n")
+
+
 def get_embedding_dimensions(session) -> int | None:
     result = session.run(
         "MATCH (s:Symptom) WHERE s.embedding IS NOT NULL RETURN size(s.embedding) AS dims LIMIT 1"
@@ -453,7 +479,22 @@ def verify_counts(session):
 # Main
 # ──────────────────────────────────────────────
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--reset-embeddings",
+        action="store_true",
+        help="Drop symptom_embedding_idx and clear every Symptom.embedding before "
+        "reseeding, then re-embed everything with the currently configured "
+        "LLM_PROVIDER. Run this whenever you switch LLM_PROVIDER or an "
+        "*_EMBEDDING_MODEL value — a different model's vectors aren't "
+        "dimension-compatible or semantically comparable to the old ones.",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     start_time = time.time()
 
     print()
@@ -465,6 +506,9 @@ def main():
     driver = get_driver()
 
     with driver.session(database=NEO4J_DATABASE) as session:
+        if args.reset_embeddings:
+            reset_symptom_embeddings(session)
+
         create_constraints(session)
 
         counts = {}
