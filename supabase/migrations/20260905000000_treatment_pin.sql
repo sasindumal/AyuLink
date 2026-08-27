@@ -2,11 +2,10 @@
 -- AyuLink - Pin a Diagnosis
 --
 -- Additive on top of 20260825000000_treatments_notifications.sql.
--- Adds a "pinned" flag to "Treatment" so a patient can pin specific
--- diagnoses to the top of the (renamed) Diagnoses tab, plus an RPC
--- to toggle it. treatment_json() already serializes the whole row
--- via to_jsonb(t), so "pinned" appears in its output automatically
--- — no change needed there.
+-- Adds a "pinned" flag to "Treatment" and a toggle RPC. Schema-only
+-- for now — no client screen sets/reads this yet (the earlier
+-- Diagnoses-tab pin UI was reverted), so the column just sits ready
+-- for whenever that's rebuilt.
 --
 -- Run via `supabase db push` or paste into the SQL Editor, same as
 -- prior migrations.

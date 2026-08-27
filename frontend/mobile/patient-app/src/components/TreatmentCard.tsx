@@ -27,19 +27,17 @@ export function TreatmentCard({
     treatment,
     onPress,
     onDelete,
-    onTogglePin,
 }: {
     treatment: Treatment;
     onPress: (treatment: Treatment) => void;
     onDelete?: (treatment: Treatment) => void;
-    onTogglePin?: (treatment: Treatment) => void;
 }) {
     const meta = treatmentStatusMeta[treatment.status];
     const level = careLevel(treatment.specialty);
 
     return (
         <Pressable onPress={() => onPress(treatment)}>
-            <Card style={treatment.pinned ? [styles.card, styles.cardPinned] : styles.card}>
+            <Card style={styles.card}>
                 <View style={styles.topRow}>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.disease}>{treatment.disease_name}</Text>
@@ -54,22 +52,6 @@ export function TreatmentCard({
                     <View style={[styles.badge, { backgroundColor: meta.bg }]}>
                         <Text style={[styles.badgeText, { color: meta.color }]}>{meta.label}</Text>
                     </View>
-                    {onTogglePin && (
-                        <Pressable
-                            onPress={(e) => {
-                                e.stopPropagation();
-                                onTogglePin(treatment);
-                            }}
-                            hitSlop={8}
-                            style={styles.pinBtn}
-                        >
-                            <Ionicons
-                                name={treatment.pinned ? "pin" : "pin-outline"}
-                                size={16}
-                                color={treatment.pinned ? colors.primaryDark : colors.textMuted}
-                            />
-                        </Pressable>
-                    )}
                     {onDelete && (
                         <Pressable
                             onPress={(e) => {
@@ -107,14 +89,12 @@ export function TreatmentCard({
 
 const styles = StyleSheet.create({
     card: { marginBottom: spacing.md },
-    cardPinned: { borderWidth: 1.5, borderColor: colors.primarySoft },
     topRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: 6 },
     disease: { fontSize: 15, fontWeight: "800", color: colors.text },
     specialty: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
     badge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
     badgeText: { fontSize: 11.5, fontWeight: "700" },
-    pinBtn: { marginLeft: 8, padding: 4 },
-    deleteBtn: { marginLeft: 4, padding: 4 },
+    deleteBtn: { marginLeft: 8, padding: 4 },
     description: { fontSize: 12.5, color: colors.textMuted, lineHeight: 18, marginBottom: 8 },
     footerRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
     date: { fontSize: 11.5, color: colors.textMuted, flex: 1 },

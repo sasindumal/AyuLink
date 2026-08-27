@@ -30,7 +30,7 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** Which section an (unpinned) diagnosis falls into, given "now" —
+/** Which section a diagnosis falls into, given "now" —
  * sequential, mutually-exclusive rolling windows, then by calendar year
  * for anything older than a year. The list is already sorted newest-first
  * (app_list_my_treatments), so grouping in encounter order naturally
@@ -101,22 +101,6 @@ export default function Treatments() {
         }
     };
 
-    const togglePin = async (target: Treatment) => {
-        // Optimistic — pinning is low-stakes and should feel instant; on
-        // failure it just quietly reverts rather than surfacing an error
-        // banner for something this minor.
-        setTreatments((prev) =>
-            prev.map((t) => (t.id === target.id ? { ...t, pinned: !t.pinned } : t))
-        );
-        try {
-            await rpc("app_toggle_treatment_pin", { p_treatment_id: target.id });
-        } catch {
-            setTreatments((prev) =>
-                prev.map((t) => (t.id === target.id ? { ...t, pinned: target.pinned } : t))
-            );
-        }
-    };
-
     const sections = useMemo(() => {
         const q = search.trim().toLowerCase();
         const filtered = treatments.filter((t) => {
@@ -129,21 +113,15 @@ export default function Treatments() {
             );
         });
 
-        const pinned = filtered.filter((t) => t.pinned);
-        const rest = filtered.filter((t) => !t.pinned);
-
         const now = new Date();
         const buckets = new Map<string, Treatment[]>();
-        for (const t of rest) {
+        for (const t of filtered) {
             const key = dateBucket(t.created_at, now);
             if (!buckets.has(key)) buckets.set(key, []);
             buckets.get(key)!.push(t);
         }
 
-        const result: { title: string; data: Treatment[] }[] = [];
-        if (pinned.length > 0) result.push({ title: "Pinned", data: pinned });
-        for (const [title, data] of buckets) result.push({ title, data });
-        return result;
+        return Array.from(buckets, ([title, data]) => ({ title, data }));
     }, [treatments, search, statusFilter]);
 
     const totalMatches = sections.reduce((n, s) => n + s.data.length, 0);
@@ -190,12 +168,7 @@ export default function Treatments() {
                 }
                 renderSectionHeader={({ section }) => <Text style={styles.sectionHeader}>{section.title}</Text>}
                 renderItem={({ item }) => (
-                    <TreatmentCard
-                        treatment={item}
-                        onPress={openTreatment}
-                        onDelete={setDeleteTarget}
-                        onTogglePin={togglePin}
-                    />
+                    <TreatmentCard treatment={item} onPress={openTreatment} onDelete={setDeleteTarget} />
                 )}
                 showsVerticalScrollIndicator={false}
                 refreshControl={

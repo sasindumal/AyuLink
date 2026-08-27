@@ -107,6 +107,8 @@ export interface AppointmentCenter {
     address: string;
     city: string | null;
     contactNumber: string;
+    latitude: number | null;
+    longitude: number | null;
 }
 
 // Raw shape returned by appointment_json() — top-level keys are the
@@ -225,7 +227,6 @@ export interface Treatment {
     description: string | null;
     status: TreatmentStatus;
     appointment_id: string | null;
-    pinned: boolean;
     created_at: string;
     updated_at: string;
     appointment: TreatmentAppointmentRef | null;
