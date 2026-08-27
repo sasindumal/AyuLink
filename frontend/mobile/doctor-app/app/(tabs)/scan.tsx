@@ -26,7 +26,10 @@ import { Banner, Button, Card, FilterChips, Input, ScreenHeader } from "../../sr
 import { QRScannerModal } from "../../src/components/QRScannerModal";
 import { QuickPickField } from "../../src/components/QuickPickField";
 import { SelectField } from "../../src/components/SelectField";
-import { PrescriptionConfirmModal } from "../../src/components/PrescriptionConfirmModal";
+import {
+    PrescriptionConfirmModal,
+    type PrescriptionDraft,
+} from "../../src/components/PrescriptionConfirmModal";
 import { AppointmentPicker } from "../../src/components/AppointmentPicker";
 import { ReferralDoctorPicker } from "../../src/components/ReferralDoctorPicker";
 import type {
@@ -97,8 +100,10 @@ export default function Scan() {
     const [expiryDays, setExpiryDays] = useState<number | null>(30);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [confirmResult, setConfirmResult] = useState<Prescription | null>(null);
-    const [wasEdit, setWasEdit] = useState(false);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+    // Set once the form validates — shows the review modal. Nothing is
+    // sent to the server until confirmIssue() runs from that modal.
+    const [reviewDraft, setReviewDraft] = useState<PrescriptionDraft | null>(null);
 
     // Which visit this prescription belongs to. Populated after a patient
     // lookup with only THIS doctor's own active appointments for them.
@@ -159,6 +164,12 @@ export default function Scan() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.editId]);
+
+    useEffect(() => {
+        if (!successMessage) return;
+        const t = setTimeout(() => setSuccessMessage(null), 4000);
+        return () => clearTimeout(t);
+    }, [successMessage]);
 
     /** Visit + follow-up state is per-patient — it must never survive
      *  into the next person's prescription. */
@@ -239,7 +250,11 @@ export default function Scan() {
             list.map((m, i) => (i === index ? { ...m, [key]: value } : m))
         );
 
-    const submit = async () => {
+    /** Validates the form and, if everything checks out, shows the review
+     *  modal — nothing is sent to the server yet. This is what the "Sign &
+     *  Issue Prescription" / "Save Changes" button now does; the actual
+     *  RPC only fires from confirmIssue(), once the doctor taps Confirm. */
+    const openReview = () => {
         if (!patient) return;
         if (!diagnosis.trim()) {
             setError("Please enter a diagnosis");
@@ -279,66 +294,89 @@ export default function Scan() {
             return;
         }
         setError(null);
+
+        const items = cleaned.map((m) => ({
+            drugName: m.drugName.trim(),
+            dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
+            frequency: m.frequency.trim(),
+            duration: m.duration.trim(),
+            route: m.route.trim() || "Oral",
+            instructions: m.instructions.trim(),
+        }));
+
+        setReviewDraft({
+            patientName: `${patient.firstName} ${patient.lastName}`,
+            medicalId: patient.medicalId,
+            diagnosis: diagnosis.trim(),
+            age: ageNum,
+            weight: weightNum,
+            items,
+            expiryDays,
+            followupPlan,
+            referredDoctor: followupPlan === "REFER_DOCTOR" ? referredDoctor : null,
+            editing: !!editingId,
+        });
+    };
+
+    /** Fires the actual RPC — only reachable via the review modal's
+     *  Confirm button. */
+    const confirmIssue = async () => {
+        if (!patient || !reviewDraft) return;
         setSubmitting(true);
         try {
-            const items = cleaned.map((m) => ({
-                drugName: m.drugName.trim(),
-                dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
-                frequency: m.frequency.trim(),
-                duration: m.duration.trim(),
-                route: m.route.trim() || "Oral",
-                instructions: m.instructions.trim(),
-            }));
+            const items = reviewDraft.items;
 
             const result = editingId
                 ? await rpc<Prescription>("app_update_prescription", {
                       p_prescription_id: editingId,
-                      p_diagnosis: diagnosis.trim(),
+                      p_diagnosis: reviewDraft.diagnosis,
                       p_items: items,
-                      p_expiry_days: expiryDays,
-                      p_patient_age: ageNum,
-                      p_patient_weight: weightNum,
-                      p_followup_plan: followupPlan,
-                      p_referred_doctor_id:
-                          followupPlan === "REFER_DOCTOR" ? referredDoctor?.id ?? null : null,
+                      p_expiry_days: reviewDraft.expiryDays,
+                      p_patient_age: reviewDraft.age,
+                      p_patient_weight: reviewDraft.weight,
+                      p_followup_plan: reviewDraft.followupPlan,
+                      p_referred_doctor_id: reviewDraft.referredDoctor?.id ?? null,
                   })
                 : await rpc<Prescription>("app_create_prescription", {
                       p_patient_id: patient.id,
-                      p_diagnosis: diagnosis.trim(),
+                      p_diagnosis: reviewDraft.diagnosis,
                       p_items: items,
-                      p_expiry_days: expiryDays,
-                      p_patient_age: ageNum,
-                      p_patient_weight: weightNum,
+                      p_expiry_days: reviewDraft.expiryDays,
+                      p_patient_age: reviewDraft.age,
+                      p_patient_weight: reviewDraft.weight,
                       p_appointment_id: selectedAppointment?.id ?? null,
-                      p_followup_plan: followupPlan,
-                      p_referred_doctor_id:
-                          followupPlan === "REFER_DOCTOR" ? referredDoctor?.id ?? null : null,
+                      p_followup_plan: reviewDraft.followupPlan,
+                      p_referred_doctor_id: reviewDraft.referredDoctor?.id ?? null,
                   });
 
-            setWasEdit(!!editingId);
-            setConfirmResult(result);
+            const wasEditing = !!editingId;
+            setReviewDraft(null);
+            setSuccessMessage(
+                wasEditing ? "Prescription updated." : `Prescription issued for ${result.patient?.firstName ?? "the patient"}.`
+            );
+
+            if (wasEditing) {
+                setEditingId(null);
+                router.replace("/(tabs)/prescriptions");
+                return;
+            }
+            setPatient(null);
+            setManualId("");
+            setDiagnosis("");
+            setAge("");
+            setWeight("");
+            setMeds([emptyMed()]);
+            setExpiryDays(30);
+            resetVisitState();
         } catch (e) {
+            // Keep the review modal open on failure — closing it would
+            // discard everything the doctor just reviewed and force them
+            // to re-enter it all. The error shows inside the modal's
+            // parent screen; they can retry Confirm or go Back to edit.
             setError(e instanceof Error ? e.message : "Failed to save prescription");
         } finally {
             setSubmitting(false);
         }
-    };
-
-    const closeConfirm = () => {
-        setConfirmResult(null);
-        if (editingId) {
-            setEditingId(null);
-            router.replace("/(tabs)/prescriptions");
-            return;
-        }
-        setPatient(null);
-        setManualId("");
-        setDiagnosis("");
-        setAge("");
-        setWeight("");
-        setMeds([emptyMed()]);
-        setExpiryDays(30);
-        resetVisitState();
     };
 
     return (
@@ -360,7 +398,8 @@ export default function Scan() {
                         }
                     />
 
-                    {error && <Banner kind="error" message={error} />}
+                    {error && !reviewDraft && <Banner kind="error" message={error} />}
+                    {successMessage && <Banner kind="success" message={successMessage} />}
 
                     {!patient ? (
                         <Card>
@@ -634,10 +673,9 @@ export default function Scan() {
                             </Card>
 
                             <Button
-                                title={editingId ? "Save Changes" : "Sign & Issue Prescription"}
+                                title={editingId ? "Review Changes" : "Review & Sign"}
                                 icon={editingId ? "checkmark" : "send"}
-                                loading={submitting}
-                                onPress={submit}
+                                onPress={openReview}
                             />
                         </>
                     )}
@@ -661,9 +699,11 @@ export default function Scan() {
             />
 
             <PrescriptionConfirmModal
-                prescription={confirmResult}
-                edited={wasEdit}
-                onClose={closeConfirm}
+                draft={reviewDraft}
+                submitting={submitting}
+                error={error}
+                onBack={() => setReviewDraft(null)}
+                onConfirm={confirmIssue}
             />
         </SafeAreaView>
     );
