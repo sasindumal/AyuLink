@@ -35,6 +35,10 @@ const FREQUENCY_PRESETS = [
     "Once daily", "Twice daily", "Three times daily", "As needed (PRN)",
 ];
 const DURATION_PRESETS = ["3 days", "5 days", "7 days", "10 days", "14 days", "1 month", "Ongoing"];
+const ROUTE_OPTIONS = [
+    "Oral", "Topical", "Intravenous (IV)", "Intramuscular (IM)", "Subcutaneous",
+    "Sublingual", "Inhalation", "Nasal", "Ophthalmic", "Otic", "Rectal", "Vaginal", "Transdermal",
+];
 const EXPIRY_PRESETS = [7, 14, 30, 60, 90];
 
 interface MedInput {
@@ -43,6 +47,7 @@ interface MedInput {
     dosageUnit: string;
     frequency: string;
     duration: string;
+    route: string;
     instructions: string;
 }
 
@@ -52,6 +57,7 @@ const emptyMed = (): MedInput => ({
     dosageUnit: "mg",
     frequency: "",
     duration: "",
+    route: "Oral",
     instructions: "",
 });
 
@@ -109,6 +115,7 @@ export default function Scan() {
                         dosageUnit: unit,
                         frequency: item.frequency,
                         duration: item.duration,
+                        route: item.route || "Oral",
                         instructions: item.instructions,
                     };
                 })
@@ -200,6 +207,7 @@ export default function Scan() {
                 dosage: `${m.dosageAmount.trim()} ${m.dosageUnit.trim()}`.trim(),
                 frequency: m.frequency.trim(),
                 duration: m.duration.trim(),
+                route: m.route.trim() || "Oral",
                 instructions: m.instructions.trim(),
             }));
 
@@ -394,6 +402,13 @@ export default function Scan() {
                                         placeholder="Drug name (e.g. Amoxicillin 500mg)"
                                         value={med.drugName}
                                         onChangeText={(v) => updateMed(i, "drugName", v)}
+                                    />
+                                    <SelectField
+                                        label="Route"
+                                        placeholder="Select route"
+                                        value={med.route}
+                                        options={ROUTE_OPTIONS}
+                                        onChange={(v) => updateMed(i, "route", v)}
                                     />
                                     <View style={styles.row}>
                                         <View style={{ flex: 1 }}>

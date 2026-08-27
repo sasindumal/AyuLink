@@ -64,6 +64,7 @@ export function PrescriptionConfirmModal({
                             <View key={item.id} style={styles.item}>
                                 <Text style={styles.itemName}>{item.drugName}</Text>
                                 <Text style={styles.itemDetail}>
+                                    {item.route ? `${item.route} · ` : ""}
                                     {item.dosage} · {item.frequency} · {item.duration}
                                 </Text>
                                 {!!item.instructions && (

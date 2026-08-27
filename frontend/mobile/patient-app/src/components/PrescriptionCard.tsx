@@ -104,6 +104,7 @@ export function PrescriptionCard({
                                 )}
                             </View>
                             <Text style={styles.itemDetail}>
+                                {item.route ? `${item.route} · ` : ""}
                                 {item.dosage} · {item.frequency} · {item.duration}
                             </Text>
                             {!!item.instructions && (

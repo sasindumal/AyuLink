@@ -41,6 +41,7 @@ export interface PrescriptionItem {
     dosage: string;
     frequency: string;
     duration: string;
+    route: string;
     instructions: string;
     dispensed: boolean;
     dispensedAt: string | null;
