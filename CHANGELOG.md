@@ -16,6 +16,18 @@ is cut.
   heading below at the moment you tag, then leave this section empty
   until the next round of changes)
 
+## [v1.0.4] - failed build, superseded by v1.0.5
+
+- Fourth attempt. Reached EAS's actual remote build server this time,
+  which failed at its own internal `npm ci --include=dev` — the same
+  lockfile/peer-dep issue as v1.0.2, but this time on Expo's
+  infrastructure, which doesn't see the GitHub Actions runner's
+  `--legacy-peer-deps` flag at all. Also surfaced an `EBADENGINE`
+  warning: `@supabase/*` now requires Node >=22, EAS's build image was
+  on 20.19.4. Fixed in v1.0.5 with a per-app `.npmrc`
+  (`legacy-peer-deps=true`, so *any* npm ci anywhere honors it
+  automatically) and pinning `node: "22.11.0"` in each `eas.json`.
+
 ## [v1.0.3] - failed build, superseded by v1.0.4
 
 - Third attempt. Got past `npm ci` this time and reached the real
