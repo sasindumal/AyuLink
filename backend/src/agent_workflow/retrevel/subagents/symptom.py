@@ -11,7 +11,12 @@ from src.agent_workflow.retrevel.streaming import emit_thinking
 EXTRACTION_PROMPT = """Extract the patient's symptoms from this conversation as a short \
 list of normalized, catalog-style medical terms (e.g. "headache" not "my head hurts", \
 "fever" not "feeling hot"). Only include symptoms actually mentioned. If none, return an \
-empty list."""
+empty list.
+
+The patient may write in any language, including Sinhala — always output the symptom \
+terms in English regardless of what language they wrote in (translate as needed). These \
+terms are matched against an English-only medical knowledge base, so a non-English term \
+here would silently fail to match anything."""
 
 _SPLIT_RE = re.compile(r"[,.;\n]| and ")
 

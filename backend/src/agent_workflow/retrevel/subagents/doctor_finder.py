@@ -118,7 +118,10 @@ def _resolve_query(state: GraphState) -> tuple[str | None, str | None]:
                     "conditions they described (if no specialty was explicitly named). Also flag "
                     "whether this looks like an everyday, non-specific case (common cold, mild "
                     "fever, minor cough, routine checkup) that a General Practitioner handles, "
-                    "rather than something pointing to a specific specialist.",
+                    "rather than something pointing to a specific specialist. The patient may "
+                    "write in any language, including Sinhala — always output specialty, city, "
+                    "doctor_name, and symptoms in English (translate as needed), since these are "
+                    "matched against an English-only database and knowledge graph.",
                 },
                 {"role": "user", "content": text},
             ]
