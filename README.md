@@ -46,8 +46,7 @@ AyuLink/
 2. `cd frontend/mobile/patient-app && npm install --legacy-peer-deps && npm start`
    (repeat for the other three apps) — details in
    [`frontend/mobile/README.md`](frontend/mobile/README.md).
-3. Optional, patient app's *Assistant* tab only: set up
-   [`backend/`](backend) — details in [`backend/README.md`](backend/README.md).
+3. Set up [`backend/`](backend) — details in [`backend/README.md`](backend/README.md).
 
 ## Tech stack at a glance
 
