@@ -36,6 +36,7 @@ AyuLink/
 | Run the mobile apps | [`frontend/mobile/README.md`](frontend/mobile/README.md) |
 | Run the agent backend | [`backend/README.md`](backend/README.md) |
 | Run the marketing website | [`frontend/web/README.md`](frontend/web/README.md) |
+| Build & release mobile APKs, or see what shipped in past versions | [`frontend/mobile/README.md § Building & releasing APKs`](frontend/mobile/README.md#building--releasing-apks) / [`CHANGELOG.md`](CHANGELOG.md) |
 
 ## Quick start
 

@@ -20,10 +20,17 @@ import {
     Building2,
     UserRound,
     Apple,
-    PlayCircle,
+    Download,
     Sparkles,
     CalendarSearch,
 } from "lucide-react";
+
+// Every workflow run (tag push or manual dispatch) publishes a GitHub
+// Release with make_latest, so these URLs always resolve to the newest
+// build without the site ever needing to change.
+// See .github/workflows/build-mobile-apps.yml
+const RELEASES_BASE =
+    "https://github.com/sasindumal/AyuLink/releases/latest/download";
 
 const features = [
     {
@@ -78,6 +85,7 @@ const apps = [
         audience: "For patients",
         description:
             "Your Digital Medical ID, an AI assistant for symptom triage, doctor & appointment discovery, and your full prescription history in one place.",
+        apk: "patient-app.apk",
     },
     {
         icon: Stethoscope,
@@ -85,6 +93,7 @@ const apps = [
         audience: "For doctors",
         description:
             "Scan a patient's Medical ID and issue a structured digital prescription in minutes — editable for a day, with automatic expiry so nothing lingers.",
+        apk: "doctor-app.apk",
     },
     {
         icon: Pill,
@@ -92,12 +101,14 @@ const apps = [
         audience: "For pharmacies",
         description:
             "Scan a Medical ID or a single prescription's own QR and dispense item by item, with a 15-minute undo window.",
+        apk: "pharmacy-app.apk",
     },
     {
         icon: Building2,
         name: "AyuLink Channeling Center",
         audience: "For channeling centers",
         description: "Manage every appointment booked at your location — confirm, reschedule, cancel, or complete.",
+        apk: "channeling-center-app.apk",
     },
 ];
 
@@ -355,13 +366,16 @@ export default function LandingPage() {
                                     </p>
 
                                     <div className="flex flex-col gap-2 mt-6">
+                                        <a
+                                            href={`${RELEASES_BASE}/${app.apk}`}
+                                            className="flex items-center justify-center gap-2 text-xs font-semibold text-white bg-primary-action hover:bg-primary-action/90 rounded-xl px-4 py-2.5 transition-colors"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            Download APK (Android)
+                                        </a>
                                         <span className="flex items-center justify-center gap-2 text-xs font-semibold text-text-muted bg-background border border-border rounded-xl px-4 py-2.5">
                                             <Apple className="w-4 h-4" />
                                             App Store — Coming Soon
-                                        </span>
-                                        <span className="flex items-center justify-center gap-2 text-xs font-semibold text-text-muted bg-background border border-border rounded-xl px-4 py-2.5">
-                                            <PlayCircle className="w-4 h-4" />
-                                            Google Play — Coming Soon
                                         </span>
                                     </div>
                                 </div>
@@ -370,7 +384,8 @@ export default function LandingPage() {
                     </div>
 
                     <p className="text-center text-sm text-text-muted mt-10">
-                        Not on the app stores yet — the source and setup instructions are on{" "}
+                        Not on the Play Store yet — download the Android APK directly above, or find
+                        the source on{" "}
                         <a
                             href="https://github.com/sasindumal/AyuLink"
                             target="_blank"
@@ -379,7 +394,8 @@ export default function LandingPage() {
                         >
                             GitHub
                         </a>
-                        .
+                        . Installing an APK outside the Play Store requires allowing
+                        &ldquo;Install unknown apps&rdquo; for your browser in Android Settings.
                     </p>
                 </div>
             </section>
