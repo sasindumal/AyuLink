@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <!-- AyuLink Logo - Medical Cross with Chain Links -->
+  <g transform="translate(20,10)">
+    <!-- Cross shape -->
+    <path d="M60 20 h40 v40 h40 v40 h-40 v40 h-40 v-40 h-40 v-40 h40 z" fill="#25671E"/>
+    <!-- Top-right chain link -->
+    <ellipse cx="130" cy="40" rx="25" ry="15" stroke="#48A111" stroke-width="8" fill="none" transform="rotate(-30 130 40)"/>
+    <!-- Bottom-left chain link -->
+    <ellipse cx="30" cy="120" rx="25" ry="15" stroke="#25671E" stroke-width="8" fill="none" transform="rotate(-30 30 120)"/>
+    <!-- Heartbeat line -->
+    <polyline points="40,80 55,80 65,60 75,100 85,80 120,80" stroke="#F2B50B" stroke-width="3" fill="none"/>
+  </g>
+  <!-- AyuLink text -->
+  <text x="100" y="185" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="bold">
+    <tspan fill="#25671E">Ayu</tspan><tspan fill="#48A111">Link</tspan>
+  </text>
+  <!-- Underline -->
+  <line x1="75" y1="192" x2="125" y2="192" stroke="#F2B50B" stroke-width="3" stroke-linecap="round"/>
+</svg>
