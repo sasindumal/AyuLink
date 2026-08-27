@@ -1,4 +1,8 @@
-# AyuLink
+<p align="center">
+  <img src="docs/assets/logo.png" alt="AyuLink logo" width="220">
+</p>
+
+<h1 align="center">AyuLink</h1>
 
 A digital healthcare platform for Sri Lanka: patients get a QR-based digital
 medical ID, AI-assisted symptom triage, doctor/appointment discovery and
@@ -19,7 +23,6 @@ AyuLink/
 │   └── channeling-center-app/  AyuLink Channeling Center
 ├── backend/                 LangGraph + FastAPI agent service — see backend/README.md
 ├── supabase/                Database schema (migrations), seed data, reset script
-├── Dataset_ref/              Reference CSVs (doctors, centers, diseases, symptoms, specialties)
 └── docs/                    Full project documentation (this is the index)
 ```
 

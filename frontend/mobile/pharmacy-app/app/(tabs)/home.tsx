@@ -113,7 +113,7 @@ export default function Home() {
                 {user?.verified === false && (
                     <Banner
                         kind="info"
-                        message="Your pharmacy is pending verification. Dispensing is enabled once your license is approved (sign in again once approved)."
+                        message="Your pharmacy license is still being verified — you can use the app as normal in the meantime."
                     />
                 )}
                 {error && <Banner kind="error" message={error} />}

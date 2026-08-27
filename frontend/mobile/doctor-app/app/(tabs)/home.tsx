@@ -108,7 +108,7 @@ export default function Home() {
                 {user?.verified === false && (
                     <Banner
                         kind="info"
-                        message="Your account is pending verification. Issuing prescriptions is enabled after your SLMC credentials are approved (sign in again once approved)."
+                        message="Your SLMC credentials are still being verified — you can use the app as normal in the meantime."
                     />
                 )}
                 {error && <Banner kind="error" message={error} />}

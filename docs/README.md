@@ -304,6 +304,8 @@ the AI assistant): see [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md#12-knowledge-grap
   since SDK 53. In-app notification history (the `Notification` table)
   works regardless.
 - **Self-registered doctors/pharmacies/channeling centers start unverified**
-  — issuing prescriptions, dispensing, and managing appointments is
-  blocked until `verified = true` is set on their `User` row (all
-  seeded/bulk-imported demo accounts are pre-verified).
+  (`verified = false` on their `User` row) and a "still being verified"
+  banner shows on their home screen, but — per current product decision —
+  this no longer blocks anything: issuing prescriptions, managing a
+  doctor's schedule, and dispensing all work the same either way. The
+  `verified` flag still exists and could gate something again later.
