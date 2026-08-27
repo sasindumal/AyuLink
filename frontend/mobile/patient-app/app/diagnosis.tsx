@@ -28,18 +28,26 @@ import * as Speech from "expo-speech";
 import {
     type AgentEvent,
     type DoctorCard,
+    type DispensedDrug,
     type InterruptPayload,
     fetchHistory,
     resumeChat,
     sendImage,
     sendMessage,
     sendPdf,
+    startCourseFollowup,
+    syncCareEvents,
 } from "../src/lib/agentChat";
 import { Banner, Button, Input } from "../src/components/ui";
 import { FormattedText } from "../src/components/FormattedText";
 import { AttachMenu } from "../src/components/AttachMenu";
 import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
 import { VoiceControl } from "../src/components/VoiceControl";
+import {
+    cancelCourseReminders,
+    hasCourseReminders,
+    scheduleCourseReminders,
+} from "../src/lib/reminders";
 import { colors, radius, shadow, spacing } from "../src/theme";
 
 const VOICE_LANG = "en-US";
@@ -82,6 +90,12 @@ export default function Diagnosis() {
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
     const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
     const [attachMenuVisible, setAttachMenuVisible] = useState(false);
+    // Care-journey state, refreshed by syncCareEvents on open.
+    const [courseEndsAt, setCourseEndsAt] = useState<string | null>(null);
+    const [treatmentId, setTreatmentId] = useState<string | null>(null);
+    const [dispensedDrugs, setDispensedDrugs] = useState<DispensedDrug[]>([]);
+    const [remindersOn, setRemindersOn] = useState(false);
+    const [schedulingReminders, setSchedulingReminders] = useState(false);
     const [voiceMode, setVoiceMode] = useState(false);
     const [listening, setListening] = useState(false);
     const [speaking, setSpeaking] = useState(false);
@@ -112,6 +126,25 @@ export default function Diagnosis() {
         if (!continuing) return;
         (async () => {
             try {
+                // Fold in anything that happened outside the chat since we
+                // were last here — the doctor starting the visit, the
+                // prescription issued, drugs dispensed — BEFORE reading
+                // history, so those messages are already part of what we
+                // load. Idempotent server-side, so this is safe on every
+                // open. Best-effort: a sync failure must never stop an
+                // existing conversation from opening.
+                try {
+                    const sync = await syncCareEvents(threadId);
+                    setCourseEndsAt(sync.courseEndsAt);
+                    setTreatmentId(sync.treatmentId ?? null);
+                    setDispensedDrugs(sync.drugs ?? []);
+                    if (sync.treatmentId) {
+                        setRemindersOn(await hasCourseReminders(sync.treatmentId));
+                    }
+                } catch {
+                    // offline, or backend still waking — history still loads
+                }
+
                 const history = await fetchHistory(threadId);
                 const hydrated: ChatItem[] = history.messages.map((m) => ({
                     id: nextId(),
@@ -273,6 +306,83 @@ export default function Diagnosis() {
 
     const send = useCallback(() => sendText(input), [input, sendText]);
 
+    // Once the medication course has run out, open the check-in ("how are
+    // you feeling now?"). The OS notification scheduled for courseEndsAt
+    // is what brings most people back here; this covers the case where
+    // they simply open the app themselves. Only fires when the chat is
+    // idle and isn't already waiting on an answer, so it can never
+    // interrupt something the patient is mid-way through.
+    /** Turn dose reminders on/off for this course. The reminder wording is
+     *  written by the assistant (so it reads naturally, and in the
+     *  patient's own language); the OS handles the actual delivery. */
+    const toggleReminders = useCallback(async () => {
+        if (!treatmentId || schedulingReminders) return;
+        setSchedulingReminders(true);
+        try {
+            if (remindersOn) {
+                await cancelCourseReminders(treatmentId);
+                setRemindersOn(false);
+                setItems((prev) => [
+                    ...prev,
+                    { id: nextId(), kind: "system", tone: "info", text: "Medication reminders turned off." },
+                ]);
+                return;
+            }
+
+            // Fall back to a plain dosage line per drug if the assistant
+            // can't be reached — reminders are more useful than pretty.
+            const messages: Record<string, string> = {};
+            for (const drug of dispensedDrugs) {
+                messages[drug.drugName] = [drug.dosage, drug.frequency, drug.instructions]
+                    .filter(Boolean)
+                    .join(" · ");
+            }
+
+            const count = await scheduleCourseReminders(
+                treatmentId,
+                dispensedDrugs,
+                messages,
+                courseEndsAt
+            );
+            if (count === 0) {
+                setItems((prev) => [
+                    ...prev,
+                    {
+                        id: nextId(),
+                        kind: "system",
+                        tone: "error",
+                        text: "I couldn't set reminders — notifications are turned off for AyuLink in your phone settings.",
+                    },
+                ]);
+                return;
+            }
+            setRemindersOn(true);
+            setItems((prev) => [
+                ...prev,
+                {
+                    id: nextId(),
+                    kind: "system",
+                    tone: "info",
+                    text: `Reminders set — I'll nudge you for each dose, and check in when your course finishes.`,
+                },
+            ]);
+        } finally {
+            setSchedulingReminders(false);
+            scrollToEnd();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [treatmentId, remindersOn, dispensedDrugs, courseEndsAt, schedulingReminders]);
+
+    const followupStarted = useRef(false);
+    useEffect(() => {
+        if (hydrating || busy || awaitingInterrupt || followupStarted.current) return;
+        if (!courseEndsAt) return;
+        if (new Date(courseEndsAt).getTime() > Date.now()) return;
+
+        followupStarted.current = true;
+        runStream((onEvent) => startCourseFollowup(threadId, onEvent));
+    }, [hydrating, busy, awaitingInterrupt, courseEndsAt, threadId, runStream]);
+
     const resolveInterrupt = useCallback(
         (value: unknown, label?: string) => {
             if (busy) return;
@@ -422,6 +532,34 @@ export default function Diagnosis() {
                             <ActivityIndicator size="small" color={colors.primaryDark} />
                             <Text style={styles.thinkingText}>{thinkingMessage ?? "Thinking…"}</Text>
                         </View>
+                    )}
+
+                    {dispensedDrugs.length > 0 && !busy && (
+                        <Pressable
+                            style={styles.reminderBar}
+                            onPress={toggleReminders}
+                            disabled={schedulingReminders}
+                        >
+                            <Ionicons
+                                name={remindersOn ? "alarm" : "alarm-outline"}
+                                size={18}
+                                color={colors.primaryDark}
+                            />
+                            <Text style={styles.reminderText}>
+                                {schedulingReminders
+                                    ? "Updating reminders…"
+                                    : remindersOn
+                                      ? `Dose reminders are on for ${dispensedDrugs.length} medication${dispensedDrugs.length === 1 ? "" : "s"} — tap to turn off`
+                                      : `Remind me to take my ${dispensedDrugs.length === 1 ? "medication" : "medications"}`}
+                            </Text>
+                            {!schedulingReminders && (
+                                <Ionicons
+                                    name={remindersOn ? "close-circle-outline" : "chevron-forward"}
+                                    size={16}
+                                    color={colors.textMuted}
+                                />
+                            )}
+                        </Pressable>
                     )}
 
                     {voiceMode ? (
@@ -729,6 +867,23 @@ const styles = StyleSheet.create({
     userText: { color: "#fff", fontSize: 14.5, lineHeight: 20 },
     assistantText: { color: colors.text, fontSize: 14.5, lineHeight: 20 },
     thinkingRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
+    reminderBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: colors.primarySoft,
+        borderRadius: radius.md,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        marginBottom: spacing.sm,
+    },
+    reminderText: {
+        flex: 1,
+        fontSize: 12.5,
+        fontWeight: "700",
+        color: colors.primaryDark,
+        lineHeight: 17,
+    },
     thinkingText: { fontSize: 12.5, color: colors.textMuted },
     inputRow: {
         flexDirection: "row",

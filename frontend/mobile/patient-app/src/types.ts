@@ -206,7 +206,7 @@ export interface ChannelingCenterSummary {
 
 // ----- Treatments (AI diagnosis sessions) -----
 
-export type TreatmentStatus = "DIAGNOSED" | "BOOKED" | "COMPLETED";
+export type TreatmentStatus = "DIAGNOSED" | "BOOKED" | "PRESCRIBED" | "COMPLETED";
 
 export interface TreatmentAppointmentRef {
     id: string;

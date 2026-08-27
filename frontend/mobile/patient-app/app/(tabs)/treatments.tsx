@@ -25,6 +25,7 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
     { key: "ALL", label: "All" },
     { key: "DIAGNOSED", label: "Diagnosed" },
     { key: "BOOKED", label: "Booked" },
+    { key: "PRESCRIBED", label: "Prescribed" },
     { key: "COMPLETED", label: "Completed" },
 ];
 

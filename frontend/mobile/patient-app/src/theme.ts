@@ -72,5 +72,6 @@ export const treatmentStatusMeta: Record<
 > = {
     DIAGNOSED: { label: "Diagnosed", color: "#9A6F00", bg: colors.warningSoft },
     BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
+    PRESCRIBED: { label: "Prescribed", color: colors.primary, bg: colors.primarySoft },
     COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
 };

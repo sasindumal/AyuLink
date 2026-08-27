@@ -75,3 +75,16 @@ class FollowupDecision(BaseModel):
         "right now. Naturally phrased, plain everyday language, one short question. Never "
         "repeat something the patient already told you.",
     )
+
+
+class FollowupOutcome(BaseModel):
+    """How the patient answered the end-of-course check-in — did the
+    treatment actually fix the problem?"""
+
+    resolved: bool = Field(
+        ...,
+        description="True only when the patient clearly indicates they feel better and the "
+        "problem has cleared up. False when they still have symptoms, feel worse, are "
+        "unsure, or the reply is ambiguous or off-topic — it is safer to keep a diagnosis "
+        "open than to close one that is still troubling someone.",
+    )
