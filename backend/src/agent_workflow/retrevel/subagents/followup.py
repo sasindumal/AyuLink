@@ -170,7 +170,12 @@ def offer_complete_treatment(state: GraphState) -> Command:
         closing = "No problem — I'll leave this one open for now."
         return Command(goto="__end__", update={"messages": [AIMessage(content=closing)]})
 
-    return Command(goto="complete_treatment_node", update={})
+    # Rate each doctor actually seen for this diagnosis before it
+    # actually completes — see rating.py. start_doctor_ratings routes
+    # straight to complete_treatment_node itself when there's nobody to
+    # rate, so this is safe even for a diagnosis that never had a
+    # started visit.
+    return Command(goto="start_doctor_ratings", update={})
 
 
 async def complete_treatment_node(state: GraphState) -> dict:

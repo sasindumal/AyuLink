@@ -41,6 +41,7 @@ import {
 import { Banner, Button, Input } from "../src/components/ui";
 import { FormattedText } from "../src/components/FormattedText";
 import { AttachMenu } from "../src/components/AttachMenu";
+import { DoctorRatingInput } from "../src/components/DoctorRatingInput";
 import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
 import { VoiceControl } from "../src/components/VoiceControl";
 import {
@@ -190,9 +191,13 @@ export default function Diagnosis() {
     const interruptSpeechText = (payload: InterruptPayload): string => {
         switch (payload.type) {
             case "ask_followup":
+            case "course_followup":
                 return payload.question;
             case "offer_doctor":
             case "ask_location_time":
+            case "offer_complete_treatment":
+            case "offer_followup_booking":
+            case "rate_doctor":
                 return payload.message;
             case "present_top5":
                 return payload.doctors.length
@@ -404,7 +409,7 @@ export default function Diagnosis() {
         (text: string) => {
             const trimmed = text.trim();
             if (!trimmed) return;
-            if (awaitingInterrupt?.type === "ask_followup") {
+            if (awaitingInterrupt?.type === "ask_followup" || awaitingInterrupt?.type === "course_followup") {
                 resolveInterrupt(trimmed, trimmed);
             } else if (!awaitingInterrupt) {
                 sendText(trimmed);
@@ -567,7 +572,12 @@ export default function Diagnosis() {
                             <VoiceControl
                                 listening={listening}
                                 speaking={speaking}
-                                disabled={busy || (!!awaitingInterrupt && awaitingInterrupt.type !== "ask_followup")}
+                                disabled={
+                                    busy ||
+                                    (!!awaitingInterrupt &&
+                                        awaitingInterrupt.type !== "ask_followup" &&
+                                        awaitingInterrupt.type !== "course_followup")
+                                }
                                 disabledReason={busy ? (thinkingMessage ?? "Thinking…") : "Respond above first…"}
                                 interimTranscript={interimTranscript}
                                 onStart={startListening}
@@ -688,7 +698,7 @@ function InterruptCard({
     const [city, setCity] = useState("");
     const [time, setTime] = useState("");
 
-    if (payload.type === "ask_followup") {
+    if (payload.type === "ask_followup" || payload.type === "course_followup") {
         return (
             <View style={[styles.bubble, styles.assistantBubble]}>
                 <FormattedText text={payload.question} style={styles.assistantText} />
@@ -729,6 +739,66 @@ function InterruptCard({
                             style={{ flex: 1 }}
                         />
                     </View>
+                )}
+            </View>
+        );
+    }
+
+    if (payload.type === "offer_complete_treatment") {
+        return (
+            <View style={[styles.bubble, styles.assistantBubble]}>
+                <FormattedText text={payload.message} style={styles.assistantText} />
+                {!resolved && (
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
+                        <Button title="Yes" onPress={() => onResolve("yes", "Yes")} disabled={busy} style={{ flex: 1 }} />
+                        <Button
+                            title="Not yet"
+                            variant="secondary"
+                            onPress={() => onResolve("no", "Not yet")}
+                            disabled={busy}
+                            style={{ flex: 1 }}
+                        />
+                    </View>
+                )}
+            </View>
+        );
+    }
+
+    if (payload.type === "offer_followup_booking") {
+        return (
+            <View style={[styles.bubble, styles.assistantBubble]}>
+                <FormattedText text={payload.message} style={styles.assistantText} />
+                {!resolved && (
+                    <View style={{ flexDirection: "row", gap: 8, marginTop: spacing.sm }}>
+                        <Button title="Yes" onPress={() => onResolve("yes", "Yes")} disabled={busy} style={{ flex: 1 }} />
+                        <Button
+                            title="No"
+                            variant="secondary"
+                            onPress={() => onResolve("no", "No")}
+                            disabled={busy}
+                            style={{ flex: 1 }}
+                        />
+                    </View>
+                )}
+            </View>
+        );
+    }
+
+    if (payload.type === "rate_doctor") {
+        return (
+            <View style={[styles.bubble, styles.assistantBubble]}>
+                <FormattedText text={payload.message} style={styles.assistantText} />
+                {!resolved && (
+                    <DoctorRatingInput
+                        busy={busy}
+                        onSubmit={(rating, feedback) =>
+                            onResolve(
+                                { rating, feedback: feedback || null },
+                                `${"⭐".repeat(rating)} (${rating}/5)${feedback ? ` — ${feedback}` : ""}`
+                            )
+                        }
+                        onSkip={() => onResolve({ skip: true }, "Skip")}
+                    />
                 )}
             </View>
         );

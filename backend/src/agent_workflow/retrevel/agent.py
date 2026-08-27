@@ -21,6 +21,10 @@ from src.agent_workflow.retrevel.subagents.followup import (
     offer_complete_treatment,
     offer_followup_booking,
 )
+from src.agent_workflow.retrevel.subagents.rating import (
+    rate_doctor_node,
+    start_doctor_ratings,
+)
 from src.agent_workflow.retrevel.subagents.doctor_finder import (
     ask_location_time,
     availability_check,
@@ -83,6 +87,8 @@ def build_graph_builder() -> StateGraph:
     builder.add_node("booking_agent", booking_agent)
     builder.add_node("course_followup", course_followup)
     builder.add_node("offer_complete_treatment", offer_complete_treatment)
+    builder.add_node("start_doctor_ratings", start_doctor_ratings)
+    builder.add_node("rate_doctor_node", rate_doctor_node)
     builder.add_node("complete_treatment_node", complete_treatment_node)
     builder.add_node("offer_followup_booking", offer_followup_booking)
 

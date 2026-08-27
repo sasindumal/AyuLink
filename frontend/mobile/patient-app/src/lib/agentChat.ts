@@ -37,11 +37,36 @@ export type AgentEvent =
     | { event: "done"; data: Record<string, never> }
     | { event: "error"; data: { message: string } };
 
+export interface FollowupDoctor {
+    id?: string;
+    firstName?: string;
+    lastName?: string;
+    specialty?: string | null;
+    slmcRegNo?: string | null;
+}
+
+export interface RatingDoctor {
+    doctorId: string;
+    appointmentId?: string;
+    firstName: string;
+    lastName: string;
+    specialty?: string | null;
+}
+
 export type InterruptPayload =
     | { type: "ask_followup"; question: string }
     | { type: "offer_doctor"; condition: string; message: string }
     | { type: "ask_location_time"; default: string; message: string }
-    | { type: "present_top5"; doctors: DoctorCard[] };
+    | { type: "present_top5"; doctors: DoctorCard[] }
+    | { type: "course_followup"; question: string }
+    | { type: "offer_complete_treatment"; message: string }
+    | {
+          type: "offer_followup_booking";
+          message: string;
+          plan: "NONE" | "MEET_SAME_DOCTOR" | "REFER_DOCTOR";
+          doctor: FollowupDoctor | null;
+      }
+    | { type: "rate_doctor"; doctor: RatingDoctor; message: string };
 
 async function getAccessToken(): Promise<string> {
     const { data } = await supabase.auth.getSession();
