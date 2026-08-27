@@ -12,7 +12,7 @@ exceed, not the primary stopping signal — see disease_agent below.
 
 from collections import Counter
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, interrupt
 
@@ -233,11 +233,23 @@ def ask_followup(state: GraphState) -> dict:
     question = state.get("llm_followup_question") or "Are you noticing any other symptoms alongside this?"
 
     answer = interrupt({"type": "ask_followup", "question": question})
-    answer_text = str(answer).strip().lower()
+    answer_raw = str(answer).strip()
+    answer_text = answer_raw.lower()
 
     symptoms = state.get("symptoms", []) + [answer_text]
     history = state.get("followup_history", []) + [{"question": question, "answer": answer_text}]
-    return {"symptoms": symptoms, "round": state.get("round", 0) + 1, "followup_history": history}
+    return {
+        "symptoms": symptoms,
+        "round": state.get("round", 0) + 1,
+        "followup_history": history,
+        # Previously only sent as an ephemeral SSE "interrupt" event, never
+        # persisted — so it vanished on a history reload, and no downstream
+        # node reading state["messages"] (routing, doctor-search extraction,
+        # the language sample used for Sinhala replies) ever saw the
+        # follow-up Q&A actually happened. Appending here (add_messages
+        # reducer, so this appends rather than replacing) fixes both.
+        "messages": [AIMessage(content=question), HumanMessage(content=answer_raw)],
+    }
 
 
 async def explain_condition_node(state: GraphState, config: RunnableConfig) -> dict:

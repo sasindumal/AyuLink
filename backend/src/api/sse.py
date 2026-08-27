@@ -42,6 +42,18 @@ async def stream_graph_events(
                 continue
             if stream_mode == "messages":
                 message_chunk, metadata = chunk
+                bucket = (metadata or {}).get("langgraph_node") or "default"
+                # ask_followup returns the already-asked question + the
+                # patient's own answer into state["messages"] (so they're
+                # persisted for history/context — see disease.py) — but
+                # "messages" mode streams ANY message a node returns, not
+                # just fresh LLM-generated tokens, so without this skip the
+                # question would show up a second time (it was already
+                # sent via the "interrupt" event on the prior turn) and the
+                # patient's own answer would render back as if the
+                # assistant had said it.
+                if bucket == "ask_followup":
+                    continue
                 content = getattr(message_chunk, "content", None)
                 if content:
                     if isinstance(content, list):
@@ -54,7 +66,6 @@ async def stream_graph_events(
                         # Key by source node (not message id) — some backends emit a
                         # final aggregate AIMessage with a fresh id after streaming
                         # real deltas under a different id for the same node.
-                        bucket = (metadata or {}).get("langgraph_node") or "default"
                         prior = accumulated.get(bucket, "")
                         if text == prior:
                             continue
