@@ -225,6 +225,7 @@ export interface Treatment {
     description: string | null;
     status: TreatmentStatus;
     appointment_id: string | null;
+    pinned: boolean;
     created_at: string;
     updated_at: string;
     appointment: TreatmentAppointmentRef | null;

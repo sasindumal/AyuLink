@@ -27,6 +27,26 @@ from src.agent_workflow.retrevel.tools.neo4j_tools import (
 from src.agent_workflow.retrevel.tools.postgres_tools import RpcError, create_treatment
 from src.agent_workflow.retrevel.streaming import emit_thinking
 
+# The knowledge graph already assigns every disease exactly one specialty
+# (seeded in Dataset_ref/Comprehensive Disease Entity Catalog.csv) — common,
+# self-limiting conditions (a cold, mild flu, tension headache, ...) are
+# already curated to "General Practitioner" there, same as doctor_finder's
+# own GENERAL_PRACTITIONER routing target. Deriving the care-level category
+# from that field — rather than a second, independent LLM classification
+# call — means the category can never contradict which specialty gets
+# offered/searched for right after it.
+GENERAL_PRACTITIONER = "General Practitioner"
+CARE_LEVEL_PRIMARY = "Primary Care"
+CARE_LEVEL_SPECIALIST = "Specialist Care"
+
+
+def _care_level(specialty: str | None) -> str:
+    """'Primary Care' for the graph's General Practitioner cases, else
+    'Specialist Care' — the two medically-standard tiers (GP/primary vs.
+    specialist/secondary care) this project's UI and prompts use to talk
+    about how serious/specific a matched condition looks."""
+    return CARE_LEVEL_PRIMARY if specialty == GENERAL_PRACTITIONER else CARE_LEVEL_SPECIALIST
+
 FOLLOWUP_DECISION_PROMPT = """You are a doctor conducting a triage interview. You're given \
 the patient's symptoms so far and the candidate conditions a medical knowledge graph has \
 matched against them. Decide whether you now have enough information to explain a likely \
@@ -269,20 +289,36 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
         }
 
     specialty = confirmed.get("specialty") or "a doctor"
+    care_level = _care_level(confirmed.get("specialty"))
     patient_message_sample = _last_human_text(state.get("messages", []))
+    if care_level == CARE_LEVEL_PRIMARY:
+        tone_instruction = (
+            "This matched condition is a common, everyday, primary-care-level issue (the "
+            "kind a General Practitioner handles routinely, not something requiring a "
+            "specialist). Keep the tone reassuring and low-key — make clear this is "
+            "ordinary and manageable, not something to worry over."
+        )
+    else:
+        tone_instruction = (
+            "This matched condition is more specific and would benefit from a specialist's "
+            "evaluation rather than routine primary care. Keep the tone calm and "
+            "non-alarming (never urgent or frightening), but still convey that seeing the "
+            "right specialist — not just any doctor — is the sensible next step."
+        )
     prompt = (
         f"The patient's symptoms most closely match '{confirmed.get('disease_name')}' "
         f"(description: {confirmed.get('disease_description') or 'n/a'}) in our knowledge "
         "base — but this is a graph match, not a confirmed diagnosis. Write a short, "
-        "plain-language, non-alarming message for the patient that:\n"
+        "plain-language message for the patient that:\n"
         "1. Describes what their symptoms seem to point to, using tentative language "
         "throughout — \"it seems like this could be...\", \"this sounds like it may be...\", "
         "\"this looks similar to...\". Never state the condition as settled fact (never "
         "\"you have X\" or \"this is X\").\n"
-        f"2. Recommends seeing a {specialty} to get it properly checked out, as the "
+        f"2. {tone_instruction}\n"
+        f"3. Recommends seeing a {specialty} to get it properly checked out, as the "
         "natural next step — phrase it like \"it would be best to see a "
         f"{specialty}\" or similar, not a bare instruction.\n"
-        "3. Ends with a clear disclaimer that this is not a medical diagnosis.\n\n"
+        "4. Ends with a clear disclaimer that this is not a medical diagnosis.\n\n"
         "The disease/specialty names above are in English regardless of what language the "
         "patient is using — that's just the knowledge base's own language, not a cue. Write "
         "the message itself in the SAME language the patient has been writing in. Sample of "
@@ -293,7 +329,7 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
     explanation = str(response.content)
 
     update = {
-        "confirmed_disease": confirmed,
+        "confirmed_disease": {**confirmed, "care_level": care_level},
         "condition_explanation": explanation,
         "messages": [AIMessage(content=explanation)],
     }
@@ -336,7 +372,7 @@ def offer_doctor(state: GraphState) -> Command:
     # exception — it already reads as a role, not a field.
     if not specialty:
         offer_message = "Would you like me to find a doctor for you?"
-    elif specialty == "General Practitioner":
+    elif specialty == GENERAL_PRACTITIONER:
         offer_message = "Would you like me to find a General Practitioner for you?"
     else:
         offer_message = f"Would you like me to find a specialist in {specialty} for you?"

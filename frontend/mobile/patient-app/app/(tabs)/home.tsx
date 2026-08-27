@@ -134,12 +134,12 @@ export default function Home() {
                     </Card>
                 </Pressable>
 
-                <Text style={styles.sectionTitle}>Recent Treatments</Text>
+                <Text style={styles.sectionTitle}>Recent Diagnoses</Text>
 
                 {loaded && treatments.length === 0 && !error ? (
                     <EmptyState
                         icon="pulse-outline"
-                        title="No treatments yet"
+                        title="No diagnoses yet"
                         message="Tap Diagnosis above to describe your symptoms and get started."
                     />
                 ) : (
@@ -154,7 +154,7 @@ export default function Home() {
                         style={styles.viewAll}
                     >
                         <Text style={styles.viewAllText}>
-                            View all {treatments.length} treatments
+                            View all {treatments.length} diagnoses
                         </Text>
                         <Ionicons
                             name="arrow-forward"
