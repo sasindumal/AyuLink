@@ -16,6 +16,14 @@ is cut.
   heading below at the moment you tag, then leave this section empty
   until the next round of changes)
 
+## [v1.0.2] - failed build, superseded by v1.0.3
+
+- Second attempt. Got past the yarn-misdetection issue, but all 4
+  jobs failed at `npm ci` (EUSAGE — `package-lock.json` out of sync,
+  missing `react-dom`/`scheduler`). Fixed in v1.0.3 by installing with
+  `--legacy-peer-deps` in CI, matching the local setup instructions
+  already documented in `frontend/mobile/README.md`.
+
 ## [v1.0.1] - failed build, superseded by v1.0.2
 
 - Attempted first release. All 4 build jobs failed: EAS CLI's local
