@@ -22,7 +22,6 @@ import {
     Card,
     EmptyState,
     ScreenHeader,
-    StatCard,
 } from "../../src/components/ui";
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
 import type { Prescription } from "../../src/types";
@@ -114,15 +113,6 @@ export default function Home() {
                 )}
                 {error && <Banner kind="error" message={error} />}
 
-                <View style={styles.statRow}>
-                    <StatCard
-                        label="Issued"
-                        value={prescriptions.length}
-                        icon="albums"
-                        tint={colors.primaryDark}
-                    />
-                </View>
-
                 <Pressable onPress={() => router.push("/(tabs)/scan")}>
                     <Card style={styles.actionCard}>
                         <View style={styles.actionIcon}>
@@ -204,7 +194,6 @@ const styles = StyleSheet.create({
         borderColor: colors.background,
     },
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
-    statRow: { flexDirection: "row", gap: 10, marginBottom: spacing.md },
     actionCard: {
         flexDirection: "row",
         alignItems: "center",
