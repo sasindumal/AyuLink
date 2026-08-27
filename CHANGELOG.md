@@ -16,6 +16,14 @@ is cut.
   heading below at the moment you tag, then leave this section empty
   until the next round of changes)
 
+## [v1.0.1] - failed build, superseded by v1.0.2
+
+- Attempted first release. All 4 build jobs failed: EAS CLI's local
+  dependency-fingerprinting step misdetected the package manager as
+  yarn in this monorepo (no lockfile at the git root) and crashed
+  running `yarn install`. Fixed in v1.0.2 by pinning `packageManager`
+  in each app's `package.json`.
+
 <!--
 Template for a new entry — copy this above the previous version, filling
 in the tag and date, right before running `git tag -a vX.Y.Z`:
