@@ -58,5 +58,20 @@ class DoctorSearchQuery(BaseModel):
     )
 
 
-class FollowupQuestion(BaseModel):
-    question: str = Field(..., description="One short, targeted follow-up question for the patient.")
+class FollowupDecision(BaseModel):
+    ready_to_conclude: bool = Field(
+        ...,
+        description="True if the symptoms and conversation gathered so far are enough to "
+        "reasonably explain a likely condition to the patient — no further question is "
+        "needed. False if there is a genuinely useful follow-up question that would "
+        "meaningfully help narrow down which of the candidate conditions is most likely.",
+    )
+    question: Optional[str] = Field(
+        None,
+        description="Required if ready_to_conclude is False, otherwise omit/null. The single "
+        "best next question to ask the patient — about a specific symptom's presence, its "
+        "duration, severity, timing, what triggers or relieves it, or an associated symptom, "
+        "whichever would most help a doctor differentiate between the candidate conditions "
+        "right now. Naturally phrased, plain everyday language, one short question. Never "
+        "repeat something the patient already told you.",
+    )

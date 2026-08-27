@@ -63,7 +63,12 @@ if LLM_PROVIDER == "openrouter" and not OPENROUTER_API_KEY:
     raise RuntimeError("LLM_PROVIDER=openrouter requires OPENROUTER_API_KEY to be set")
 
 CONFIDENCE_THRESHOLD = 0.6
-MAX_FOLLOWUP_ROUNDS = 3
+# Hard ceiling on ask_followup rounds — disease_agent's LLM call decides
+# per-round whether it's actually done sooner than this, but the graph
+# must still terminate somewhere regardless of what the LLM thinks.
+MAX_FOLLOWUP_ROUNDS = int(os.environ.get("MAX_FOLLOWUP_ROUNDS", "5"))
+if MAX_FOLLOWUP_ROUNDS < 1:
+    raise RuntimeError("MAX_FOLLOWUP_ROUNDS must be at least 1")
 # A doctor never diagnoses off a single mentioned symptom — always ask at
 # least this many follow-up questions first, regardless of how confident
 # the raw symptom match looks (a single common symptom like "fever" can

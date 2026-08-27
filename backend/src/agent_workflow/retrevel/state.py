@@ -37,6 +37,16 @@ class GraphState(TypedDict):
     round: int
     confidence: float
     candidate_diseases: list[dict]
+    # Set by disease_agent each round — an LLM judgment call (informed by
+    # the Neo4j-retrieved candidates/confidence above), not a fixed
+    # question count. should_ask_followup just reads this to route.
+    llm_ready_to_conclude: bool
+    llm_followup_question: Optional[str]
+    # {question, answer} pairs, appended by ask_followup each round — lets
+    # the next round's LLM call see exactly what it already asked, so it
+    # doesn't repeat itself (state["symptoms"] alone is just a flat bag of
+    # answer text with no memory of which question produced which answer).
+    followup_history: list[dict]
     confirmed_disease: Optional[dict]
     condition_explanation: Optional[str]
     specialty_hint: Optional[str]
