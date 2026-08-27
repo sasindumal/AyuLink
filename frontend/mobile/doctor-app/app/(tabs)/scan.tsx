@@ -49,7 +49,7 @@ interface MedInput {
 const emptyMed = (): MedInput => ({
     drugName: "",
     dosageAmount: "",
-    dosageUnit: "",
+    dosageUnit: "mg",
     frequency: "",
     duration: "",
     instructions: "",
