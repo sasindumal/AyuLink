@@ -5,6 +5,11 @@ from typing import Any, AsyncIterator
 
 from langgraph.graph.state import CompiledStateGraph
 
+# Nodes that both persist their question into state["messages"] and send
+# it to the client as an "interrupt" event. Their message stream is
+# suppressed so the client renders the question once, from the interrupt.
+INTERRUPT_ECHO_NODES = {"ask_followup", "course_followup"}
+
 
 def sse_event(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
@@ -43,16 +48,15 @@ async def stream_graph_events(
             if stream_mode == "messages":
                 message_chunk, metadata = chunk
                 bucket = (metadata or {}).get("langgraph_node") or "default"
-                # ask_followup returns the already-asked question + the
-                # patient's own answer into state["messages"] (so they're
-                # persisted for history/context — see disease.py) — but
-                # "messages" mode streams ANY message a node returns, not
-                # just fresh LLM-generated tokens, so without this skip the
-                # question would show up a second time (it was already
-                # sent via the "interrupt" event on the prior turn) and the
-                # patient's own answer would render back as if the
-                # assistant had said it.
-                if bucket == "ask_followup":
+                # These nodes persist a question into state["messages"] (so
+                # it survives a history reload and stays in the LLM's
+                # context) AND deliver it to the client as an "interrupt"
+                # event. "messages" mode streams ANY message a node
+                # returns, not just fresh LLM tokens — so without this skip
+                # the same question renders twice, and in ask_followup's
+                # case the patient's own answer renders back as if the
+                # assistant had said it. See disease.py / followup.py.
+                if bucket in INTERRUPT_ECHO_NODES:
                     continue
                 content = getattr(message_chunk, "content", None)
                 if content:

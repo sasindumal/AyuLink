@@ -129,3 +129,26 @@ async def reschedule_appointment(
         },
     )
     return data
+
+
+# ----- Care journey (visit -> prescription -> dispensing -> follow-up) -----
+
+
+async def treatment_by_thread(jwt: str, thread_id: str) -> dict | None:
+    """The caller's diagnosis for one chat thread, or None if this thread
+    never produced one (e.g. a general-questions conversation)."""
+    data = await _call(jwt, "app_treatment_by_thread", {"p_thread_id": thread_id})
+    return data or None
+
+
+async def treatment_timeline(jwt: str, treatment_id: str) -> dict:
+    """Everything that has happened on one diagnosis since it was booked,
+    as stably-keyed events — see app_treatment_timeline. The keys are what
+    make replaying these into the chat idempotent."""
+    data = await _call(jwt, "app_treatment_timeline", {"p_treatment_id": treatment_id})
+    return data or {}
+
+
+async def complete_treatment(jwt: str, treatment_id: str) -> dict:
+    data = await _call(jwt, "app_complete_treatment", {"p_treatment_id": treatment_id})
+    return data

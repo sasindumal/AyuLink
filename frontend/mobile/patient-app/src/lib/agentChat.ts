@@ -106,6 +106,73 @@ export async function sendMessage(
     await streamSSE(response as unknown as Response, onEvent);
 }
 
+export interface DispensedDrug {
+    drugName: string;
+    dosage?: string | null;
+    frequency?: string | null;
+    duration?: string | null;
+    route?: string | null;
+    instructions?: string | null;
+    durationDays?: number | null;
+    dispensedAt?: string | null;
+    pharmacyName?: string | null;
+}
+
+export interface CareSyncResult {
+    synced: number;
+    messages: string[];
+    treatmentId?: string;
+    status?: string;
+    followupPlan?: string;
+    /** Everything a pharmacy has actually handed over, for scheduling
+     *  dose reminders against. */
+    drugs: DispensedDrug[];
+    /** When the last medication of the course runs out — the app schedules
+     *  its own local notification for this. Null while nothing has been
+     *  dispensed yet, or when any medication is open-ended. */
+    courseEndsAt: string | null;
+}
+
+/**
+ * Fold everything that happened outside the chat — the doctor starting
+ * the visit, the prescription they issued, each drug a pharmacy
+ * dispensed — into the conversation. Idempotent: the backend tracks
+ * which events it has already posted, so calling this on every open
+ * never duplicates messages.
+ */
+export async function syncCareEvents(threadId: string): Promise<CareSyncResult> {
+    const token = await getAccessToken();
+    const response = await fetch(`${AGENT_API_URL}/chat/sync`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ thread_id: threadId }),
+    });
+    if (!response.ok) {
+        throw new Error(`Sync failed (${response.status})`);
+    }
+    return (await response.json()) as CareSyncResult;
+}
+
+/** Start the end-of-course check-in ("how are you feeling now?"). */
+export async function startCourseFollowup(
+    threadId: string,
+    onEvent: (evt: AgentEvent) => void
+): Promise<void> {
+    const token = await getAccessToken();
+    const response = await fetch(`${AGENT_API_URL}/chat/followup`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ thread_id: threadId }),
+    });
+    await streamSSE(response as unknown as Response, onEvent);
+}
+
 export async function resumeChat(
     threadId: string,
     value: unknown,
