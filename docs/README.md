@@ -287,6 +287,47 @@ started, prescription issued, drugs dispensed) into the thread.
 Full architecture, every node's responsibility, the state schema, the SSE
 event vocabulary, and the LLM-provider abstraction: **[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md)**.
 
+## 7b. Ayu — the health-profile assistant
+
+A **second** LangGraph agent (`backend/src/agent_workflow/ayu/`), separate
+from the diagnosis one and reached on its own `/ayu/*` endpoints. It runs
+a fixed 10-question interview to fill the patient's health profile, picks
+English or Sinhala up front, and re-checks monthly for anything still
+unanswered.
+
+Kept as its own graph rather than another branch of the diagnosis agent
+because the two have nothing in common but the patient: one classifies
+free-form intent and routes, the other runs a script to completion.
+Merging them would make `manager_agent` responsible for telling "I have a
+headache" from an answer to question 4 of an interview. They share the
+FastAPI process, the Postgres checkpointer and the LLM provider layer —
+not the graph.
+
+Two decisions carry the design:
+
+- **The conversation may be Sinhala; the stored values never are.**
+  Doctors, the drug catalogue and the Neo4j graph are English-only. Every
+  extraction prompt says so, and because "always answer in English" holds
+  most of the time and then quietly doesn't, a deterministic guard
+  (`_is_latin` / `_to_latin`) re-translates any field that comes back in
+  Sinhala script before it is stored.
+- **"I don't know" and "I have none" are different answers.** The first
+  leaves the section `UNKNOWN` so a doctor can see it was never
+  established; the second records `NONE`, a real clinical statement. An
+  LLM asked for that boolean on a negation-heavy sentence was observed
+  flipping between the two across consecutive calls, so a keyword veto
+  (`_decide`) settles it — the same second-guessing `manager_agent`
+  applies to its own `booking` route, for the same reason.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /ayu/chat` | Open Ayu. `mode` is `INTAKE` (all 10 questions) or `CHECKIN` (only the ones still `UNKNOWN`). Ayu speaks first. |
+| `POST /ayu/resume` | Answer a language pick, a question, or the final confirm/edit. |
+| `GET /ayu/history` | Rehydrate an interview in progress. |
+| `GET /ayu/status` | Whether Ayu is on, the chosen language, how many gaps remain, and whether a monthly check-in is due. |
+| `POST /ayu/enabled` | The on/off switch on the patient's home screen. |
+| `POST /ayu/snooze` | Records a nudge, so the next one is a month away rather than on the next launch. |
+
 ## 8. Database Management
 
 **Create the schema** (new Supabase project): run every file in

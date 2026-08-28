@@ -18,8 +18,11 @@ from pydantic import BaseModel
 from src.api.auth import get_patient_auth
 from src.api.checkpointer import close_checkpointer, init_checkpointer
 from src.agent_workflow.retrevel.agent import build_graph_builder
+from src.agent_workflow.ayu.graph import build_ayu_builder
 from src.agent_workflow.retrevel.care_events import build_event_messages, new_events
+from src.agent_workflow.ayu.questions import QUESTIONS, pending_indexes
 from src.agent_workflow.retrevel.tools.postgres_tools import (
+    _call as _call_rpc,
     RpcError,
     treatment_by_thread,
     treatment_timeline,
@@ -27,13 +30,18 @@ from src.agent_workflow.retrevel.tools.postgres_tools import (
 from src.api.sse import stream_graph_events
 
 graph = None
+ayu_graph = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global graph
+    global graph, ayu_graph
     checkpointer = await init_checkpointer()
     graph = build_graph_builder().compile(checkpointer=checkpointer)
+    # Ayu is a separate graph but shares the one checkpointer — its
+    # threads are namespaced by thread_id ("ayu:<patient>"), so the two
+    # agents' conversations never collide.
+    ayu_graph = build_ayu_builder().compile(checkpointer=checkpointer)
     yield
     await close_checkpointer()
 
@@ -256,3 +264,153 @@ async def chat_history(thread_id: str, auth=Depends(get_patient_auth)):
             break
 
     return {"messages": messages, "interrupt": pending_interrupt}
+
+
+# ==============================================
+# Ayu — the health-profile assistant
+#
+# A second agent with its own graph (src/agent_workflow/ayu). It runs a
+# fixed interview to fill the patient's health profile, in English or
+# Sinhala, and stores every value in English regardless.
+# ==============================================
+
+
+class AyuRequest(BaseModel):
+    thread_id: str
+    # "INTAKE"  — the full interview, run after registration.
+    # "CHECKIN" — the monthly top-up, asking only what is still missing.
+    mode: str = "INTAKE"
+
+
+@app.post("/ayu/chat")
+async def ayu_chat(body: AyuRequest, auth=Depends(get_patient_auth)):
+    """Open (or reopen) Ayu. Ayu speaks first, so there is no message."""
+    jwt, patient_id = auth
+    config = {"configurable": {"thread_id": body.thread_id}}
+    input_ = {
+        "messages": [],
+        "patient_jwt": jwt,
+        "patient_id": patient_id,
+        "mode": body.mode if body.mode in ("INTAKE", "CHECKIN") else "INTAKE",
+    }
+    return StreamingResponse(
+        stream_graph_events(ayu_graph, input_, config), media_type="text/event-stream"
+    )
+
+
+@app.post("/ayu/resume")
+async def ayu_resume(body: ResumeRequest, auth=Depends(get_patient_auth)):
+    config = {"configurable": {"thread_id": body.thread_id}}
+    resume_value = body.value
+    if isinstance(resume_value, dict) and not resume_value:
+        resume_value = {"_default": True}
+    return StreamingResponse(
+        stream_graph_events(ayu_graph, Command(resume=resume_value), config),
+        media_type="text/event-stream",
+    )
+
+
+@app.get("/ayu/history")
+async def ayu_history(thread_id: str, auth=Depends(get_patient_auth)):
+    config = {"configurable": {"thread_id": thread_id}}
+    snapshot = await ayu_graph.aget_state(config)
+    if not snapshot.values:
+        return {"messages": [], "interrupt": None, "started": False}
+
+    messages = [
+        {"role": "user" if getattr(m, "type", "") == "human" else "assistant",
+         "content": str(getattr(m, "content", ""))}
+        for m in snapshot.values.get("messages", [])
+    ]
+    pending = None
+    for task in snapshot.tasks:
+        if task.interrupts:
+            pending = task.interrupts[0].value
+            break
+    return {
+        "messages": messages,
+        "interrupt": pending,
+        "started": True,
+        "saved": bool(snapshot.values.get("saved")),
+    }
+
+
+@app.get("/ayu/status")
+async def ayu_status(auth=Depends(get_patient_auth)):
+    """Whether Ayu should show itself, and why.
+
+    The client asks this on launch instead of deciding for itself: which
+    sections are still unanswered, and how long since the last nudge, are
+    both facts the database owns. `dueForCheckin` is the once-a-month
+    prompt — a month since the last one AND something genuinely missing,
+    so a complete profile is never nagged.
+    """
+    jwt, _ = auth
+    try:
+        data = await _call_rpc(jwt, "app_get_my_health_profile", {})
+    except RpcError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    profile = (data or {}).get("profile") or {}
+    missing = pending_indexes(profile)
+    enabled = profile.get("ayu_enabled")
+    last = profile.get("ayu_last_prompted_at")
+    completed = profile.get("profile_completed_at")
+
+    due = False
+    if enabled is not False and missing:
+        if not completed:
+            due = True
+        elif last is None:
+            due = True
+        else:
+            try:
+                from datetime import datetime, timedelta, timezone
+
+                due = datetime.fromisoformat(str(last).replace("Z", "+00:00")) < datetime.now(
+                    timezone.utc
+                ) - timedelta(days=30)
+            except ValueError:
+                due = True
+
+    return {
+        "enabled": enabled is not False,
+        "language": profile.get("preferred_language") or "EN",
+        "everCompleted": bool(completed),
+        "missingCount": len(missing),
+        "totalQuestions": len(QUESTIONS),
+        "dueForCheckin": due,
+    }
+
+
+class AyuToggle(BaseModel):
+    enabled: bool
+
+
+@app.post("/ayu/enabled")
+async def ayu_set_enabled(body: AyuToggle, auth=Depends(get_patient_auth)):
+    """The on/off switch on the home screen."""
+    jwt, _ = auth
+    try:
+        await _call_rpc(jwt, "app_save_my_health_profile",
+                        {"p_payload": {"profile": {"ayuEnabled": body.enabled}}})
+    except RpcError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"enabled": body.enabled}
+
+
+@app.post("/ayu/snooze")
+async def ayu_snooze(auth=Depends(get_patient_auth)):
+    """Records that the patient was nudged, so the next check-in is a
+    month away rather than on every app launch."""
+    from datetime import datetime, timezone
+
+    jwt, _ = auth
+    try:
+        await _call_rpc(
+            jwt, "app_save_my_health_profile",
+            {"p_payload": {"profile": {"ayuLastPromptedAt": datetime.now(timezone.utc).isoformat()}}},
+        )
+    except RpcError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return {"ok": True}

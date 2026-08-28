@@ -31,6 +31,7 @@ import {
     type PrescriptionDraft,
 } from "../../src/components/PrescriptionConfirmModal";
 import { AppointmentPicker } from "../../src/components/AppointmentPicker";
+import { ClinicalHistorySheet, type ClinicalHistory } from "../../src/components/ClinicalHistorySheet";
 import { ReferralDoctorPicker } from "../../src/components/ReferralDoctorPicker";
 import type {
     DoctorPatientAppointment,
@@ -92,6 +93,14 @@ export default function Scan() {
     const [manualId, setManualId] = useState("");
     const [lookupLoading, setLookupLoading] = useState(false);
     const [patient, setPatient] = useState<PatientLookup | null>(null);
+    // The patient's own background (allergies, conditions, regular
+    // medicines). Fetched on demand rather than with the lookup: it is a
+    // second round trip that most prescriptions never need, and putting
+    // it behind a tap keeps the scan-to-prescribe path fast.
+    const [historyOpen, setHistoryOpen] = useState(false);
+    const [history, setHistory] = useState<ClinicalHistory | null>(null);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState<string | null>(null);
 
     const [diagnosis, setDiagnosis] = useState("");
     const [age, setAge] = useState("");
@@ -390,6 +399,26 @@ export default function Scan() {
         }
     };
 
+    const openClinicalHistory = async () => {
+        if (!patient) return;
+        setHistoryOpen(true);
+        // Re-fetch each time it is opened: the patient may have edited
+        // their profile between two prescriptions in the same session.
+        setHistoryLoading(true);
+        setHistoryError(null);
+        try {
+            setHistory(
+                await rpc<ClinicalHistory>("app_get_patient_health_profile", {
+                    p_patient_id: patient.id,
+                })
+            );
+        } catch (e) {
+            setHistoryError(e instanceof Error ? e.message : "Couldn't load clinical history");
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <KeyboardAvoidingView
@@ -476,6 +505,12 @@ export default function Scan() {
                                     </Text>
                                 </Pressable>
                             </Card>
+
+                            <Pressable style={styles.historyBtn} onPress={openClinicalHistory}>
+                                <Ionicons name="clipboard-outline" size={17} color={colors.primaryDark} />
+                                <Text style={styles.historyBtnText}>Clinical history</Text>
+                                <Ionicons name="chevron-forward" size={16} color={colors.primaryDark} />
+                            </Pressable>
 
                             {!editingId && appointments.length > 0 && (
                                 <>
@@ -716,6 +751,14 @@ export default function Scan() {
                 onBack={() => setReviewDraft(null)}
                 onConfirm={confirmIssue}
             />
+            <ClinicalHistorySheet
+                visible={historyOpen}
+                loading={historyLoading}
+                error={historyError}
+                data={history}
+                patientName={patient ? `${patient.firstName} ${patient.lastName}` : ""}
+                onClose={() => setHistoryOpen(false)}
+            />
         </SafeAreaView>
     );
 }
@@ -731,6 +774,17 @@ const styles = StyleSheet.create({
     },
     dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
     dividerText: { fontSize: 12, color: colors.textMuted },
+    historyBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        backgroundColor: colors.primarySoft,
+        borderRadius: radius.sm,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        marginBottom: spacing.md,
+    },
+    historyBtnText: { flex: 1, fontSize: 14, fontWeight: "700", color: colors.primaryDark },
     patientCard: {
         flexDirection: "row",
         alignItems: "center",
