@@ -401,8 +401,24 @@ Three jobs, decided by what's already in state:
    appointment" message doesn't find a stale "fresh" slot and try to
    re-book it.
 2. **No fresh slot, but a booking already exists on this thread** →
-   classify intent (cancel/reschedule/status) via structured output
-   (falls back to a keyword scan), and act directly: cancel calls
+   classify intent (cancel / reschedule / rebook / new_booking / status)
+   via structured output, and act directly:
+
+   The classifier is **vetoed by a keyword pass** (`_keyword_intent`), the
+   same deliberate second-guessing `manager_agent` applies to its own
+   `booking` route, for the same reason: the mistake is asymmetric. "Cancel
+   this and give me a today appointment" is genuinely ambiguous phrasing,
+   and an LLM asked for one label lands on `reschedule` about as often as
+   `cancel` — leaving a real appointment standing that the patient believes
+   they cancelled. So an explicit cancel word may only resolve to `cancel`
+   or `rebook`; the LLM still chooses between those two, since it reads
+   "and find me another" better than a word list does.
+
+   `rebook` (cancel *and* replace) cancels first, then hands off to a
+   fresh search — the patient gave an explicit instruction to cancel, and
+   holding the appointment back in case the search comes up short would
+   mean quietly not doing the thing they asked for. `new_booking` (an
+   additional appointment, keeping this one) searches without cancelling. cancel calls
    `cancel_appointment()` and best-effort unlinks the `Treatment`;
    reschedule goes to `_start_reschedule`, which loads that doctor's
    remaining slots **at the same channeling centre only** and jumps

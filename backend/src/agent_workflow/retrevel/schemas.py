@@ -17,11 +17,22 @@ class RouteDecision(BaseModel):
 
 
 class BookingIntent(BaseModel):
-    action: Literal["cancel", "reschedule", "status", "new_booking"] = Field(
+    action: Literal["cancel", "reschedule", "rebook", "status", "new_booking"] = Field(
         ...,
-        description="What the patient wants to do about their existing booking: cancel it, "
-        "reschedule it to a different slot, just check its status/details, or none of these "
-        "(treat as wanting a new/different booking).",
+        description=(
+            "What the patient wants to do about their existing booking.\n"
+            "- 'cancel': call it off, and nothing else. ('cancel my appointment')\n"
+            "- 'reschedule': keep THE SAME doctor at THE SAME clinic, just a different "
+            "date or time. ('move it to Friday', 'can I come later that day')\n"
+            "- 'rebook': drop this appointment AND get a different one — a different "
+            "doctor, a different clinic, or simply 'something today'. Anything that "
+            "pairs cancelling with wanting a replacement. ('cancel this and give me a "
+            "today appointment', 'cancel it and find someone else')\n"
+            "- 'new_booking': wants an ADDITIONAL appointment while keeping this one.\n"
+            "- 'status': only asking about the existing booking's details.\n"
+            "When the patient explicitly says to cancel, never answer 'reschedule' or "
+            "'status' — it is either 'cancel' or 'rebook'."
+        ),
     )
 
 
