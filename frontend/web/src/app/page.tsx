@@ -144,7 +144,18 @@ function useReveal() {
         const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         if (reduced || typeof IntersectionObserver === "undefined") return;
 
-        nodes.forEach((n) => n.classList.add("reveal-armed"));
+        // Only arm what is genuinely still below the fold. Anything
+        // already on screen (or scrolled past, which happens on a hot
+        // reload or a restored scroll position) is shown immediately —
+        // arming it would hide content the observer may never fire for
+        // again, leaving a permanently blank section.
+        const belowFold: HTMLElement[] = [];
+        nodes.forEach((n) => {
+            if (n.getBoundingClientRect().top < window.innerHeight * 0.92) return;
+            n.classList.add("reveal-armed");
+            belowFold.push(n);
+        });
+        if (!belowFold.length) return;
 
         const io = new IntersectionObserver(
             (entries) => {
@@ -162,8 +173,27 @@ function useReveal() {
             { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
         );
 
-        nodes.forEach((n) => io.observe(n));
-        return () => io.disconnect();
+        belowFold.forEach((n) => io.observe(n));
+
+        // Last-resort safety net. If anything is still hidden well after
+        // the page has settled — an observer that never fired, a browser
+        // quirk, a layout shift that moved an element out of the
+        // observed path — show it. An un-animated section beats an
+        // invisible one, always.
+        // Unconditional on purpose — it deliberately does NOT re-check
+        // viewport position, because the situations this exists to catch
+        // are exactly the ones where that measurement is what went wrong
+        // (a zero-height viewport in a hidden tab, an observer that never
+        // fired). Revealing a section early is a non-event; leaving one
+        // permanently invisible is not.
+        const failsafe = window.setTimeout(() => {
+            belowFold.forEach((n) => n.classList.remove("reveal-armed"));
+        }, 2500);
+
+        return () => {
+            io.disconnect();
+            window.clearTimeout(failsafe);
+        };
     }, []);
 
     return root;
