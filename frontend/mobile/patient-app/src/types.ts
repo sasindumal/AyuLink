@@ -236,7 +236,27 @@ export interface Treatment {
 
 // ----- Care timeline (app_treatment_timeline) -----
 
-export type CareEventType = "APPOINTMENT_STARTED" | "PRESCRIPTION_ISSUED" | "ITEM_DISPENSED";
+export type CareEventType =
+    | "DIAGNOSED"
+    | "APPOINTMENT_BOOKED"
+    | "APPOINTMENT_STARTED"
+    | "PRESCRIPTION_ISSUED"
+    | "ITEM_DISPENSED";
+
+export interface CareEventDiagnosed {
+    diseaseName: string;
+    specialty: string | null;
+}
+
+export interface CareEventAppointmentBooked {
+    doctorName: string;
+    specialty: string | null;
+    centerName: string | null;
+    orderNumber: string;
+    appointmentDate: string;
+    startTime: string;
+    status: AppointmentStatus;
+}
 
 export interface CareEventAppointmentStarted {
     doctorName: string;
@@ -277,7 +297,12 @@ export interface CareEvent {
     key: string;
     type: CareEventType;
     at: string | null;
-    payload: CareEventAppointmentStarted | CareEventPrescriptionIssued | CareEventItemDispensed;
+    payload:
+        | CareEventDiagnosed
+        | CareEventAppointmentBooked
+        | CareEventAppointmentStarted
+        | CareEventPrescriptionIssued
+        | CareEventItemDispensed;
 }
 
 // Shape returned by app_treatment_timeline().

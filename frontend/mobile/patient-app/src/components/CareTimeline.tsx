@@ -14,7 +14,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, type } from "../theme";
 import type {
     CareEvent,
+    CareEventAppointmentBooked,
     CareEventAppointmentStarted,
+    CareEventDiagnosed,
     CareEventItemDispensed,
     CareEventPrescriptionIssued,
 } from "../types";
@@ -74,6 +76,39 @@ function EventLine({
 function renderEvent(event: CareEvent, index: number, total: number) {
     const isLast = index === total - 1;
 
+    if (event.type === "DIAGNOSED") {
+        const p = event.payload as CareEventDiagnosed;
+        return (
+            <EventLine
+                key={event.key}
+                icon="pulse"
+                title="Symptoms assessed"
+                subtitle={
+                    p.specialty ? `${formatWhen(event.at)} · ${p.specialty}` : `${formatWhen(event.at)} · AI triage`
+                }
+                isLast={isLast}
+            />
+        );
+    }
+
+    if (event.type === "APPOINTMENT_BOOKED") {
+        const p = event.payload as CareEventAppointmentBooked;
+        const cancelled = p.status === "CANCELLED";
+        const when = p.appointmentDate
+            ? new Date(p.appointmentDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+            : "";
+        const at = p.startTime ? ` ${p.startTime.slice(0, 5)}` : "";
+        return (
+            <EventLine
+                key={event.key}
+                icon={cancelled ? "close-circle" : "calendar"}
+                title={cancelled ? "Appointment cancelled" : `Appointment booked with ${p.doctorName}`}
+                subtitle={[`${when}${at}`, p.centerName].filter(Boolean).join(" · ")}
+                isLast={isLast}
+            />
+        );
+    }
+
     if (event.type === "APPOINTMENT_STARTED") {
         const p = event.payload as CareEventAppointmentStarted;
         const where = p.centerName ? ` at ${p.centerName}` : "";
@@ -102,19 +137,26 @@ function renderEvent(event: CareEvent, index: number, total: number) {
         );
     }
 
-    // ITEM_DISPENSED
-    const p = event.payload as CareEventItemDispensed;
-    return (
-        <EventLine
-            key={event.key}
-            icon="checkmark-circle"
-            title={`${p.drugName} dispensed`}
-            subtitle={
-                p.pharmacyName ? `${formatWhen(event.at)} · ${p.pharmacyName}` : formatWhen(event.at)
-            }
-            isLast={isLast}
-        />
-    );
+    if (event.type === "ITEM_DISPENSED") {
+        const p = event.payload as CareEventItemDispensed;
+        return (
+            <EventLine
+                key={event.key}
+                icon="checkmark-circle"
+                title={`${p.drugName} dispensed`}
+                subtitle={
+                    p.pharmacyName ? `${formatWhen(event.at)} · ${p.pharmacyName}` : formatWhen(event.at)
+                }
+                isLast={isLast}
+            />
+        );
+    }
+
+    // Forward compatible: a newer database can add event types without an
+    // older build rendering them as garbage. Skipping is correct here —
+    // previously this position was ITEM_DISPENSED's fallthrough, so any
+    // unrecognised type rendered as "undefined dispensed".
+    return null;
 }
 
 export function CareTimeline({

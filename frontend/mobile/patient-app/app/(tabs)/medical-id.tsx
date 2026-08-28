@@ -3,7 +3,7 @@
 // Full-size QR code + usage guide
 // ==============================================
 
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
     Pressable,
     ScrollView,
@@ -12,12 +12,15 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
+import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, spacing } from "../../src/theme";
+import { colors, radius, spacing, statusMeta, type } from "../../src/theme";
 import { Card, ScreenHeader } from "../../src/components/ui";
+import type { Prescription } from "../../src/types";
 
 const STEPS = [
     { title: "Visit a Doctor", text: "Show this QR code so the doctor can access your records." },
@@ -26,9 +29,24 @@ const STEPS = [
     { title: "Collect Your Medication", text: "Each medicine is dispensed and marked on your record." },
 ];
 
+const ACTIVE_STATUSES = new Set(["NOT_DISPENSED", "PARTIALLY_DISPENSED"]);
+
 export default function MedicalId() {
     const { user } = useAuth();
     const [copied, setCopied] = useState(false);
+    const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+
+    // This screen is used standing at a pharmacy counter — the one thing
+    // worth knowing there, besides the QR itself, is what's actually still
+    // collectible. Best-effort: the QR must render even if this fails.
+    useFocusEffect(
+        useCallback(() => {
+            if (!user) return;
+            rpc<Prescription[]>("app_list_prescriptions")
+                .then((d) => setPrescriptions(d ?? []))
+                .catch(() => {});
+        }, [user])
+    );
 
     const copy = async () => {
         if (!user) return;
@@ -38,6 +56,10 @@ export default function MedicalId() {
     };
 
     if (!user) return null;
+
+    const active = prescriptions
+        .filter((p) => ACTIVE_STATUSES.has(p.status))
+        .sort((a, b) => b.dateIssued.localeCompare(a.dateIssued));
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -72,6 +94,43 @@ export default function MedicalId() {
                         <Text style={styles.verifiedText}>Verified by AyuLink</Text>
                     </View>
                 </Card>
+
+                {active.length > 0 && (
+                    <>
+                        <Text style={styles.miniLabel}>Ready to collect</Text>
+                        <Card style={{ marginBottom: spacing.md }}>
+                            {active.slice(0, 3).map((p, i) => {
+                                const meta = statusMeta[p.status];
+                                const remaining = p.items.filter((it) => !it.dispensed).length;
+                                return (
+                                    <Pressable
+                                        key={p.id}
+                                        onPress={() => router.push("/(tabs)/prescriptions")}
+                                        style={[styles.rxRow, i > 0 && styles.rxRowBorder]}
+                                    >
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={styles.rxTitle} numberOfLines={1}>
+                                                {p.diagnosis}
+                                            </Text>
+                                            <Text style={styles.rxMeta}>
+                                                {remaining} of {p.items.length} item
+                                                {p.items.length === 1 ? "" : "s"} remaining
+                                            </Text>
+                                        </View>
+                                        <View style={[styles.rxPill, { backgroundColor: meta.bg }]}>
+                                            <Text style={[styles.rxPillText, { color: meta.color }]}>
+                                                {meta.label}
+                                            </Text>
+                                        </View>
+                                    </Pressable>
+                                );
+                            })}
+                            {active.length > 3 && (
+                                <Text style={styles.rxMore}>+ {active.length - 3} more</Text>
+                            )}
+                        </Card>
+                    </>
+                )}
 
                 <Card style={{ marginBottom: spacing.md }}>
                     <InfoRow icon="person" label="Full Name" value={`${user.firstName} ${user.lastName}`} />
@@ -180,6 +239,14 @@ const styles = StyleSheet.create({
         color: colors.text,
         marginBottom: spacing.sm,
     },
+    miniLabel: { ...type.label, color: colors.textMuted, marginBottom: spacing.sm },
+    rxRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
+    rxRowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    rxTitle: { fontSize: 13.5, fontWeight: "700", color: colors.text },
+    rxMeta: { fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+    rxPill: { borderRadius: radius.full, paddingHorizontal: 9, paddingVertical: 4 },
+    rxPillText: { fontSize: 10.5, fontWeight: "700" },
+    rxMore: { fontSize: 11.5, color: colors.textMuted, textAlign: "center", paddingTop: 8 },
     infoRow: {
         flexDirection: "row",
         alignItems: "center",
