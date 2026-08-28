@@ -216,7 +216,7 @@ in the JSON the RPC returns) is used for `Treatment.disease_name`.
 - **Doctor's own schedule**: `app_get_my_schedule`, `app_upsert_schedule_slot`, `app_delete_schedule_slot`
 - **Appointments**: `app_book_appointment`, `app_reschedule_appointment`, `app_cancel_appointment`, `app_complete_appointment`, `app_list_my_appointments`, `app_list_center_appointments`
 - **Prescriptions**: `app_create_prescription`, `app_update_prescription` (doctor, within 1 day, nothing dispensed, not expired), `app_delete_prescription` (same guard), `app_list_prescriptions` (role-filtered: a patient's own, a doctor's issued, a pharmacist's dispensed-from), `app_lookup_patient` (Medical ID → patient + all their prescriptions), `app_lookup_prescription_by_id` (a *single* prescription's own QR → just that one, refuses a fully-dispensed or expired one), `app_dispense_item` (per-item dispense/undo, 15-minute window)
-- **Treatments (AI diagnoses)**: `app_create_treatment`, `app_link_treatment_appointment`, `app_unlink_treatment_appointment`, `app_delete_treatment`, `app_list_my_treatments`
+- **Treatments (AI diagnoses)**: `app_create_treatment`, `app_link_treatment_appointment`, `app_unlink_treatment_appointment`, `app_delete_treatment`, `app_list_my_treatments`, `app_treatment_by_thread`, `app_treatment_timeline` (care-journey events + `followupPlan` + `courseEndsAt`), `app_complete_treatment` (patient marks a diagnosis done — the only path to `COMPLETED`), `app_treatment_doctors_to_rate` / `app_rate_doctor` (post-course per-doctor 1–5 rating, feeding `DoctorProfile.rating` via trigger)
 - **Notifications**: `app_list_notifications`, `app_mark_notification_read`, `app_mark_all_notifications_read`, `app_unread_notification_count`
 - **Role profiles**: `app_get_pharmacy_profile`, `app_get_my_channeling_center_profile`
 
@@ -259,13 +259,20 @@ system is enforced at the database layer, not client-side.
 ## 7. AI Assistant (Agentic System)
 
 The patient app's Diagnosis/Assistant tab is a LangGraph multi-agent
-system: a manager routes each turn to a clinical-triage branch (grounded
-in a Neo4j symptom→disease→specialty knowledge graph, with hybrid
-exact+vector retrieval), a doctor-search branch, or a booking branch, with
-human-in-the-loop `interrupt()`s wherever the patient needs to make a
-choice, all streamed to the client over Server-Sent Events and persisted
-via a Postgres-backed checkpointer so a conversation survives a server
-restart or a resumed thread days later.
+system — a 21-node `StateGraph` whose `manager_agent` routes each turn to
+one of four branches: a clinical-triage branch (grounded in a Neo4j
+symptom→disease→specialty knowledge graph, with hybrid exact+vector
+retrieval), a doctor-search branch, a booking branch, and a **post-care**
+branch (an end-of-course check-in that marks a diagnosis complete —
+collecting per-doctor 1–5 star ratings first — or steers the patient back
+into booking if they're still unwell). Nine nodes issue human-in-the-loop
+`interrupt()`s wherever the patient needs to make a choice; everything is
+streamed to the client over Server-Sent Events and persisted via a
+Postgres-backed checkpointer so a conversation survives a server restart
+or a resumed thread days later. The post-care branch is opened by the app
+(`POST /chat/followup`) from a local notification it scheduled for the
+course-end moment; `POST /chat/sync` folds out-of-chat care events (visit
+started, prescription issued, drugs dispensed) into the thread.
 
 Full architecture, every node's responsibility, the state schema, the SSE
 event vocabulary, and the LLM-provider abstraction: **[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md)**.
@@ -287,13 +294,18 @@ re-run every migration in order.
 supabase db query --linked -f supabase/seed.sql               # patient, doctor, pharmacist, 2 prescriptions
 supabase db query --linked -f supabase/seed_appointments.sql  # 2 channeling centers, schedules, 1 booking
 
-# Recommended: bulk-import Dataset_ref/ for 90 real doctors + 53 real channeling centers
+# Recommended: bulk-import every doctor + channeling center from Dataset_ref/,
+# plus 30 mock pharmacies — all loginable with password123 (synthetic NICs;
+# pharmacies also get PL-2024-1xx licenses).
 python3 backend/src/agent_workflow/ingestion/seed_postgres_dataset.py
 supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres_dataset.sql
 ```
 
 No Supabase CLI installed? Paste each `.sql` file into the Supabase **SQL
-Editor** instead — same effect. Demo logins are listed in
+Editor** instead — same effect. The bulk seeder also writes
+`backend/src/agent_workflow/ingestion/demo_credentials.csv` (gitignored) —
+role, name, NIC/license and Medical ID for **every** seeded account,
+including the hand-written demo ones. Demo logins are also summarised in
 [`frontend/mobile/README.md`](../frontend/mobile/README.md#demo-accounts).
 
 **Seed the Neo4j knowledge graph** (separate database, only needed for
