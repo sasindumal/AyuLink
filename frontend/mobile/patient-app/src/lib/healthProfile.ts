@@ -159,24 +159,54 @@ export async function saveMyHealthProfile(payload: {
     return rpc<HealthProfile>("app_save_my_health_profile", { p_payload: body });
 }
 
-/** How much of the Tier 1 safety set is filled in — drives the "your
- *  profile is incomplete" nudge and Ayu's monthly check. A section that
- *  is explicitly NONE counts as answered; UNKNOWN does not. */
+// The ten things Ayu asks about, in the same order as the interview
+// (backend/src/agent_workflow/ayu/questions.py). Kept in step with that
+// list on purpose: the profile screen saying "7 of 9 answered" while Ayu
+// says "1 question left" would be two different truths about one thing.
+const LIST_SECTIONS: (keyof HealthProfileCore)[] = [
+    "allergies_status",
+    "conditions_status",
+    "medications_status",
+    "surgeries_status",
+    "family_history_status",
+    "immunisations_status",
+    "implants_status",
+];
+
+// The three scalar questions. Each counts as answered once ANY of its
+// fields is filled — "O+, no idea about my height" is still an answer.
+const SCALAR_GROUPS: (keyof HealthProfileCore)[][] = [
+    ["blood_group", "height_cm", "weight_kg"],
+    ["smoking", "alcohol", "betel"],
+    ["emergency_contact_name", "emergency_contact_relationship", "emergency_contact_phone"],
+];
+
+function scalarAnswered(c: HealthProfileCore, fields: (keyof HealthProfileCore)[]): boolean {
+    return fields.some((f) => {
+        const v = c[f];
+        return v !== null && v !== undefined && v !== "" && v !== "UNKNOWN";
+    });
+}
+
+/** How much of the profile is filled in. A section explicitly marked
+ *  NONE counts as answered; UNKNOWN does not — that distinction is the
+ *  whole point of the *_status columns. */
 export function completeness(p: HealthProfile): { answered: number; total: number } {
     const c = p.profile ?? {};
-    const sections: (SectionStatus | undefined)[] = [
-        c.allergies_status,
-        c.conditions_status,
-        c.medications_status,
-        c.surgeries_status,
-        c.family_history_status,
-        c.immunisations_status,
-        c.implants_status,
-    ];
-    const answered = sections.filter((s) => s === "NONE" || s === "LISTED").length;
-    const extras = [c.blood_group, c.emergency_contact_phone];
+    const lists = LIST_SECTIONS.filter((k) => {
+        const v = c[k] as SectionStatus | undefined;
+        return v === "NONE" || v === "LISTED";
+    }).length;
+    const scalars = SCALAR_GROUPS.filter((g) => scalarAnswered(c, g)).length;
     return {
-        answered: answered + extras.filter(Boolean).length,
-        total: sections.length + extras.length,
+        answered: lists + scalars,
+        total: LIST_SECTIONS.length + SCALAR_GROUPS.length,
     };
+}
+
+/** How many of Ayu's questions still have no answer at all. Mirrors
+ *  `pending_indexes` in questions.py. */
+export function missingCount(p: HealthProfile): number {
+    const { answered, total } = completeness(p);
+    return total - answered;
 }

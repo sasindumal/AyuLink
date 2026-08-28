@@ -21,7 +21,7 @@ import { Banner, Button, Input, formatDate } from "../src/components/ui";
 import { ConfirmModal } from "../src/components/ConfirmModal";
 import { completeness, getMyHealthProfile } from "../src/lib/healthProfile";
 import { exportPrescriptionsCsv } from "../src/lib/exportCsv";
-import { ayuSetEnabled, ayuStatus, type AyuStatus } from "../src/lib/ayu";
+import { ayuSetEnabled, statusFrom, type AyuStatus } from "../src/lib/ayu";
 
 interface FullProfile {
     id: string;
@@ -76,16 +76,14 @@ export default function Profile() {
             setError(null);
             // Best-effort: a health-profile hiccup must not stop the
             // account details from rendering.
+            // One read answers both: how complete the health profile is,
+            // and whether Ayu is on. Both live on PatientProfile.
             try {
-                setHealth(completeness(await getMyHealthProfile()));
+                const hp = await getMyHealthProfile();
+                setHealth(completeness(hp));
+                setAyu(statusFrom(hp));
             } catch {
                 setHealth(null);
-            }
-            // Same treatment: the assistant backend being asleep must not
-            // stop the profile screen rendering.
-            try {
-                setAyu(await ayuStatus());
-            } catch {
                 setAyu(null);
             }
         } catch (e) {

@@ -7,6 +7,7 @@
 
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -23,6 +24,8 @@ import {
     Download,
     Sparkles,
     CalendarSearch,
+    Bot,
+    Github,
 } from "lucide-react";
 
 // Every workflow run (tag push or manual dispatch) publishes a GitHub
@@ -112,45 +115,116 @@ const apps = [
     },
 ];
 
-export default function LandingPage() {
-    return (
-        <div className="min-h-screen bg-background">
-            {/* ===== Navigation ===== */}
-            <nav className="flex items-center justify-between px-6 md:px-16 py-5">
-                <Link href="/" className="flex items-center gap-3">
-                    <Image
-                        src="/logo.png"
-                        alt="AyuLink"
-                        width={44}
-                        height={44}
-                        className="rounded-xl"
-                    />
-                    <span className="text-2xl font-bold text-primary-dark">AyuLink</span>
-                </Link>
+// Facts a visitor cares about, not architecture. "4 user roles" and
+// "50+ role-checked database functions" were true but were describing
+// the build to the wrong audience — nobody choosing a health app is
+// counting stored procedures.
+const stats = [
+    { value: "4", label: "Free apps, one per role" },
+    { value: "1", label: "QR for every doctor & pharmacy" },
+    { value: "24/7", label: "AI health assistant" },
+    { value: "2", label: "Languages — English & Sinhala" },
+];
 
-                <div className="flex items-center gap-3">
+/**
+ * Fade-and-rise elements as they enter the viewport.
+ *
+ * The hidden state is added here, at runtime, rather than living in the
+ * stylesheet: if the script never runs, nothing is ever hidden and the
+ * page reads normally. Hiding in CSS and revealing with JS gets that
+ * backwards and risks a blank page.
+ */
+function useReveal() {
+    const root = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const nodes = root.current?.querySelectorAll<HTMLElement>("[data-reveal]");
+        if (!nodes?.length) return;
+
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if (reduced || typeof IntersectionObserver === "undefined") return;
+
+        nodes.forEach((n) => n.classList.add("reveal-armed"));
+
+        const io = new IntersectionObserver(
+            (entries) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    const el = entry.target as HTMLElement;
+                    const delay = Number(el.dataset.revealDelay ?? 0);
+                    window.setTimeout(() => {
+                        el.classList.remove("reveal-armed");
+                        el.classList.add("reveal-in");
+                    }, delay);
+                    io.unobserve(el);
+                });
+            },
+            { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
+        );
+
+        nodes.forEach((n) => io.observe(n));
+        return () => io.disconnect();
+    }, []);
+
+    return root;
+}
+
+export default function LandingPage() {
+    const root = useReveal();
+
+    return (
+        <div ref={root} className="min-h-screen">
+            {/* The layer every frosted panel on this page is sampling. */}
+            <div className="backdrop-orbs" aria-hidden="true">
+                <div className="orb orb-lime" />
+                <div className="orb orb-forest" />
+                <div className="orb orb-amber" />
+            </div>
+            <div className="backdrop-grain" aria-hidden="true" />
+
+            {/* ===== Navigation ===== */}
+            <header className="sticky top-0 z-50 glass-nav">
+                <nav className="flex items-center justify-between px-6 md:px-12 py-4 max-w-7xl mx-auto">
+                    <Link href="/" className="flex items-center gap-3">
+                        <Image
+                            src="/logo.png"
+                            alt="AyuLink"
+                            width={42}
+                            height={42}
+                            className="rounded-xl"
+                        />
+                        <span className="text-xl md:text-2xl font-extrabold tracking-tight text-primary-dark">
+                            AyuLink
+                        </span>
+                    </Link>
+
+                    <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-text-secondary">
+                        <a href="#features" className="hover:text-primary-dark transition-colors">Features</a>
+                        <a href="#how-it-works" className="hover:text-primary-dark transition-colors">How it works</a>
+                        <a href="#apps" className="hover:text-primary-dark transition-colors">Apps</a>
+                    </div>
+
                     <a href="#apps" className="btn-primary text-sm px-5 py-2.5">
                         Get the App
                     </a>
-                </div>
-            </nav>
+                </nav>
+            </header>
 
-            {/* ===== Hero Section ===== */}
-            <section className="px-6 md:px-16 pt-16 pb-24 max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-                    {/* Left: Text */}
-                    <div className="animate-fade-in">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-action/10 text-primary-dark text-sm font-semibold mb-6">
-                            <Heart className="w-4 h-4" />
+            {/* ===== Hero ===== */}
+            <section className="px-6 md:px-12 pt-16 md:pt-24 pb-24 max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 lg:gap-20 items-center">
+                    <div data-reveal>
+                        <span className="badge-glass mb-7">
+                            <Heart className="w-4 h-4 text-primary-action" />
                             Digital Healthcare for Sri Lanka
                         </span>
 
-                        <h1 className="text-5xl md:text-6xl font-extrabold text-primary-dark leading-tight">
+                        <h1 className="text-5xl md:text-6xl xl:text-7xl font-extrabold leading-[1.05] tracking-tight text-primary-dark">
                             Your health records,{" "}
-                            <span className="text-primary-dark">one scan</span> away
+                            <span className="text-gradient">one scan</span> away
                         </h1>
 
-                        <p className="text-lg text-text-secondary mt-6 max-w-lg leading-relaxed">
+                        <p className="text-lg text-text-secondary mt-7 max-w-xl leading-relaxed">
                             From an AI symptom check-in to finding and booking a doctor to a
                             digital prescription you can collect at any pharmacy — AyuLink
                             connects patients, doctors, pharmacies, and channeling centers on
@@ -159,44 +233,30 @@ export default function LandingPage() {
                         </p>
 
                         <div className="flex flex-wrap gap-4 mt-10">
-                            <a
-                                href="#apps"
-                                className="btn-primary flex items-center gap-2 text-base px-8 py-4"
-                            >
+                            <a href="#apps" className="btn-primary flex items-center gap-2 text-base px-8 py-4">
                                 Get the App
                                 <ArrowRight className="w-5 h-5" />
                             </a>
-                            <a
-                                href="#how-it-works"
-                                className="btn-secondary flex items-center gap-2 text-base px-8 py-4"
-                            >
+                            <a href="#how-it-works" className="btn-secondary flex items-center gap-2 text-base px-8 py-4">
                                 See How It Works
                             </a>
                         </div>
 
-                        {/* Trust badges */}
-                        <div className="flex items-center gap-6 mt-10 text-sm text-text-muted">
-                            {["Secure by Design", "Free for Patients", "Instant Access"].map(
-                                (badge) => (
-                                    <span key={badge} className="flex items-center gap-1.5">
-                                        <CheckCircle className="w-4 h-4 text-primary-action" />
-                                        {badge}
-                                    </span>
-                                )
-                            )}
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 mt-10 text-sm text-text-muted">
+                            {["Secure by Design", "Free for Patients", "Instant Access"].map((badge) => (
+                                <span key={badge} className="flex items-center gap-1.5">
+                                    <CheckCircle className="w-4 h-4 text-primary-action" />
+                                    {badge}
+                                </span>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Right: Visual */}
-                    <div className="relative animate-slide-up hidden lg:block">
-                        {/* Floating card mockup */}
+                    {/* Right: the glass showcase */}
+                    <div className="relative hidden lg:block" data-reveal data-reveal-delay="120">
                         <div className="relative">
-                            {/* Background glow */}
-                            <div className="absolute -inset-8 bg-gradient-to-br from-primary-action/20 via-accent-warning/10 to-primary-dark/10 rounded-3xl blur-3xl" />
-
-                            {/* Main card */}
-                            <div className="relative card p-8 max-w-sm mx-auto">
-                                <div className="flex items-center gap-3 mb-6">
+                            <div className="glass glass-strong p-8 max-w-sm mx-auto animate-float-slow">
+                                <div className="flex items-center gap-3 mb-7">
                                     <Image
                                         src="/logo.png"
                                         alt="AyuLink"
@@ -210,51 +270,59 @@ export default function LandingPage() {
                                     </div>
                                 </div>
 
-                                {/* Mock QR */}
                                 <div className="flex justify-center mb-6">
-                                    <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-primary-dark/5 to-primary-action/5 border-2 border-dashed border-primary-action/30 flex items-center justify-center">
-                                        <QrCode className="w-16 h-16 text-primary-action/50" />
+                                    <div className="w-44 h-44 rounded-3xl bg-gradient-to-br from-primary-dark/8 to-primary-action/8 border border-white/70 flex items-center justify-center shadow-inner">
+                                        <QrCode className="w-20 h-20 text-primary-dark/45" strokeWidth={1.25} />
                                     </div>
                                 </div>
 
                                 <div className="text-center">
-                                    <p className="text-sm font-semibold text-primary-dark">
-                                        John Doe
-                                    </p>
-                                    <p className="text-xs text-text-muted font-mono mt-1">
-                                        AYU-200012345678
-                                    </p>
+                                    <p className="text-sm font-semibold text-primary-dark">Kasun Jayawardena</p>
+                                    <p className="text-xs text-text-muted font-mono mt-1">AYU-200012345678</p>
                                 </div>
 
-                                {/* Status badge */}
-                                <div className="mt-4 flex justify-center">
-                                    <span className="badge-active flex items-center gap-1">
-                                        <div className="w-2 h-2 rounded-full bg-primary-action animate-pulse-soft" />
+                                <div className="mt-5 flex justify-center">
+                                    <span className="badge-active flex items-center gap-1.5">
+                                        <span className="w-2 h-2 rounded-full bg-primary-action animate-pulse-soft" />
                                         Verified
                                     </span>
                                 </div>
                             </div>
 
-                            {/* Floating mini cards */}
-                            <div className="absolute -top-4 -right-4 card p-3 shadow-xl animate-slide-in-right">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-primary-action/10 flex items-center justify-center">
-                                        <Pill className="w-4 h-4 text-primary-action" />
+                            {/* Floating satellites — offset so they overlap the
+                                main card's edge, which is what makes the stack
+                                read as depth rather than three flat cards. */}
+                            <div className="absolute -top-5 -right-2 glass p-3.5 animate-float-slower">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="icon-tile w-9 h-9">
+                                        <Pill className="w-4 h-4 text-primary-dark" />
                                     </div>
                                     <div>
-                                        <p className="text-xs font-semibold text-primary-dark">Prescription</p>
+                                        <p className="text-xs font-bold text-primary-dark">Prescription</p>
                                         <p className="text-[10px] text-text-muted">Just issued</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="absolute -bottom-4 -left-4 card p-3 shadow-xl animate-slide-up">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-lg bg-accent-warning/10 flex items-center justify-center">
-                                        <Shield className="w-4 h-4 text-accent-warning" />
+                            <div className="absolute top-1/3 -left-8 glass p-3.5 animate-float-slow">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="icon-tile w-9 h-9">
+                                        <Bot className="w-4 h-4 text-primary-dark" />
                                     </div>
                                     <div>
-                                        <p className="text-xs font-semibold text-primary-dark">Secured</p>
+                                        <p className="text-xs font-bold text-primary-dark">Ayu</p>
+                                        <p className="text-[10px] text-text-muted">Health assistant</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="absolute -bottom-5 left-4 glass p-3.5 animate-float-slower">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="icon-tile w-9 h-9">
+                                        <Shield className="w-4 h-4 text-primary-dark" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs font-bold text-primary-dark">Secured</p>
                                         <p className="text-[10px] text-text-muted">Row-level access control</p>
                                     </div>
                                 </div>
@@ -262,36 +330,50 @@ export default function LandingPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* Stat strip */}
+                <div className="glass glass-faint mt-20 px-6 py-7 md:px-10" data-reveal data-reveal-delay="80">
+                    <dl className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+                        {stats.map((s) => (
+                            <div key={s.label}>
+                                <dt className="text-3xl md:text-4xl font-extrabold text-gradient">{s.value}</dt>
+                                <dd className="text-xs md:text-sm text-text-muted mt-1.5 font-medium">{s.label}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
             </section>
 
-            {/* ===== Features Section ===== */}
-            <section className="px-6 md:px-16 py-20 bg-surface">
+            {/* ===== Features ===== */}
+            <section id="features" className="px-6 md:px-12 py-24 scroll-mt-24">
                 <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            Why <span className="text-primary-dark">AyuLink</span>?
+                    <div className="text-center mb-16" data-reveal>
+                        <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-primary-dark">
+                            Why <span className="text-gradient">AyuLink</span>?
                         </h2>
-                        <p className="text-text-muted mt-3 max-w-lg mx-auto">
+                        <p className="text-text-muted mt-4 max-w-xl mx-auto leading-relaxed">
                             From an AI-assisted first check-in to picking up medication —
                             one connected platform for the whole visit
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {features.map((feature) => {
+                        {features.map((feature, i) => {
                             const Icon = feature.icon;
                             return (
                                 <div
                                     key={feature.title}
-                                    className="p-6 rounded-3xl bg-background hover:bg-surface border border-transparent hover:border-border hover:shadow-lg transition-all duration-300 group"
+                                    className="glass glass-hover group p-7"
+                                    data-reveal
+                                    data-reveal-delay={i * 70}
                                 >
-                                    <div className="w-12 h-12 rounded-2xl bg-primary-action/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                                        <Icon className="w-6 h-6 text-primary-action" />
+                                    <div className="icon-tile w-13 h-13 p-3.5 mb-5 w-fit">
+                                        <Icon className="w-6 h-6 text-primary-dark" />
                                     </div>
-                                    <h3 className="text-lg font-bold text-primary-dark mb-2">
+                                    <h3 className="text-lg font-bold text-primary-dark mb-2.5">
                                         {feature.title}
                                     </h3>
-                                    <p className="text-sm text-text-muted leading-relaxed">
+                                    <p className="text-sm text-text-secondary leading-relaxed">
                                         {feature.description}
                                     </p>
                                 </div>
@@ -301,35 +383,30 @@ export default function LandingPage() {
                 </div>
             </section>
 
+            <div className="rule-fade max-w-5xl mx-auto" />
+
             {/* ===== How It Works ===== */}
-            <section id="how-it-works" className="px-6 md:px-16 py-20 scroll-mt-8">
+            <section id="how-it-works" className="px-6 md:px-12 py-24 scroll-mt-24">
                 <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            How it <span className="text-primary-dark">works</span>
+                    <div className="text-center mb-16" data-reveal>
+                        <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-primary-dark">
+                            How it <span className="text-gradient">works</span>
                         </h2>
-                        <p className="text-text-muted mt-3">
-                            Four simple steps to digital healthcare
-                        </p>
+                        <p className="text-text-muted mt-4">Four simple steps to digital healthcare</p>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                         {steps.map((s, i) => (
-                            <div key={s.step} className="relative">
-                                {/* Connecting line */}
+                            <div key={s.step} className="relative" data-reveal data-reveal-delay={i * 90}>
                                 {i < steps.length - 1 && (
-                                    <div className="hidden lg:block absolute top-8 left-[60%] w-full h-0.5 bg-border" />
+                                    <div className="hidden lg:block absolute top-14 left-[58%] w-[84%] h-px bg-gradient-to-r from-primary-action/40 to-transparent" />
                                 )}
-                                <div className="relative card p-6 text-center hover:shadow-lg transition-shadow">
-                                    <div className="w-16 h-16 rounded-2xl bg-primary-action/10 flex items-center justify-center mx-auto mb-4">
-                                        <span className="text-2xl font-bold text-primary-dark">
-                                            {s.step}
-                                        </span>
+                                <div className="glass glass-hover p-7 text-center h-full">
+                                    <div className="icon-tile w-16 h-16 mx-auto mb-5">
+                                        <span className="text-2xl font-extrabold text-gradient">{s.step}</span>
                                     </div>
-                                    <h3 className="text-lg font-bold text-primary-dark mb-2">
-                                        {s.title}
-                                    </h3>
-                                    <p className="text-sm text-text-muted">{s.description}</p>
+                                    <h3 className="text-lg font-bold text-primary-dark mb-2">{s.title}</h3>
+                                    <p className="text-sm text-text-secondary leading-relaxed">{s.description}</p>
                                 </div>
                             </div>
                         ))}
@@ -337,43 +414,51 @@ export default function LandingPage() {
                 </div>
             </section>
 
+            <div className="rule-fade max-w-5xl mx-auto" />
+
             {/* ===== Get the Apps ===== */}
-            <section id="apps" className="px-6 md:px-16 py-20 bg-surface scroll-mt-8">
+            <section id="apps" className="px-6 md:px-12 py-24 scroll-mt-24">
                 <div className="max-w-7xl mx-auto">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            Get the <span className="text-primary-dark">app</span>
+                    <div className="text-center mb-16" data-reveal>
+                        <h2 className="text-3xl md:text-5xl font-extrabold tracking-tight text-primary-dark">
+                            Get the <span className="text-gradient">app</span>
                         </h2>
-                        <p className="text-text-muted mt-3 max-w-lg mx-auto">
-                            One free app for each side of the platform — patients, doctors, pharmacies, and channeling centers.
+                        <p className="text-text-muted mt-4 max-w-xl mx-auto leading-relaxed">
+                            One free app for each side of the platform — patients, doctors,
+                            pharmacies, and channeling centers.
                         </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {apps.map((app) => {
+                        {apps.map((app, i) => {
                             const Icon = app.icon;
                             return (
-                                <div key={app.name} className="card p-6 flex flex-col">
-                                    <div className="w-12 h-12 rounded-2xl bg-primary-action/10 flex items-center justify-center mb-4">
-                                        <Icon className="w-6 h-6 text-primary-action" />
+                                <div
+                                    key={app.name}
+                                    className="glass glass-hover group p-7 flex flex-col"
+                                    data-reveal
+                                    data-reveal-delay={i * 80}
+                                >
+                                    <div className="icon-tile w-13 h-13 p-3.5 mb-5 w-fit">
+                                        <Icon className="w-6 h-6 text-primary-dark" />
                                     </div>
-                                    <p className="text-xs font-semibold text-primary-dark uppercase tracking-wide mb-1">
+                                    <p className="text-[11px] font-bold text-primary-action uppercase tracking-widest mb-1.5">
                                         {app.audience}
                                     </p>
-                                    <h3 className="text-lg font-bold text-primary-dark mb-2">{app.name}</h3>
-                                    <p className="text-sm text-text-muted leading-relaxed flex-1">
+                                    <h3 className="text-lg font-bold text-primary-dark mb-2.5">{app.name}</h3>
+                                    <p className="text-sm text-text-secondary leading-relaxed flex-1">
                                         {app.description}
                                     </p>
 
-                                    <div className="flex flex-col gap-2 mt-6">
+                                    <div className="flex flex-col gap-2.5 mt-7">
                                         <a
                                             href={`${RELEASES_BASE}/${app.apk}`}
-                                            className="flex items-center justify-center gap-2 text-xs font-semibold text-white bg-primary-action hover:bg-primary-action/90 rounded-xl px-4 py-2.5 transition-colors"
+                                            className="btn-primary flex items-center justify-center gap-2 text-xs px-4 py-3"
                                         >
                                             <Download className="w-4 h-4" />
                                             Download APK (Android)
                                         </a>
-                                        <span className="flex items-center justify-center gap-2 text-xs font-semibold text-text-muted bg-background border border-border rounded-xl px-4 py-2.5">
+                                        <span className="flex items-center justify-center gap-2 text-xs font-semibold text-text-muted bg-white/50 border border-white/60 rounded-xl px-4 py-3">
                                             <Apple className="w-4 h-4" />
                                             App Store — Coming Soon
                                         </span>
@@ -383,7 +468,7 @@ export default function LandingPage() {
                         })}
                     </div>
 
-                    <p className="text-center text-sm text-text-muted mt-10">
+                    <p className="text-center text-sm text-text-muted mt-12 max-w-2xl mx-auto leading-relaxed">
                         Not on the Play Store yet — download the Android APK directly above, or find
                         the source on{" "}
                         <a
@@ -400,26 +485,25 @@ export default function LandingPage() {
                 </div>
             </section>
 
-            {/* ===== CTA Section ===== */}
-            <section className="px-6 md:px-16 py-20">
-                <div className="max-w-4xl mx-auto">
-                    <div className="card p-12 text-center relative overflow-hidden">
-                        {/* Background accents */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-primary-action/5 rounded-full blur-3xl" />
-                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-accent-warning/5 rounded-full blur-3xl" />
+            {/* ===== CTA ===== */}
+            <section className="px-6 md:px-12 pb-24">
+                <div className="max-w-4xl mx-auto" data-reveal>
+                    <div className="glass glass-strong p-10 md:p-14 text-center relative overflow-hidden">
+                        <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-primary-action/20 blur-3xl" aria-hidden="true" />
+                        <div className="absolute -bottom-24 -left-24 w-64 h-64 rounded-full bg-accent-warning/20 blur-3xl" aria-hidden="true" />
 
                         <div className="relative z-10">
                             <Image
                                 src="/logo.png"
                                 alt="AyuLink"
-                                width={56}
-                                height={56}
-                                className="rounded-2xl mx-auto mb-6"
+                                width={60}
+                                height={60}
+                                className="rounded-2xl mx-auto mb-7"
                             />
-                            <h2 className="text-3xl font-bold text-primary-dark mb-4">
+                            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight text-primary-dark mb-4">
                                 Ready to go digital?
                             </h2>
-                            <p className="text-text-muted mb-8 max-w-md mx-auto">
+                            <p className="text-text-secondary mb-9 max-w-md mx-auto leading-relaxed">
                                 Get AyuLink today and experience the future of healthcare in Sri
                                 Lanka. Free for all patients.
                             </p>
@@ -436,18 +520,19 @@ export default function LandingPage() {
             </section>
 
             {/* ===== Footer ===== */}
-            <footer className="px-6 md:px-16 py-8 border-t border-border">
-                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <Image src="/logo.png" alt="AyuLink" width={28} height={28} className="rounded-lg" />
-                        <span className="text-sm font-semibold text-primary-dark">AyuLink</span>
+            <footer className="px-6 md:px-12 py-10 border-t border-white/50">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5">
+                    <div className="flex items-center gap-2.5">
+                        <Image src="/logo.png" alt="AyuLink" width={30} height={30} className="rounded-lg" />
+                        <span className="text-sm font-bold text-primary-dark">AyuLink</span>
                     </div>
                     <a
                         href="https://github.com/sasindumal/AyuLink"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold text-text-muted hover:text-primary-dark"
+                        className="flex items-center gap-1.5 text-xs font-semibold text-text-muted hover:text-primary-dark transition-colors"
                     >
+                        <Github className="w-4 h-4" />
                         Source on GitHub
                     </a>
                     <p className="text-xs text-text-muted">
