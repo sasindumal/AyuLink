@@ -10,6 +10,12 @@ import { fetch } from "expo/fetch";
 import { AGENT_API_URL } from "./agentConfig";
 import { supabase } from "./supabase";
 import type { AgentEvent } from "./agentChat";
+import {
+    getMyHealthProfile,
+    missingCount,
+    saveMyHealthProfile,
+    type HealthProfile,
+} from "./healthProfile";
 
 export type AyuInterrupt =
     | {
@@ -33,8 +39,9 @@ export interface AyuStatus {
     missingCount: number;
     totalQuestions: number;
     /** True when it's been a month since the last nudge AND something is
-     *  genuinely still missing. The server decides this, not the app —
-     *  both facts live in the database. */
+     *  genuinely still missing. Derived from PatientProfile, so it is
+     *  available whenever Supabase is — the agent backend is not
+     *  involved. */
     dueForCheckin: boolean;
 }
 
@@ -100,28 +107,62 @@ export async function ayuResume(
     await streamSSE(res as unknown as Response, onEvent);
 }
 
+const CHECKIN_INTERVAL_DAYS = 30;
+
+/** Ayu's on/off state and how much is left to ask.
+ *
+ *  Read from SUPABASE, not from the agent backend, even though
+ *  /ayu/status computes exactly the same thing. Every value here already
+ *  lives on PatientProfile, and routing the question through the agent
+ *  made the controls depend on that service being awake: a sleeping or
+ *  undeployed backend returned an error, the caller fell back to null,
+ *  and both the bubble AND the off-switch vanished — leaving someone who
+ *  had turned Ayu off with no way to turn it back on.
+ *
+ *  The backend is still needed for the conversation itself. It is not
+ *  needed to draw a toggle. /ayu/status remains for anything server-side
+ *  that wants the same answer. */
 export async function ayuStatus(): Promise<AyuStatus> {
-    const res = await fetch(`${AGENT_API_URL}/ayu/status`, {
-        headers: { Authorization: `Bearer ${await token()}` },
-    });
-    if (!res.ok) throw new Error(`Couldn't reach Ayu (${res.status})`);
-    return (await res.json()) as AyuStatus;
+    return statusFrom(await getMyHealthProfile());
+}
+
+export function statusFrom(profile: HealthProfile): AyuStatus {
+    const c = profile.profile ?? {};
+    const missing = missingCount(profile);
+    const enabled = c.ayu_enabled !== false;
+    const everCompleted = !!c.profile_completed_at;
+
+    let due = false;
+    if (enabled && missing > 0) {
+        if (!everCompleted || !c.ayu_last_prompted_at) {
+            due = true;
+        } else {
+            const last = new Date(c.ayu_last_prompted_at).getTime();
+            due =
+                Number.isNaN(last) ||
+                last < Date.now() - CHECKIN_INTERVAL_DAYS * 86400000;
+        }
+    }
+
+    return {
+        enabled,
+        language: (c.preferred_language as AyuStatus["language"]) ?? "EN",
+        everCompleted,
+        missingCount: missing,
+        totalQuestions: 10,
+        dueForCheckin: due,
+    };
 }
 
 export async function ayuSetEnabled(enabled: boolean): Promise<void> {
-    await fetch(`${AGENT_API_URL}/ayu/enabled`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ enabled }),
-    });
+    await saveMyHealthProfile({ profile: { ayuEnabled: enabled } });
 }
 
 /** Records that the patient was nudged, so the next check-in is a month
  *  away instead of on every launch. */
 export async function ayuSnooze(): Promise<void> {
-    await fetch(`${AGENT_API_URL}/ayu/snooze`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${await token()}` },
+    await saveMyHealthProfile({
+        profile: { ayuLastPromptedAt: new Date().toISOString() },
     }).catch(() => {});
 }
 
