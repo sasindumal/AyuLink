@@ -14,6 +14,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     FlatList,
+    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
@@ -345,7 +346,11 @@ export default function Ayu() {
                             <Ionicons name="arrow-back" size={22} color={colors.primaryDark} />
                         </Pressable>
                         <View style={styles.avatar}>
-                            <Text style={styles.avatarMark}>ආ</Text>
+                            <Image
+                                source={require("../assets/icon-mark.png")}
+                                style={styles.avatarMark}
+                                resizeMode="contain"
+                            />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.title}>Ayu</Text>
@@ -390,11 +395,13 @@ const styles = StyleSheet.create({
         width: 38, height: 38, borderRadius: radius.sm,
         backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center",
     },
+    // Light ground: the mark's lower-left shapes are dark green and
+    // vanish on colors.primaryDark.
     avatar: {
-        width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primaryDark,
+        width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft,
         alignItems: "center", justifyContent: "center",
     },
-    avatarMark: { color: "#fff", fontSize: 17, fontWeight: "800" },
+    avatarMark: { width: 26, height: 26 },
     title: { fontSize: 19, fontWeight: "800", color: colors.text },
     subtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
     bubble: { borderRadius: radius.md, padding: spacing.md, maxWidth: "92%" },

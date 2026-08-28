@@ -12,9 +12,16 @@
 // ==============================================
 
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, shadow } from "../theme";
+
+// The AyuLink mark, not a letter. The logo carries dark-green shapes in
+// its lower-left, so anything it sits on has to be LIGHT — on the brand
+// dark green that half of the mark simply disappears. Hence the white
+// ground with a green ring below, rather than the filled dark circle
+// this used to be.
+const AYU_MARK = require("../../assets/icon-mark.png");
 
 export function AyuBubble({
     visible,
@@ -48,7 +55,7 @@ export function AyuBubble({
                 delayLongPress={500}
                 accessibilityLabel="Open Ayu. Long press to turn Ayu off."
             >
-                <Text style={styles.mark}>ආ</Text>
+                <Image source={AYU_MARK} style={styles.markImage} resizeMode="contain" />
             </Pressable>
         );
     }
@@ -62,7 +69,7 @@ export function AyuBubble({
                 delayLongPress={500}
             >
                 <View style={styles.promptAvatar}>
-                    <Text style={styles.promptMark}>ආ</Text>
+                    <Image source={AYU_MARK} style={styles.promptMarkImage} resizeMode="contain" />
                 </View>
                 <View style={{ flex: 1 }}>
                     <Text style={styles.promptTitle}>Ayu</Text>
@@ -88,12 +95,14 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: colors.primaryDark,
+        backgroundColor: colors.surface,
+        borderWidth: 1.5,
+        borderColor: colors.primary,
         alignItems: "center",
         justifyContent: "center",
         ...shadow.card,
     },
-    mark: { color: "#fff", fontSize: 22, fontWeight: "800" },
+    markImage: { width: 34, height: 34 },
     promptWrap: { position: "absolute", left: 16, right: 16, bottom: 22 },
     prompt: {
         flexDirection: "row",
@@ -111,11 +120,11 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        backgroundColor: colors.primaryDark,
+        backgroundColor: colors.primarySoft,
         alignItems: "center",
         justifyContent: "center",
     },
-    promptMark: { color: "#fff", fontSize: 16, fontWeight: "800" },
+    promptMarkImage: { width: 26, height: 26 },
     promptTitle: { fontSize: 13.5, fontWeight: "800", color: colors.primaryDark },
     promptText: { fontSize: 12.5, color: colors.textMuted, marginTop: 1, lineHeight: 17 },
     dismiss: { padding: 4 },

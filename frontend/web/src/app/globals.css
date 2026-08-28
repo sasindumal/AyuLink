@@ -1,6 +1,18 @@
 /* ==============================================
    AyuLink - Digital Healthcare Platform
    Global Styles (Tailwind CSS v4)
+
+   Glassmorphism, done properly: frosted panels only read as glass when
+   there is something behind them worth blurring. So the page carries a
+   layer of slow-drifting colour orbs plus a fine grain, and the panels
+   sample it. On a flat background the same CSS just looks like a washed
+   out box.
+
+   The brand palette and every contrast decision from the previous design
+   are preserved — glass changes the surface, not the ink. Body copy
+   still sits on a light, high-opacity panel and still uses
+   --color-primary-dark (6.91:1 on white), never the bright lime, which
+   measured 3.29:1 and is reserved for fills and shapes that carry no text.
    ============================================== */
 
 @import "tailwindcss";
@@ -8,46 +20,49 @@
 /* ----- Custom Theme Configuration ----- */
 @theme {
     /* AyuLink Brand Color Palette */
-    --color-background: #F7F0F0;
-    /* Soft Shell - main app background */
+    --color-background: #F4EFEA;
+    /* Warm Shell — slightly warmer than before so the green/amber orbs
+       have something to sit against without turning grey */
     --color-primary-dark: #25671E;
     /* Deep Forest - headers, primary typography */
     --color-primary-action: #48A111;
-    /* Vibrant Lime - CTA buttons, active toggles */
+    /* Vibrant Lime - CTA fills, active toggles. NEVER for text. */
     --color-primary-action-hover: #3D8C0E;
-    /* Darker lime for hover states */
     --color-accent-warning: #F2B50B;
-    /* Golden Amber - pending statuses, alerts. Too light to hold its own
-       text (1.74:1 on a 10% tint of itself) — use --color-warning-ink for
-       any text/icon drawn in the amber "voice", this stays for fills only */
+    /* Golden Amber — fills only (1.74:1 on its own tint) */
     --color-warning-ink: #916800;
-    /* Amber darkened for text/badge labels — verified 4.5:1+ on white and
-       on accent-warning's own 10% tint */
+    /* Amber darkened for text/badge labels — 4.5:1+ on white */
     --color-surface: #FFFFFF;
-    /* Pure White - floating cards */
     --color-border: #E5DFD6;
-    /* Soft border color */
     --color-text-muted: #5A616D;
-    /* Muted text — darkened from #6B7280, which failed WCAG AA (4.30:1)
-       against --color-background */
     --color-text-secondary: #4B5563;
-    /* Secondary text */
 
     /* Font Family */
     --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, sans-serif;
 
     /* Border Radius Tokens */
-    --radius-card: 1.5rem;
-    /* rounded-3xl for cards */
+    --radius-card: 1.75rem;
     --radius-button: 1rem;
-    /* rounded-2xl for buttons */
     --radius-input: 0.75rem;
-    /* rounded-xl for inputs */
 
-    /* Shadow Tokens */
-    --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.06);
-    --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.1);
-    --shadow-button: 0 2px 12px rgba(72, 161, 17, 0.3);
+    /* Glass tokens — one place to retune the whole surface language */
+    --glass-bg: rgba(255, 255, 255, 0.58);
+    --glass-bg-strong: rgba(255, 255, 255, 0.78);
+    --glass-bg-faint: rgba(255, 255, 255, 0.34);
+    --glass-border: rgba(255, 255, 255, 0.65);
+    --glass-blur: 22px;
+
+    /* Layered rather than single: a tight contact shadow for the edge,
+       a wide soft one for lift. One shadow alone reads as a sticker. */
+    --shadow-glass:
+        0 1px 1px rgba(37, 103, 30, 0.04),
+        0 8px 24px -6px rgba(37, 103, 30, 0.10),
+        0 24px 60px -20px rgba(37, 103, 30, 0.16);
+    --shadow-glass-hover:
+        0 1px 1px rgba(37, 103, 30, 0.05),
+        0 12px 32px -6px rgba(37, 103, 30, 0.14),
+        0 36px 80px -24px rgba(37, 103, 30, 0.22);
+    --shadow-button: 0 8px 24px -8px rgba(37, 103, 30, 0.55);
 }
 
 /* ----- Base Styles ----- */
@@ -56,171 +71,369 @@
         @apply box-border;
     }
 
-    body {
-        @apply bg-background text-primary-dark antialiased;
-        font-family: var(--font-sans);
-        min-height: 100vh;
-    }
-
-    /* Remove default focus outlines, add custom */
-    :focus-visible {
-        outline: 2px solid var(--color-primary-action);
-        outline-offset: 2px;
-        border-radius: 4px;
-    }
-
-    /* Smooth scrolling */
     html {
         scroll-behavior: smooth;
     }
+
+    body {
+        @apply text-primary-dark antialiased;
+        font-family: var(--font-sans);
+        min-height: 100vh;
+        background: var(--color-background);
+        /* The orbs are fixed behind everything; without this the page's
+           own background paints over them on overscroll. */
+        position: relative;
+    }
+
+    :focus-visible {
+        outline: 2px solid var(--color-primary-action);
+        outline-offset: 3px;
+        border-radius: 6px;
+    }
+
+    ::selection {
+        background: rgba(72, 161, 17, 0.22);
+    }
 }
 
-/* ----- Component Styles ----- */
+/* ==============================================
+   The backdrop — what the glass is actually blurring
+   ============================================== */
+
+.backdrop-orbs {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.orb {
+    position: absolute;
+    border-radius: 9999px;
+    /* 90px+ of blur is what turns a hard circle into ambient light. Less
+       and the panels look like they are covering a shape, not a glow. */
+    filter: blur(90px);
+    opacity: 0.55;
+    will-change: transform;
+}
+
+.orb-lime {
+    width: 42vw;
+    height: 42vw;
+    min-width: 320px;
+    min-height: 320px;
+    background: radial-gradient(circle at 30% 30%, #7BD84A, #48A111 60%, transparent 72%);
+    top: -8%;
+    left: -6%;
+    animation: drift-a 26s ease-in-out infinite;
+}
+
+.orb-forest {
+    width: 38vw;
+    height: 38vw;
+    min-width: 280px;
+    min-height: 280px;
+    background: radial-gradient(circle at 60% 40%, #3E9A34, #25671E 60%, transparent 72%);
+    top: 34%;
+    right: -10%;
+    animation: drift-b 32s ease-in-out infinite;
+}
+
+.orb-amber {
+    width: 30vw;
+    height: 30vw;
+    min-width: 240px;
+    min-height: 240px;
+    background: radial-gradient(circle at 40% 60%, #FFD469, #F2B50B 58%, transparent 70%);
+    bottom: -6%;
+    left: 22%;
+    opacity: 0.38;
+    animation: drift-c 38s ease-in-out infinite;
+}
+
+/* Fine grain over the whole page. Real frosted glass has texture; a
+   perfectly smooth gradient is the tell that it is a CSS blur. The SVG
+   is inline so it costs no request. */
+.backdrop-grain {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.32;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@keyframes drift-a {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(6vw, 8vh, 0) scale(1.12); }
+}
+@keyframes drift-b {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1.08); }
+    50%      { transform: translate3d(-7vw, -6vh, 0) scale(1); }
+}
+@keyframes drift-c {
+    0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+    50%      { transform: translate3d(5vw, -7vh, 0) scale(1.15); }
+}
+
+/* ==============================================
+   Components
+   ============================================== */
+
 @layer components {
 
-    /* Primary CTA Button — primary-dark, not primary-action: white text on
-       #48A111 measured 3.29:1, failing WCAG AA (needs 4.5:1). #25671E
-       passes at 6.91:1. primary-action stays reserved for fills/shapes
-       that never carry text (see the design audit in docs/design/). */
+    /* ----- Glass surfaces ----- */
+
+    .glass {
+        background: var(--glass-bg);
+        backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%);
+        border: 1px solid var(--glass-border);
+        border-radius: var(--radius-card);
+        box-shadow: var(--shadow-glass);
+        /* The inner top highlight is what sells the edge as a bevel
+           rather than a plain 1px stroke. */
+        position: relative;
+    }
+
+    .glass::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        padding: 1px;
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 42%);
+        -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+    }
+
+    /* Text-heavy panels get more opacity — readability wins over the
+       effect wherever the two disagree. */
+    .glass-strong {
+        background: var(--glass-bg-strong);
+    }
+
+    .glass-faint {
+        background: var(--glass-bg-faint);
+    }
+
+    .glass-hover {
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                    box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1),
+                    background 0.35s ease;
+    }
+
+    .glass-hover:hover {
+        transform: translateY(-6px);
+        box-shadow: var(--shadow-glass-hover);
+        background: var(--glass-bg-strong);
+    }
+
+    /* Sticky navigation bar */
+    .glass-nav {
+        background: rgba(255, 255, 255, 0.62);
+        backdrop-filter: blur(18px) saturate(180%);
+        -webkit-backdrop-filter: blur(18px) saturate(180%);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 1px 24px -8px rgba(37, 103, 30, 0.18);
+    }
+
+    /* ----- Buttons ----- */
+
+    /* primary-dark, not primary-action: white on #48A111 is 3.29:1 and
+       fails WCAG AA; #25671E passes at 6.91:1. */
     .btn-primary {
-        @apply bg-primary-dark text-white font-semibold px-6 py-3;
+        @apply relative overflow-hidden text-white font-semibold px-6 py-3;
+        background: linear-gradient(135deg, #2E7A24, #25671E 60%, #1E5518);
         border-radius: var(--radius-button);
         box-shadow: var(--shadow-button);
-        transition: all 0.2s ease;
+        transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                    box-shadow 0.25s ease;
+        isolation: isolate;
+    }
+
+    /* A light sweep on hover — the one flourish that reads as "glass"
+       rather than "gradient button". */
+    .btn-primary::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.28) 45%, transparent 65%);
+        transform: translateX(-120%);
+        transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+        z-index: -1;
     }
 
     .btn-primary:hover {
-        background-color: #1a5016;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 16px rgba(37, 103, 30, 0.4);
+        transform: translateY(-2px);
+        box-shadow: 0 14px 34px -10px rgba(37, 103, 30, 0.65);
+    }
+
+    .btn-primary:hover::after {
+        transform: translateX(120%);
     }
 
     .btn-primary:active {
         transform: translateY(0);
     }
 
-    /* Secondary Button */
     .btn-secondary {
-        @apply bg-surface text-primary-dark font-semibold px-6 py-3 border border-border;
+        @apply font-semibold px-6 py-3 text-primary-dark;
+        background: var(--glass-bg-strong);
+        backdrop-filter: blur(14px) saturate(150%);
+        -webkit-backdrop-filter: blur(14px) saturate(150%);
+        border: 1px solid var(--glass-border);
         border-radius: var(--radius-button);
-        transition: all 0.2s ease;
+        transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+                    box-shadow 0.25s ease, background 0.25s ease;
     }
 
     .btn-secondary:hover {
-        @apply bg-background;
-        transform: translateY(-1px);
+        transform: translateY(-2px);
+        background: rgba(255, 255, 255, 0.92);
+        box-shadow: var(--shadow-glass);
     }
 
-    /* Floating Card */
-    .card {
-        @apply bg-surface;
-        border-radius: var(--radius-card);
-        box-shadow: var(--shadow-card);
-        transition: box-shadow 0.3s ease;
-    }
+    /* ----- Badges ----- */
 
-    .card:hover {
-        box-shadow: var(--shadow-card-hover);
-    }
-
-    /* Status Badges — each pairs a soft 10% tint with its DARK/ink
-       variant for the label text, not the bright color itself: raw
-       primary-action or accent-warning text on their own 10% tint
-       measured 2.97:1 and 1.74:1, both failing WCAG AA. */
-    .badge-active {
-        @apply bg-primary-action/10 text-primary-dark font-medium text-sm px-3 py-1;
+    .badge-glass {
+        @apply inline-flex items-center gap-2 text-sm font-semibold text-primary-dark px-4 py-2;
+        background: rgba(255, 255, 255, 0.6);
+        backdrop-filter: blur(12px) saturate(150%);
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        border: 1px solid var(--glass-border);
         border-radius: 9999px;
     }
 
-    .badge-dispensed {
-        @apply bg-text-muted/10 text-text-muted font-medium text-sm px-3 py-1;
+    .badge-active {
+        @apply bg-primary-action/12 text-primary-dark font-medium text-sm px-3 py-1;
         border-radius: 9999px;
     }
 
     .badge-warning {
-        @apply bg-accent-warning/10 text-warning-ink font-medium text-sm px-3 py-1;
+        @apply bg-accent-warning/12 text-warning-ink font-medium text-sm px-3 py-1;
         border-radius: 9999px;
     }
 
-    /* Input Fields */
-    .input-field {
-        @apply w-full bg-background border border-border text-primary-dark px-4 py-3;
-        border-radius: var(--radius-input);
-        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    /* ----- Icon tiles ----- */
+
+    .icon-tile {
+        @apply flex items-center justify-center;
+        background: linear-gradient(145deg, rgba(72, 161, 17, 0.18), rgba(72, 161, 17, 0.06));
+        border: 1px solid rgba(255, 255, 255, 0.7);
+        border-radius: 1.15rem;
+        transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
     }
 
-    .input-field:focus {
-        @apply border-primary-action;
-        box-shadow: 0 0 0 3px rgba(72, 161, 17, 0.1);
-        outline: none;
-    }
-
-    .input-field::placeholder {
-        @apply text-text-muted;
+    .group:hover .icon-tile {
+        transform: scale(1.08) rotate(-3deg);
     }
 }
 
-/* ----- Utility Animations ----- */
+/* ==============================================
+   Utilities
+   ============================================== */
+
 @layer utilities {
-    .animate-fade-in {
-        animation: fadeIn 0.5s ease-out;
+
+    /* Gradient headline text. Falls back to the solid brand green
+       wherever background-clip:text is unsupported. */
+    .text-gradient {
+        color: var(--color-primary-dark);
+        background: linear-gradient(120deg, #25671E 0%, #48A111 52%, #25671E 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
-    .animate-slide-up {
-        animation: slideUp 0.5s ease-out;
+    /* Section divider that fades at both ends rather than stopping dead */
+    .rule-fade {
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(37, 103, 30, 0.18), transparent);
     }
 
-    .animate-slide-in-right {
-        animation: slideInRight 0.3s ease-out;
+    .animate-float-slow {
+        animation: floatSlow 7s ease-in-out infinite;
+    }
+
+    .animate-float-slower {
+        animation: floatSlow 9s ease-in-out infinite reverse;
     }
 
     .animate-pulse-soft {
-        animation: pulseSoft 2s ease-in-out infinite;
+        animation: pulseSoft 2.4s ease-in-out infinite;
     }
-}
 
-@keyframes fadeIn {
-    from {
+    /* Scroll reveal.
+       The hidden state is applied by JS (see useReveal in page.tsx) and
+       never in the stylesheet, so a browser that never runs the script
+       shows everything instead of a blank page. */
+    .reveal-armed {
         opacity: 0;
+        transform: translateY(26px);
     }
 
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
+    .reveal-in {
         opacity: 1;
         transform: translateY(0);
+        transition: opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+                    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
     }
 }
 
-@keyframes slideInRight {
-    from {
-        opacity: 0;
-        transform: translateX(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
+@keyframes floatSlow {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-12px); }
 }
 
 @keyframes pulseSoft {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.55; }
+}
 
-    0%,
-    100% {
-        opacity: 1;
+/* ==============================================
+   Reduced motion
+   Drifting orbs across the whole viewport is exactly the kind of
+   ambient movement this setting exists to stop.
+   ============================================== */
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 
-    50% {
-        opacity: 0.7;
+    .orb {
+        animation: none !important;
+    }
+
+    .reveal-armed {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* Backdrop-filter is well supported, but where it is not the panels
+   would render as flat translucent rectangles with unreadable text over
+   the orbs. Fall back to near-solid surfaces instead. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+
+    .glass,
+    .glass-strong,
+    .glass-faint,
+    .glass-nav,
+    .btn-secondary,
+    .badge-glass {
+        background: rgba(255, 255, 255, 0.95);
     }
 }
