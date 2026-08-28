@@ -925,7 +925,9 @@ const styles = StyleSheet.create({
         maxWidth: "88%",
     },
     userBubble: {
-        backgroundColor: colors.primary,
+        // primaryDark, not primary — white 14.5px message text on #48A111
+        // was 3.29:1, failing AA; #25671E passes at 6.91:1.
+        backgroundColor: colors.primaryDark,
         alignSelf: "flex-end",
     },
     assistantBubble: {

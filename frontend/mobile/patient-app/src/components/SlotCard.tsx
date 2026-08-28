@@ -124,7 +124,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 8,
         paddingVertical: 4,
     },
-    ratingText: { fontSize: 12.5, fontWeight: "700", color: "#9A6F00" },
+    ratingText: { fontSize: 12.5, fontWeight: "700", color: colors.warningInk },
     infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
     infoText: { fontSize: 13, color: colors.text, flex: 1 },
     cityText: { fontSize: 13, fontWeight: "700", color: colors.primaryDark, flex: 1 },

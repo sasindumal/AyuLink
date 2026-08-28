@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
         color: colors.text,
         letterSpacing: 0.5,
     },
-    copied: { fontSize: 11, color: colors.primary, marginTop: 6, fontWeight: "700" },
+    copied: { fontSize: 11, color: colors.primaryDark, marginTop: 6, fontWeight: "700" },
     verified: {
         flexDirection: "row",
         alignItems: "center",

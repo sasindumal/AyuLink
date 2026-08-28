@@ -224,5 +224,5 @@ const styles = StyleSheet.create({
         gap: 6,
         paddingVertical: 10,
     },
-    viewAllText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
+    viewAllText: { color: colors.primaryDark, fontWeight: "700", fontSize: 13.5 },
 });

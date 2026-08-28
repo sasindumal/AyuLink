@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     },
     optionText: { fontSize: 14.5, color: colors.text, flex: 1 },
     optionTextActive: { color: colors.primaryDark, fontWeight: "700" },
-    customText: { fontSize: 14.5, color: colors.primary, fontWeight: "700", flex: 1 },
+    customText: { fontSize: 14.5, color: colors.primaryDark, fontWeight: "700", flex: 1 },
     empty: { textAlign: "center", color: colors.textMuted, paddingVertical: spacing.lg, fontSize: 13 },
     closeBtn: { alignItems: "center", paddingVertical: 12, marginTop: 4 },
     closeText: { color: colors.textMuted, fontWeight: "700", fontSize: 13.5 },

@@ -5,21 +5,38 @@
 
 import type { AppointmentStatus } from "./types";
 
+// Brand colors are exactly #25671E / #48A111 / #F2B50B / #F7F0F0 — nothing
+// added to that set. Everything else here is DERIVED from those four:
+// text/textMuted/border are the brand green desaturated to different
+// depths, primarySoft/warningSoft are the brand green/amber tinted onto
+// white, and warningInk/onBright are ink dark enough to sit on the
+// brighter two brand colors (neither #48A111 nor #F2B50B passes WCAG AA
+// with white or with each other's on-brand text weight — verified,
+// see docs/design/ayulink-design.html for the full contrast audit).
+//
+// #96302A is the one addition beyond the four: destructive actions and
+// expired/cancelled states need a hue readers reliably parse as
+// "warning/undo this", which four colors alone that never got past
+// AA testing.
 export const colors = {
     background: "#F7F0F0",
     surface: "#FFFFFF",
     primaryDark: "#25671E",
     primary: "#48A111",
-    primarySoft: "#E8F4E3",
+    primarySoft: "#EDF6E7",
     warning: "#F2B50B",
-    warningSoft: "#FDF3D7",
-    danger: "#D64545",
-    dangerSoft: "#FBE9E9",
-    text: "#1C2B1A",
-    textMuted: "#71806E",
-    border: "#E5DFD6",
-    neutral: "#6B7280",
+    warningInk: "#916800",
+    warningSoft: "#FDF5DD",
+    danger: "#96302A",
+    dangerSoft: "#F1E6E5",
+    text: "#1A2E18",
+    textMuted: "#57654F",
+    border: "#E2D4D4",
+    // Darkened from #6B7280 — that value predates this pass and failed
+    // AA on neutralSoft (4.20:1) for "Completed"/"Fully Dispensed" badges.
+    neutral: "#5A616D",
     neutralSoft: "#EFEFEC",
+    onBright: "#14210F",
 };
 
 export const radius = {
@@ -51,7 +68,7 @@ export const statusMeta: Record<
     AppointmentStatus,
     { label: string; color: string; bg: string }
 > = {
-    BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
+    BOOKED: { label: "Booked", color: colors.warningInk, bg: colors.warningSoft },
     COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
     CANCELLED: { label: "Cancelled", color: colors.danger, bg: colors.dangerSoft },
 };
