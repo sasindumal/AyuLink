@@ -19,6 +19,9 @@ import { colors, radius, shadow, spacing, type } from "../../src/theme";
 import { Banner, Button, Card } from "../../src/components/ui";
 import { openInMaps } from "../../src/lib/maps";
 import type { Appointment } from "../../src/types";
+import { ProfileButton } from "../../src/components/ProfileButton";
+import { AyuBubble } from "../../src/components/AyuBubble";
+import { ayuSetEnabled, ayuSnooze, ayuStatus, type AyuStatus } from "../../src/lib/ayu";
 
 interface DoseReminder {
     id: string;
@@ -45,7 +48,13 @@ function formatApptTime(dateStr: string, startTime: string): string {
 }
 
 export default function Home() {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
+    // Ayu's own state. Kept here rather than inside the bubble so the
+    // home screen can decide whether it should appear at all before
+    // anything renders — a bubble that pops in after a beat reads as a
+    // glitch.
+    const [ayu, setAyu] = useState<AyuStatus | null>(null);
+    const [ayuDismissed, setAyuDismissed] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [doses, setDoses] = useState<DoseReminder[]>([]);
     const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
@@ -107,6 +116,9 @@ export default function Home() {
     useFocusEffect(
         useCallback(() => {
             if (user) load();
+            // Best-effort: the assistant backend being asleep must never
+            // hold up the home screen.
+            ayuStatus().then(setAyu).catch(() => setAyu(null));
         }, [user, load])
     );
 
@@ -148,9 +160,11 @@ export default function Home() {
                                 </View>
                             )}
                         </Pressable>
-                        <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
-                            <Ionicons name="log-out-outline" size={22} color={colors.danger} />
-                        </Pressable>
+                        <ProfileButton
+                            firstName={user?.firstName}
+                            lastName={user?.lastName}
+                            onPress={() => router.push("/profile")}
+                        />
                     </View>
                 </View>
 
@@ -248,7 +262,60 @@ export default function Home() {
                     <Text style={styles.careLinkText}>See your full care history</Text>
                     <Ionicons name="arrow-forward" size={15} color={colors.primaryDark} />
                 </Pressable>
+                {ayu && (
+                    <Pressable
+                        style={styles.ayuToggle}
+                        onPress={async () => {
+                            const next = !ayu.enabled;
+                            setAyu({ ...ayu, enabled: next });
+                            await ayuSetEnabled(next).catch(() => setAyu(ayu));
+                        }}
+                    >
+                        <Ionicons
+                            name={ayu.enabled ? "sparkles" : "sparkles-outline"}
+                            size={17}
+                            color={colors.primaryDark}
+                        />
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.ayuToggleText}>
+                                Ayu {ayu.enabled ? "is on" : "is off"}
+                            </Text>
+                            <Text style={styles.ayuToggleHint}>
+                                {ayu.enabled
+                                    ? ayu.missingCount > 0
+                                        ? `${ayu.missingCount} health question${ayu.missingCount === 1 ? "" : "s"} left`
+                                        : "Your health profile is complete"
+                                    : "Your assistant won't check in"}
+                            </Text>
+                        </View>
+                        <View style={[styles.switch, ayu.enabled && styles.switchOn]}>
+                            <View style={[styles.knob, ayu.enabled && styles.knobOn]} />
+                        </View>
+                    </Pressable>
+                )}
             </ScrollView>
+
+            <AyuBubble
+                visible={!!ayu?.enabled}
+                prompting={!!ayu?.dueForCheckin && !ayuDismissed}
+                label={
+                    ayu?.everCompleted
+                        ? `${ayu.missingCount} thing${ayu.missingCount === 1 ? "" : "s"} still missing from your health profile.`
+                        : "Let's set up your health profile so doctors know your background."
+                }
+                onPress={() =>
+                    router.push({
+                        pathname: "/ayu",
+                        params: { mode: ayu?.everCompleted ? "CHECKIN" : "INTAKE" },
+                    })
+                }
+                onDismiss={() => {
+                    setAyuDismissed(true);
+                    // Tell the server too, or the prompt returns on the
+                    // next launch instead of next month.
+                    ayuSnooze();
+                }}
+            />
         </SafeAreaView>
     );
 }
@@ -288,6 +355,24 @@ const styles = StyleSheet.create({
         borderColor: colors.background,
     },
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+    ayuToggle: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: colors.surface,
+        borderRadius: radius.md,
+        padding: spacing.md,
+        marginTop: spacing.lg,
+    },
+    ayuToggleText: { fontSize: 14, fontWeight: "700", color: colors.text },
+    ayuToggleHint: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
+    switch: {
+        width: 42, height: 24, borderRadius: 12,
+        backgroundColor: colors.border, padding: 3, justifyContent: "center",
+    },
+    switchOn: { backgroundColor: colors.primary },
+    knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
+    knobOn: { alignSelf: "flex-end" },
     sectionTitle: { ...type.label, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
     doseRow: {
         flexDirection: "row",

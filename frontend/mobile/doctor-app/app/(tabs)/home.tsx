@@ -15,6 +15,7 @@ import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing, type } from "../../src/theme";
 import { Banner, Button, Card } from "../../src/components/ui";
 import type { DoctorClinicAppointment } from "../../src/types";
+import { ProfileButton } from "../../src/components/ProfileButton";
 
 function greeting(): string {
     const h = new Date().getHours();
@@ -24,7 +25,7 @@ function greeting(): string {
 }
 
 export default function Home() {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
     const [list, setList] = useState<DoctorClinicAppointment[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [error, setError] = useState<string | null>(null);
@@ -104,9 +105,11 @@ export default function Home() {
                                 </View>
                             )}
                         </Pressable>
-                        <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
-                            <Ionicons name="log-out-outline" size={22} color={colors.danger} />
-                        </Pressable>
+                        <ProfileButton
+                            firstName={user?.firstName}
+                            lastName={user?.lastName}
+                            onPress={() => router.push("/profile")}
+                        />
                     </View>
                 </View>
 
