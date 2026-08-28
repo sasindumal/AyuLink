@@ -8,7 +8,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing, treatmentStatusMeta } from "../theme";
-import { Card, formatDate } from "./ui";
+import { Card, formatDateTime } from "./ui";
 import type { Treatment } from "../types";
 
 // Care-level tag shown next to the specialty — derived from the same
@@ -73,7 +73,7 @@ export function TreatmentCard({
                 )}
 
                 <View style={styles.footerRow}>
-                    <Text style={styles.date}>{formatDate(treatment.created_at)}</Text>
+                    <Text style={styles.date}>{formatDateTime(treatment.created_at)}</Text>
                     {treatment.appointment && (
                         <View style={styles.apptRow}>
                             <Ionicons name="calendar" size={13} color={colors.primaryDark} />

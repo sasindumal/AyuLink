@@ -277,6 +277,22 @@ export function formatTime(iso: string): string {
     });
 }
 
+/**
+ * Date AND clock time, for a real timestamp column (created_at,
+ * dateIssued, dispensedAt, expiresAt, cancelled_at).
+ *
+ * NOT for a bare DATE column such as Appointment.appointment_date: those
+ * carry no time, so `new Date("2026-09-02")` parses as UTC midnight and
+ * would render an invented "5:30 AM" in Sri Lanka (UTC+5:30). Those pair
+ * with their own start_time field instead.
+ */
+export function formatDateTime(iso: string): string {
+    return `${formatDate(iso)} · ${new Date(iso).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+    })}`;
+}
+
 const styles = StyleSheet.create({
     button: {
         flexDirection: "row",

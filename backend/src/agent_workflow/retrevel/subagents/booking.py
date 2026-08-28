@@ -70,8 +70,44 @@ def _format_status(booking: dict) -> str:
     )
 
 
+# An explicit instruction to call the appointment off. Deliberately not
+# "stop" — "stop by later" and "stop taking the tablets" both contain it.
+_CANCEL_WORDS = ("cancel", "don't want", "dont want", "no longer", "remove it", "call it off")
+# Signals the patient wants a replacement, not just an end.
+_REPLACEMENT_WORDS = (
+    "another", "other", "different", "someone else", "instead", "new appointment",
+    "today", "tomorrow", "earlier", "sooner", "asap",
+)
+_RESCHEDULE_WORDS = (
+    "resched", "move", "change", "different time", "different date",
+    "another time", "another date", "postpone",
+)
+
+
+def _keyword_intent(text: str) -> str | None:
+    """A deterministic read of the message, used both as the fallback when
+    structured output fails AND as a veto over the LLM's answer.
+
+    Vetoing is justified by the asymmetry of the mistake: "cancel this and
+    give me a today appointment" is genuinely ambiguous phrasing, and an
+    LLM asked to pick one label lands on 'reschedule' about as often as
+    'cancel'. Choosing wrong there silently leaves a real appointment
+    standing that the patient believes they cancelled — which is exactly
+    the failure this guard exists to stop. Returns None when the message
+    carries no explicit signal, leaving the LLM's verdict intact.
+    """
+    t = text.lower()
+    if any(w in t for w in _CANCEL_WORDS):
+        # Cancelling AND asking for something else is a rebook, not a
+        # bare cancel — the patient still expects to end up with a visit.
+        return "rebook" if any(w in t for w in _REPLACEMENT_WORDS) else "cancel"
+    return None
+
+
 def _classify_intent(state: GraphState) -> str:
     text = str(state["messages"][-1].content) if state.get("messages") else ""
+    forced = _keyword_intent(text)
+
     try:
         emit_thinking("Checking your booking...")
         structured = text_llm.with_structured_output(BookingIntent, method="json_schema")
@@ -85,14 +121,21 @@ def _classify_intent(state: GraphState) -> str:
                 {"role": "user", "content": text},
             ]
         )
-        return result.action
+        action = result.action
     except Exception:  # noqa: BLE001 - keyword fallback if structured output fails
         t = text.lower()
-        if any(w in t for w in ("cancel", "don't want", "stop", "no longer", "remove")):
-            return "cancel"
-        if any(w in t for w in ("resched", "move", "change", "different time", "different date", "another time", "another date")):
+        if forced:
+            return forced
+        if any(w in t for w in _RESCHEDULE_WORDS):
             return "reschedule"
         return "status"
+
+    # The veto. An explicit "cancel" may only resolve to cancel or rebook;
+    # the LLM still gets to say which of the two, since it reads intent
+    # better than a word list does.
+    if forced and action not in ("cancel", "rebook"):
+        return forced
+    return action
 
 
 async def booking_agent(state: GraphState):
@@ -124,10 +167,56 @@ async def booking_agent(state: GraphState):
     if intent == "cancel":
         return await _cancel_booking(state, jwt, existing)
 
+    if intent == "rebook":
+        return await _cancel_and_search(state, jwt, existing)
+
     if intent == "reschedule":
         return await _start_reschedule(state, jwt, existing)
 
+    if intent == "new_booking":
+        # An ADDITIONAL appointment, keeping this one. Previously fell
+        # through to the status message below, so asking for a second
+        # booking just got the first one read back at you.
+        update = dict(_FRESH_SEARCH_STATE)
+        update["rescheduling_appointment_id"] = None
+        return Command(goto="doctor_finder_agent", update=update)
+
     return {"messages": [AIMessage(content=_format_status(existing))]}
+
+
+async def _cancel_and_search(state: GraphState, jwt: str, existing: dict):
+    """"Cancel this and get me something else." Cancels first, then hands
+    off to a fresh doctor search.
+
+    Cancelling before a replacement is secured is the deliberate order:
+    the patient gave an explicit instruction to cancel, and leaving a real
+    appointment standing because the search might come up short would mean
+    quietly not doing the one thing they actually asked for. The
+    confirmation message says plainly that it is gone, so the state is
+    never a surprise if the search then finds nothing.
+    """
+    order = existing.get("order_number") or "your appointment"
+    try:
+        await cancel_appointment(jwt, existing["id"])
+    except RpcError as exc:
+        return {"messages": [AIMessage(content=f"Couldn't cancel that: {exc}")]}
+
+    treatment_id = state.get("treatment_id")
+    if treatment_id:
+        try:
+            await unlink_treatment_appointment(jwt, treatment_id)
+        except RpcError:
+            pass
+
+    update = {
+        "booking_result": None,
+        "rescheduling_appointment_id": None,
+        "messages": [
+            AIMessage(content=f"{order} is cancelled. Let me find you another option.")
+        ],
+    }
+    update.update(_FRESH_SEARCH_STATE)
+    return Command(goto="doctor_finder_agent", update=update)
 
 
 async def _start_reschedule(state: GraphState, jwt: str, existing: dict):

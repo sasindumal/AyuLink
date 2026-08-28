@@ -25,7 +25,14 @@ function timeAgo(iso: string): string {
     if (hours < 24) return `${hours}h ago`;
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d ago`;
-    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    // Past the relative-time window ("3d ago"), show the clock time too —
+    // several appointment notifications can land on the same day, and a
+    // bare "5 Sep" gives no way to tell which came first.
+    const d = new Date(iso);
+    return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })} · ${d.toLocaleTimeString(
+        undefined,
+        { hour: "numeric", minute: "2-digit" }
+    )}`;
 }
 
 export function NotificationCard({

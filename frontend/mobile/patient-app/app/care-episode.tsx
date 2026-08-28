@@ -94,7 +94,12 @@ export default function CareEpisode() {
                                     ? "Started " +
                                       new Date(
                                           data.events.find((e) => e.type === "APPOINTMENT_STARTED")!.at ?? ""
-                                      ).toLocaleDateString(undefined, { day: "numeric", month: "short" })
+                                      ).toLocaleString(undefined, {
+                                          day: "numeric",
+                                          month: "short",
+                                          hour: "numeric",
+                                          minute: "2-digit",
+                                      })
                                     : "Not yet seen by a doctor"}
                             </Text>
                         )}

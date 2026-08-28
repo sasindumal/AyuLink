@@ -9,7 +9,7 @@ import { Ionicons } from "@expo/vector-icons";
 import QRCode from "react-native-qrcode-svg";
 import { colors, radius, shadow, spacing, statusMeta } from "../theme";
 import type { Prescription } from "../types";
-import { Button, StatusBadge, formatDate, formatTime } from "./ui";
+import { Button, StatusBadge, formatDateTime } from "./ui";
 
 export function PrescriptionCard({
     prescription,
@@ -63,7 +63,7 @@ export function PrescriptionCard({
                         {prescription.diagnosis}
                     </Text>
                     <Text style={styles.subline}>
-                        {formatDate(prescription.dateIssued)}
+                        {formatDateTime(prescription.dateIssued)}
                         {counterpart ? `  ·  ${counterpart}` : ""}
                     </Text>
                     {perspective === "patient" && doctorProfile && (
@@ -157,7 +157,7 @@ export function PrescriptionCard({
                                         ? ` by ${item.dispensedBy.pharmacyProfile.pharmacyName}`
                                         : ` by ${item.dispensedBy.firstName} ${item.dispensedBy.lastName}`}
                                     {item.dispensedAt
-                                        ? ` · ${formatDate(item.dispensedAt)} ${formatTime(item.dispensedAt)}`
+                                        ? ` · ${formatDateTime(item.dispensedAt)}`
                                         : ""}
                                 </Text>
                             )}
@@ -169,7 +169,7 @@ export function PrescriptionCard({
                     {perspective === "patient" && (
                         <Text style={styles.expiryNote}>
                             {prescription.expiresAt
-                                ? `Expires ${formatDate(prescription.expiresAt)}`
+                                ? `Expires ${formatDateTime(prescription.expiresAt)}`
                                 : "Never expires"}
                         </Text>
                     )}
@@ -203,7 +203,7 @@ export function PrescriptionCard({
                             <Text style={styles.qrTitle}>{prescription.diagnosis}</Text>
                             <Text style={styles.qrSubtitle}>
                                 {counterpart ? `${counterpart} · ` : ""}
-                                {formatDate(prescription.dateIssued)}
+                                {formatDateTime(prescription.dateIssued)}
                             </Text>
                             <View style={styles.qrFrame}>
                                 <QRCode
