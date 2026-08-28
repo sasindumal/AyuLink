@@ -19,6 +19,10 @@ import { colors, radius, shadow, spacing, type } from "../../src/theme";
 import { Banner, Button, Card } from "../../src/components/ui";
 import { openInMaps } from "../../src/lib/maps";
 import type { Appointment } from "../../src/types";
+import { ProfileButton } from "../../src/components/ProfileButton";
+import { AyuBubble } from "../../src/components/AyuBubble";
+import { ConfirmModal } from "../../src/components/ConfirmModal";
+import { ayuSetEnabled, ayuSnooze, ayuStatus, type AyuStatus } from "../../src/lib/ayu";
 
 interface DoseReminder {
     id: string;
@@ -45,7 +49,14 @@ function formatApptTime(dateStr: string, startTime: string): string {
 }
 
 export default function Home() {
-    const { user, logout } = useAuth();
+    const { user } = useAuth();
+    // Ayu's own state. Kept here rather than inside the bubble so the
+    // home screen can decide whether it should appear at all before
+    // anything renders — a bubble that pops in after a beat reads as a
+    // glitch.
+    const [ayu, setAyu] = useState<AyuStatus | null>(null);
+    const [ayuDismissed, setAyuDismissed] = useState(false);
+    const [ayuOffOpen, setAyuOffOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [doses, setDoses] = useState<DoseReminder[]>([]);
     const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
@@ -107,6 +118,9 @@ export default function Home() {
     useFocusEffect(
         useCallback(() => {
             if (user) load();
+            // Best-effort: the assistant backend being asleep must never
+            // hold up the home screen.
+            ayuStatus().then(setAyu).catch(() => setAyu(null));
         }, [user, load])
     );
 
@@ -148,9 +162,11 @@ export default function Home() {
                                 </View>
                             )}
                         </Pressable>
-                        <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
-                            <Ionicons name="log-out-outline" size={22} color={colors.danger} />
-                        </Pressable>
+                        <ProfileButton
+                            firstName={user?.firstName}
+                            lastName={user?.lastName}
+                            onPress={() => router.push("/profile")}
+                        />
                     </View>
                 </View>
 
@@ -249,6 +265,45 @@ export default function Home() {
                     <Ionicons name="arrow-forward" size={15} color={colors.primaryDark} />
                 </Pressable>
             </ScrollView>
+
+            <AyuBubble
+                visible={!!ayu?.enabled}
+                prompting={!!ayu?.dueForCheckin && !ayuDismissed}
+                label={
+                    ayu?.everCompleted
+                        ? `${ayu.missingCount} thing${ayu.missingCount === 1 ? "" : "s"} still missing from your health profile.`
+                        : "Let's set up your health profile so doctors know your background."
+                }
+                onPress={() =>
+                    router.push({
+                        pathname: "/ayu",
+                        params: { mode: ayu?.everCompleted ? "CHECKIN" : "INTAKE" },
+                    })
+                }
+                onDismiss={() => {
+                    setAyuDismissed(true);
+                    // A dismiss is a SNOOZE, not an off switch — it pushes
+                    // the next nudge out a month. Turning Ayu off entirely
+                    // is the long-press below, or Profile > Health.
+                    ayuSnooze();
+                }}
+                onLongPress={() => setAyuOffOpen(true)}
+            />
+
+            <ConfirmModal
+                visible={ayuOffOpen}
+                title="Turn Ayu off?"
+                message="The bubble disappears and Ayu stops checking in. Your health profile stays exactly as it is, and you can switch Ayu back on from your profile."
+                confirmLabel="Turn off"
+                destructive
+                onConfirm={async () => {
+                    setAyuOffOpen(false);
+                    if (!ayu) return;
+                    setAyu({ ...ayu, enabled: false });
+                    await ayuSetEnabled(false).catch(() => setAyu(ayu));
+                }}
+                onCancel={() => setAyuOffOpen(false)}
+            />
         </SafeAreaView>
     );
 }
