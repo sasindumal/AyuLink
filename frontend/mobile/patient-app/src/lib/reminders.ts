@@ -75,7 +75,11 @@ export async function scheduleCourseReminders(
     treatmentId: string,
     drugs: ReminderDrug[],
     messages: Record<string, string>,
-    courseEndsAt: string | null
+    courseEndsAt: string | null,
+    /** Carried in the notification payload so tapping it reopens the
+     *  conversation this course belongs to, rather than dumping the
+     *  patient on whatever screen they left the app on. */
+    threadId?: string
 ): Promise<number> {
     const { status } = await Notifications.getPermissionsAsync();
     let granted = status === "granted";
@@ -104,7 +108,7 @@ export async function scheduleCourseReminders(
                 content: {
                     title: `Time for ${drug.drugName}`,
                     body,
-                    data: { treatmentId, drugName: drug.drugName, kind: "medication" },
+                    data: { treatmentId, threadId, drugName: drug.drugName, kind: "medication" },
                 },
                 trigger: {
                     type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -125,7 +129,7 @@ export async function scheduleCourseReminders(
                 content: {
                     title: "How are you feeling?",
                     body: "You should have finished your medication — tap to let your assistant know how it went.",
-                    data: { treatmentId, kind: "course_end" },
+                    data: { treatmentId, threadId, kind: "course_end" },
                 },
                 trigger: {
                     type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -161,4 +165,89 @@ export async function hasCourseReminders(treatmentId: string): Promise<boolean> 
     } catch {
         return false;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Appointment reminders
+// ---------------------------------------------------------------------------
+
+/** How far ahead of the appointment to nudge. Three hours is the point
+ *  where someone in Sri Lanka can still realistically re-plan the trip —
+ *  a 30-minute warning about a clinic an hour away is just an apology. */
+const APPOINTMENT_LEAD_HOURS = 3;
+
+const APPT_STORAGE_KEY = "ayulink.reminders.appointments";
+
+export interface ReminderAppointment {
+    id: string;
+    appointment_date: string;
+    start_time: string;
+    order_number: string;
+    status: string;
+    doctor: { firstName: string; lastName: string };
+    channelingCenter: { name: string; city?: string | null };
+}
+
+/**
+ * Re-schedule the "your appointment is in 3 hours" notification for every
+ * upcoming booking, replacing whatever was scheduled before.
+ *
+ * Rescheduled and cancelled appointments are the reason this rebuilds the
+ * whole set rather than adding to it: a reminder for a slot the patient
+ * has since moved is worse than no reminder, and the cheapest way to
+ * guarantee it's gone is to never keep a stale one around.
+ *
+ * Safe to call on every appointments refresh — it is idempotent.
+ */
+export async function syncAppointmentReminders(
+    appointments: ReminderAppointment[]
+): Promise<number> {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") return 0;
+
+    try {
+        const raw = await AsyncStorage.getItem(APPT_STORAGE_KEY);
+        if (raw) {
+            await Promise.all(
+                (JSON.parse(raw) as string[]).map((id) =>
+                    Notifications.cancelScheduledNotificationAsync(id).catch(() => {})
+                )
+            );
+        }
+    } catch {
+        // Nothing previously scheduled — carry on and schedule fresh.
+    }
+
+    const ids: string[] = [];
+    for (const appt of appointments) {
+        if (appt.status !== "BOOKED") continue;
+        // Local time on purpose: the appointment is at 5pm where the
+        // patient physically is, not 5pm UTC.
+        const startsAt = new Date(`${appt.appointment_date}T${appt.start_time}`);
+        if (Number.isNaN(startsAt.getTime())) continue;
+
+        const fireAt = new Date(startsAt.getTime() - APPOINTMENT_LEAD_HOURS * 3600_000);
+        // Already inside the window (or in the past) — nothing useful to
+        // schedule; the appointment card itself is the reminder by then.
+        if (fireAt.getTime() <= Date.now()) continue;
+
+        const where = appt.channelingCenter.city
+            ? `${appt.channelingCenter.name}, ${appt.channelingCenter.city}`
+            : appt.channelingCenter.name;
+        const id = await Notifications.scheduleNotificationAsync({
+            content: {
+                title: `Appointment in ${APPOINTMENT_LEAD_HOURS} hours`,
+                body: `Dr. ${appt.doctor.firstName} ${appt.doctor.lastName} at ${where} · ${appt.start_time.slice(0, 5)} (${appt.order_number})`,
+                data: { kind: "appointment", appointmentId: appt.id },
+            },
+            trigger: {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: fireAt,
+            },
+        });
+        ids.push(id);
+    }
+
+    await AsyncStorage.setItem(APPT_STORAGE_KEY, JSON.stringify(ids));
+    return ids.length;
 }

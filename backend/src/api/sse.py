@@ -85,8 +85,36 @@ async def stream_graph_events(
                     if node_name not in seen_nodes:
                         seen_nodes.add(node_name)
                         yield sse_event("node", {"node": node_name})
-                    if isinstance(node_update, dict) and node_update.get("top5"):
+                    if not isinstance(node_update, dict):
+                        continue
+                    if node_update.get("top5"):
                         yield sse_event("cards", {"doctors": node_update["top5"]})
+
+                    # A node that routes with Command(goto=...,
+                    # update={"messages": [...]}) never reaches the
+                    # "messages" stream — that carries messages produced
+                    # *while a node runs*, not ones attached to a routing
+                    # Command. Those replies were persisted to history and
+                    # then only appeared after a reload: backing out of a
+                    # reschedule, or declining to close a diagnosis, both
+                    # looked like the assistant had simply said nothing.
+                    #
+                    # Nodes whose messages DID stream are deduped below
+                    # rather than excluded, because whether a given node
+                    # streams depends on how it returned, not on which node
+                    # it is — an allowlist here would rot.
+                    if node_name in INTERRUPT_ECHO_NODES:
+                        continue
+                    for msg in node_update.get("messages") or []:
+                        if getattr(msg, "type", "") != "ai":
+                            continue
+                        text = getattr(msg, "content", "")
+                        if not isinstance(text, str) or not text:
+                            continue
+                        if text in accumulated.get(node_name, ""):
+                            continue
+                        accumulated[node_name] = accumulated.get(node_name, "") + text
+                        yield sse_event("token", {"content": text})
 
         yield sse_event("done", {})
 

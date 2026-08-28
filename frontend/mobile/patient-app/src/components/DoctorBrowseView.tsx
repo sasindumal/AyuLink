@@ -28,7 +28,9 @@ export function DoctorBrowseView({
     initialDoctor,
     onLeaveInitialDoctor,
 }: {
-    onBook: (scheduleId: string, date: string) => void;
+    /** `doctor` lets the caller open the shared confirm/adjust slot picker
+     *  for the right person — booking is a two-step commit everywhere. */
+    onBook: (scheduleId: string, date: string, doctor: DoctorSummary) => void;
     bookingKey: string | null;
     initialDoctor?: DoctorSummary | null;
     onLeaveInitialDoctor?: () => void;
@@ -209,7 +211,7 @@ export function DoctorBrowseView({
                                 date={item.date}
                                 startTime={item.startTime}
                                 endTime={item.endTime}
-                                onBook={() => onBook(item.doctorScheduleId, item.date)}
+                                onBook={() => selected && onBook(item.doctorScheduleId, item.date, selected)}
                                 booking={bookingKey === `${item.doctorScheduleId}-${item.date}`}
                             />
                         )}

@@ -239,6 +239,16 @@ or the prescription's own QR for just that one) → dispenses items
 above), it moves to the patient's Dispensed/archive section and can no
 longer be edited, deleted, or dispensed against.
 
+**Care timeline** — `app_treatment_timeline` replays one diagnosis as an
+ordered event list: `DIAGNOSED` → `APPOINTMENT_BOOKED` →
+`APPOINTMENT_STARTED` → `APPOINTMENT_COMPLETED` / `APPOINTMENT_CANCELLED`
+→ `PRESCRIPTION_ISSUED` → `ITEM_DISPENSED`. Each is derived from the
+underlying row's own timestamp, not a separate event log, so the timeline
+can never drift from the records it describes. `Appointment.completed_at`
+exists for exactly this reason — completion previously had no timestamp
+of its own (only `cancelled_at` did), so the closing event had nothing
+honest to date itself by.
+
 **AI diagnosis → confirmed treatment name** — a patient's Diagnosis chat
 creates a `Treatment` with the AI's own tentative name; if the chat books
 an appointment, that gets linked. If the doctor the patient actually sees
@@ -259,13 +269,13 @@ system is enforced at the database layer, not client-side.
 ## 7. AI Assistant (Agentic System)
 
 The patient app's Diagnosis/Assistant tab is a LangGraph multi-agent
-system — a 21-node `StateGraph` whose `manager_agent` routes each turn to
+system — a 22-node `StateGraph` whose `manager_agent` routes each turn to
 one of four branches: a clinical-triage branch (grounded in a Neo4j
 symptom→disease→specialty knowledge graph, with hybrid exact+vector
 retrieval), a doctor-search branch, a booking branch, and a **post-care**
 branch (an end-of-course check-in that marks a diagnosis complete —
 collecting per-doctor 1–5 star ratings first — or steers the patient back
-into booking if they're still unwell). Nine nodes issue human-in-the-loop
+into booking if they're still unwell). Ten nodes issue human-in-the-loop
 `interrupt()`s wherever the patient needs to make a choice; everything is
 streamed to the client over Server-Sent Events and persisted via a
 Postgres-backed checkpointer so a conversation survives a server restart

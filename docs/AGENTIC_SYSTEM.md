@@ -102,7 +102,9 @@ flowchart TD
     finder -->|ready| top5[present_top5]
     askloc --> finder
     avail --> finder
-    top5 -->|Command| mgr
+    top5 -->|doctor tapped, Command| pick[choose_slot]
+    pick -->|confirmed, Command| mgr
+    pick -->|back, Command| finder
 
     booking -->|reschedule, Command| finder
     booking --> END2([END])
@@ -120,7 +122,7 @@ flowchart TD
     ofb -->|yes, Command| mgr
 ```
 
-The graph registers **21 nodes** (`build_graph_builder` in `agent.py`);
+The graph registers **22 nodes** (`build_graph_builder` in `agent.py`);
 `manager_agent` routes to one of four branches.
 
 - **Entry routing** (`_entry_router` in `agent.py`) picks the entry path
@@ -146,9 +148,12 @@ The graph registers **21 nodes** (`build_graph_builder` in `agent.py`);
     (LLM decides each round whether to conclude or ask one more
     question) → `explain_condition_node` → `offer_doctor`.
   - **doctor_search**: `doctor_finder_agent` ⇄ `ask_location_time` ⇄
-    `availability_check` → `present_top5` (three-stage state machine
-    driven by `route_after_doctor_finder`, not by three separate nodes
-    calling each other directly).
+    `availability_check` → `present_top5` → `choose_slot` (a state
+    machine driven by `route_after_doctor_finder`, not by nodes calling
+    each other directly). Tapping "Book" on a shortlist card does **not**
+    book: it routes to `choose_slot`, which shows that doctor's whole
+    schedule with the card's slot preselected, and only a confirmed slot
+    reaches `booking_agent`.
   - **booking**: `booking_agent` — either commits a slot that
     `present_top5` just interrupted for, or (no fresh slot, but a
     booking already exists on this thread) classifies free-text intent
@@ -317,11 +322,12 @@ framing) and the no-specialty case (generic "find a doctor" offer). A
 and `specialty_hint` set (so `doctor_finder_agent` doesn't have to
 re-extract the specialty from free text); a "no" ends the turn.
 
-### `doctor_finder_agent`, `route_after_doctor_finder`, `ask_location_time`, `availability_check`, `present_top5`
+### `doctor_finder_agent`, `route_after_doctor_finder`, `ask_location_time`, `availability_check`, `present_top5`, `choose_slot`
 
-A three-stage state machine re-entering `doctor_finder_agent` through two
-loop-back edges, staged by `route_after_doctor_finder` reading
-`location_asked`/`availability_annotated`:
+A state machine re-entering `doctor_finder_agent` through two loop-back
+edges, staged by `route_after_doctor_finder` reading
+`location_asked`/`availability_annotated`, then a two-step commit
+(shortlist → exact slot → book):
 
 1. **No pool yet** → resolve what's being searched for (`_resolve_query`:
    an explicit `specialty_hint` short-circuits everything else;
@@ -334,17 +340,49 @@ loop-back edges, staged by `route_after_doctor_finder` reading
    graph's actual values, so "cardiologist" resolves to "Cardiology"
    without the model ever being able to hallucinate a specialty that
    doesn't exist), then call `search_doctors()` (Postgres RPC).
+   A city with no match for that specialty is **widened rather than
+   returned empty** (`_search_with_city_fallback`) — but the widening is
+   always reported back in `search_relaxation`, so the patient is told
+   "no Cardiology in Akkaraipattu, showing the nearest instead" instead
+   of being quietly handed results from somewhere else.
 2. **Pool exists, location not asked** → route to `ask_location_time`,
-   which `interrupt()`s for a city/time preference (default "nearest"),
-   then loops back — if a real city came back, re-searches with that
-   city filter.
+   which `interrupt()`s for where/when. This is a **structured picker,
+   not free text**: the payload carries the real `app_list_cities()`
+   list, the bookable date window, and the three time bands, so the
+   client renders a searchable city dropdown, an availability calendar,
+   and morning/afternoon/evening chips. Everything is optional — all
+   blank still means "nearest, soonest". Then it loops back, re-searching
+   if a real city came back.
 3. **Location asked, availability not annotated** → route to
-   `availability_check`, which fetches each pooled doctor's soonest slot
-   via `get_doctor_availability()` and drops anyone with none.
-4. **Both done** → `present_top5` ranks by rating then soonest date,
-   `interrupt()`s with the top 5 for the patient to pick from, and hands
-   off to `manager_agent` with `forced_route: "booking"` and the
-   selected slot in `selected_slot`.
+   `availability_check`, which fetches **every** block each pooled doctor
+   holds over `LOOKAHEAD_DAYS` (21) via `get_doctor_availability()`,
+   drops anyone with none, and picks as the card's headline whichever
+   block best matches the patient's date/band (`_rank_slot`) — not merely
+   the soonest, so a card tapped after asking for "Tuesday evening"
+   already shows Tuesday evening. The full list rides along on the card
+   (`slots`) so the picker in step 5 needs no second round trip.
+4. **Both done** → `present_top5` ranks by *preference first* (right day,
+   then right part of day), rating second — a 4.9 doctor free three weeks
+   out is not a better answer to "Tuesday morning" than a 4.2 who is
+   actually free then. It caps at `MIN_RESULTS` (5) and attaches a `note`
+   describing any drift from what was asked (wrong day, widened city), so
+   the shortlist is never silently different from the request.
+5. **A doctor is tapped** → `present_top5` returns
+   `Command(goto="choose_slot")`. **Nothing is booked yet.** `choose_slot`
+   `interrupt()`s with that doctor's whole schedule and the card's slot
+   preselected; the patient can move to any other date/time before
+   confirming. Confirming hands off to `manager_agent` with
+   `forced_route: "booking"` and the chosen slot in `selected_slot`;
+   backing out returns to `doctor_finder_agent` (clearing
+   `availability_annotated`) so the shortlist is rebuilt rather than the
+   turn dead-ending on an unanswerable interrupt.
+
+   This split is the reason "Book" is safe to tap. Previously the button
+   committed whatever slot the card happened to be showing, so changing
+   the time meant cancelling and starting over; the same picker is now
+   also what the Appointments tab uses for manual booking and
+   rescheduling, so both paths are one interaction rather than two that
+   drift apart.
 
 ### `booking_agent`, `_commit_booking`, `_cancel_booking`, `_retry_after_race`
 
@@ -366,11 +404,22 @@ Three jobs, decided by what's already in state:
    classify intent (cancel/reschedule/status) via structured output
    (falls back to a keyword scan), and act directly: cancel calls
    `cancel_appointment()` and best-effort unlinks the `Treatment`;
-   reschedule hands off to `doctor_finder_agent` with a fresh search
-   state and `rescheduling_appointment_id` set, so the *same* search UX
-   is reused and the eventual `_commit_booking` calls
-   `reschedule_appointment()` instead of a fresh `book_appointment()`;
-   status just formats the existing booking into a message.
+   reschedule goes to `_start_reschedule`, which loads that doctor's
+   remaining slots **at the same channeling centre only** and jumps
+   straight to `choose_slot` with `rescheduling_appointment_id` set, so
+   the eventual `_commit_booking` calls `reschedule_appointment()`
+   instead of a fresh `book_appointment()`; status just formats the
+   existing booking into a message.
+
+   Rescheduling deliberately skips the search entirely. Sending someone
+   re-picking a time back through "which city? which doctor?" is a
+   re-booking, not a reschedule — and offering the same doctor's slots at
+   a clinic on the other side of the island is a good way to send a
+   patient to the wrong building. Wanting a different doctor or centre is
+   a cancel-then-book, which the cancel intent already handles. Backing
+   out of the picker mid-reschedule ends the turn with the existing
+   appointment untouched, rather than falling through to a doctor
+   search.
 3. **Neither** → a plain "please pick a doctor first" message.
 
 ### `course_followup` (post-care branch entry)
@@ -421,14 +470,14 @@ search/booking flow is reused rather than duplicated here.
 
 ## 6. Human-in-the-loop
 
-Nine nodes call LangGraph's `interrupt()`: `ask_followup`, `offer_doctor`,
-`ask_location_time`, `present_top5`, `_retry_after_race` (inside
+Ten nodes call LangGraph's `interrupt()`: `ask_followup`, `offer_doctor`,
+`ask_location_time`, `present_top5`, `choose_slot`, `_retry_after_race` (inside
 `booking_agent`), and the post-care branch's `course_followup`,
 `offer_complete_treatment`, `rate_doctor_node`, and
 `offer_followup_booking`. Each pauses the graph mid-run and emits its
 payload as the SSE `interrupt` event (see §9); the mobile app renders the
-appropriate UI (a text question, a yes/no, a location/time form, a list
-of doctor cards, a star-rating picker) and the *next* HTTP call is
+appropriate UI (a text question, a yes/no, a city/date/time picker, a list
+of doctor cards, a schedule picker, a star-rating picker) and the *next* HTTP call is
 `POST /chat/resume` with whatever the patient answered, which the server
 turns into `Command(resume=value)` — LangGraph resumes execution of that
 exact node with `interrupt()`'s return value being whatever was passed
