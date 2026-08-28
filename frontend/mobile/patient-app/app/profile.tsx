@@ -21,6 +21,7 @@ import { Banner, Button, Input, formatDate } from "../src/components/ui";
 import { ConfirmModal } from "../src/components/ConfirmModal";
 import { completeness, getMyHealthProfile } from "../src/lib/healthProfile";
 import { exportPrescriptionsCsv } from "../src/lib/exportCsv";
+import { ayuSetEnabled, ayuStatus, type AyuStatus } from "../src/lib/ayu";
 
 interface FullProfile {
     id: string;
@@ -60,6 +61,7 @@ export default function Profile() {
     const [form, setForm] = useState({ firstName: "", lastName: "", mobileNumber: "", dob: "" });
     const [health, setHealth] = useState<{ answered: number; total: number } | null>(null);
     const [exporting, setExporting] = useState(false);
+    const [ayu, setAyu] = useState<AyuStatus | null>(null);
 
     const load = useCallback(async () => {
         try {
@@ -78,6 +80,13 @@ export default function Profile() {
                 setHealth(completeness(await getMyHealthProfile()));
             } catch {
                 setHealth(null);
+            }
+            // Same treatment: the assistant backend being asleep must not
+            // stop the profile screen rendering.
+            try {
+                setAyu(await ayuStatus());
+            } catch {
+                setAyu(null);
             }
         } catch (e) {
             setError(e instanceof Error ? e.message : "Couldn't load your profile");
@@ -220,6 +229,36 @@ export default function Profile() {
                             </View>
                             <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
                         </Pressable>
+
+                        {ayu && (
+                            <Pressable
+                                style={[styles.linkRow, styles.toggleRow]}
+                                onPress={async () => {
+                                    const next = !ayu.enabled;
+                                    setAyu({ ...ayu, enabled: next });
+                                    await ayuSetEnabled(next).catch(() => setAyu(ayu));
+                                }}
+                            >
+                                <Ionicons
+                                    name={ayu.enabled ? "sparkles" : "sparkles-outline"}
+                                    size={20}
+                                    color={colors.primaryDark}
+                                />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.linkText}>Ayu, your assistant</Text>
+                                    <Text style={styles.linkHint}>
+                                        {ayu.enabled
+                                            ? ayu.missingCount > 0
+                                                ? `${ayu.missingCount} question${ayu.missingCount === 1 ? "" : "s"} left — Ayu will check in monthly`
+                                                : "Nothing left to ask"
+                                            : "Off — no bubble, no check-ins"}
+                                    </Text>
+                                </View>
+                                <View style={[styles.switch, ayu.enabled && styles.switchOn]}>
+                                    <View style={[styles.knob, ayu.enabled && styles.knobOn]} />
+                                </View>
+                            </Pressable>
+                        )}
                     </View>
 
                     <Text style={styles.sectionTitle}>Your records</Text>
@@ -275,6 +314,14 @@ const styles = StyleSheet.create({
     row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: colors.border },
     rowLabel: { fontSize: 13, color: colors.textMuted },
     rowValue: { fontSize: 14, fontWeight: "600", color: colors.text, flexShrink: 1, textAlign: "right" },
+    toggleRow: { borderTopWidth: 1, borderTopColor: colors.border },
+    switch: {
+        width: 42, height: 24, borderRadius: 12,
+        backgroundColor: colors.border, padding: 3, justifyContent: "center",
+    },
+    switchOn: { backgroundColor: colors.primary },
+    knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
+    knobOn: { alignSelf: "flex-end" },
     linkRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 13 },
     linkText: { flex: 1, fontSize: 14.5, fontWeight: "700", color: colors.text },
     linkHint: { fontSize: 12, color: colors.textMuted, marginTop: 1 },

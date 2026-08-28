@@ -22,19 +22,32 @@ export function AyuBubble({
     label,
     onPress,
     onDismiss,
+    onLongPress,
 }: {
     visible: boolean;
     /** Expanded, with a call to action, because something is unanswered. */
     prompting: boolean;
     label?: string;
     onPress: () => void;
+    /** Snooze the prompt — NOT the same as switching Ayu off. */
     onDismiss?: () => void;
+    /** Long-press anywhere on the bubble to turn Ayu off. The permanent
+     *  switch is in Profile; this exists because the moment you want an
+     *  assistant to stop is the moment it is in front of you, and making
+     *  someone navigate away to find the control is the wrong answer. */
+    onLongPress?: () => void;
 }) {
     if (!visible) return null;
 
     if (!prompting) {
         return (
-            <Pressable style={styles.bubble} onPress={onPress} accessibilityLabel="Open Ayu">
+            <Pressable
+                style={styles.bubble}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                delayLongPress={500}
+                accessibilityLabel="Open Ayu. Long press to turn Ayu off."
+            >
                 <Text style={styles.mark}>ආ</Text>
             </Pressable>
         );
@@ -42,7 +55,12 @@ export function AyuBubble({
 
     return (
         <View style={styles.promptWrap}>
-            <Pressable style={styles.prompt} onPress={onPress}>
+            <Pressable
+                style={styles.prompt}
+                onPress={onPress}
+                onLongPress={onLongPress}
+                delayLongPress={500}
+            >
                 <View style={styles.promptAvatar}>
                     <Text style={styles.promptMark}>ආ</Text>
                 </View>

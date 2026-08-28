@@ -21,6 +21,7 @@ import { openInMaps } from "../../src/lib/maps";
 import type { Appointment } from "../../src/types";
 import { ProfileButton } from "../../src/components/ProfileButton";
 import { AyuBubble } from "../../src/components/AyuBubble";
+import { ConfirmModal } from "../../src/components/ConfirmModal";
 import { ayuSetEnabled, ayuSnooze, ayuStatus, type AyuStatus } from "../../src/lib/ayu";
 
 interface DoseReminder {
@@ -55,6 +56,7 @@ export default function Home() {
     // glitch.
     const [ayu, setAyu] = useState<AyuStatus | null>(null);
     const [ayuDismissed, setAyuDismissed] = useState(false);
+    const [ayuOffOpen, setAyuOffOpen] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
     const [doses, setDoses] = useState<DoseReminder[]>([]);
     const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
@@ -262,37 +264,6 @@ export default function Home() {
                     <Text style={styles.careLinkText}>See your full care history</Text>
                     <Ionicons name="arrow-forward" size={15} color={colors.primaryDark} />
                 </Pressable>
-                {ayu && (
-                    <Pressable
-                        style={styles.ayuToggle}
-                        onPress={async () => {
-                            const next = !ayu.enabled;
-                            setAyu({ ...ayu, enabled: next });
-                            await ayuSetEnabled(next).catch(() => setAyu(ayu));
-                        }}
-                    >
-                        <Ionicons
-                            name={ayu.enabled ? "sparkles" : "sparkles-outline"}
-                            size={17}
-                            color={colors.primaryDark}
-                        />
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.ayuToggleText}>
-                                Ayu {ayu.enabled ? "is on" : "is off"}
-                            </Text>
-                            <Text style={styles.ayuToggleHint}>
-                                {ayu.enabled
-                                    ? ayu.missingCount > 0
-                                        ? `${ayu.missingCount} health question${ayu.missingCount === 1 ? "" : "s"} left`
-                                        : "Your health profile is complete"
-                                    : "Your assistant won't check in"}
-                            </Text>
-                        </View>
-                        <View style={[styles.switch, ayu.enabled && styles.switchOn]}>
-                            <View style={[styles.knob, ayu.enabled && styles.knobOn]} />
-                        </View>
-                    </Pressable>
-                )}
             </ScrollView>
 
             <AyuBubble
@@ -311,10 +282,27 @@ export default function Home() {
                 }
                 onDismiss={() => {
                     setAyuDismissed(true);
-                    // Tell the server too, or the prompt returns on the
-                    // next launch instead of next month.
+                    // A dismiss is a SNOOZE, not an off switch — it pushes
+                    // the next nudge out a month. Turning Ayu off entirely
+                    // is the long-press below, or Profile > Health.
                     ayuSnooze();
                 }}
+                onLongPress={() => setAyuOffOpen(true)}
+            />
+
+            <ConfirmModal
+                visible={ayuOffOpen}
+                title="Turn Ayu off?"
+                message="The bubble disappears and Ayu stops checking in. Your health profile stays exactly as it is, and you can switch Ayu back on from your profile."
+                confirmLabel="Turn off"
+                destructive
+                onConfirm={async () => {
+                    setAyuOffOpen(false);
+                    if (!ayu) return;
+                    setAyu({ ...ayu, enabled: false });
+                    await ayuSetEnabled(false).catch(() => setAyu(ayu));
+                }}
+                onCancel={() => setAyuOffOpen(false)}
             />
         </SafeAreaView>
     );
@@ -355,24 +343,6 @@ const styles = StyleSheet.create({
         borderColor: colors.background,
     },
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
-    ayuToggle: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        backgroundColor: colors.surface,
-        borderRadius: radius.md,
-        padding: spacing.md,
-        marginTop: spacing.lg,
-    },
-    ayuToggleText: { fontSize: 14, fontWeight: "700", color: colors.text },
-    ayuToggleHint: { fontSize: 12, color: colors.textMuted, marginTop: 1 },
-    switch: {
-        width: 42, height: 24, borderRadius: 12,
-        backgroundColor: colors.border, padding: 3, justifyContent: "center",
-    },
-    switchOn: { backgroundColor: colors.primary },
-    knob: { width: 18, height: 18, borderRadius: 9, backgroundColor: "#fff" },
-    knobOn: { alignSelf: "flex-end" },
     sectionTitle: { ...type.label, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
     doseRow: {
         flexDirection: "row",
