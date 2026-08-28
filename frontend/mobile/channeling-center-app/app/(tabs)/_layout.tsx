@@ -33,7 +33,7 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="home"
                 options={{
-                    title: "Home",
+                    title: "Today",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="home" size={size} color={color} />
                     ),
@@ -42,7 +42,7 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="appointments"
                 options={{
-                    title: "Appointments",
+                    title: "Schedule",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="calendar" size={size} color={color} />
                     ),

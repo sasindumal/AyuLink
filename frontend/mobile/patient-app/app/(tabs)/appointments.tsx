@@ -1,22 +1,23 @@
 // ==============================================
 // AyuLink Patient - Appointments
-// Three ways to find a slot (kept side by side):
-//   - Quick Search: filter by specialty/city/rating/
-//     nearest, shows the soonest slot per doctor, with
-//     a link into that doctor's full availability.
-//   - By Doctor: search doctors, pick one, see every
-//     upcoming slot they hold over the next 14 days.
-//   - By Center: browse channeling centers, pick one,
-//     see every doctor available there over the next
-//     14 days.
-// Plus My Appointments (Upcoming / Past) to manage
-// existing bookings — the detail modal is the action
-// surface (Reschedule/Cancel/Open in Maps), reachable
-// from either the list card or a notification deep link.
-// Rescheduling reuses whichever browse mode is active —
-// the mode switcher stays visible the whole time now —
-// selecting a slot calls app_reschedule_appointment
-// instead of app_book_appointment.
+//
+// Two jobs, not four search strategies:
+//   * Managing what's booked (the default). The soonest visit gets a
+//     hero card with the full address; the rest follow under "Later".
+//     Search/specialty/city/sort live on Past, where a long history
+//     actually warrants filtering.
+//   * Finding a doctor — entered deliberately from the bottom of that
+//     list, never asked upfront.
+//
+// "By doctor" and "by centre" still exist, but as drill-downs reached
+// from a result (a slot's "other times", or the browse-centres link)
+// rather than modes chosen before searching anything. Every non-default
+// view carries its own way back, so there's no mode switcher.
+//
+// The detail modal remains the action surface (Reschedule / Cancel /
+// Open in Maps), reachable from a list card or a notification deep
+// link. Rescheduling reuses the same search flow — selecting a slot
+// calls app_reschedule_appointment instead of app_book_appointment.
 // ==============================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -317,7 +318,11 @@ export default function Appointments() {
                     subtitle={
                         rescheduleTarget
                             ? `Choose a new slot for ${rescheduleTarget.order_number}`
-                            : "Find, book, and manage your visits"
+                            : mode !== "mine"
+                              ? "Pick a doctor and a time"
+                              : mineFilter === "past"
+                                ? "Past & cancelled"
+                                : `${appointments.filter((a) => a.status === "BOOKED").length} upcoming`
                     }
                 />
 
@@ -339,21 +344,26 @@ export default function Appointments() {
                     "by centre" are still reachable — but as drill-downs from
                     a result (see viewOtherTimes / the browse-centres link),
                     not as a question asked before you've searched. */}
-                {(mode === "mine" || mode === "quick") && (
-                    <FilterChips<Mode>
-                        value={mode}
-                        onChange={changeMode}
-                        options={[
-                            { key: "mine", label: "My Appointments", count: appointments.length },
-                            { key: "quick", label: "Find a Doctor" },
-                        ]}
-                    />
+                {/* No mode switcher. Finding a doctor is entered deliberately
+                    from the bottom of the upcoming list, and every non-default
+                    view carries its own way back — so nothing asks the patient
+                    to choose a mode before they've done anything. */}
+                {mode !== "mine" && (
+                    <Pressable
+                        onPress={() => changeMode(mode === "quick" ? "mine" : "quick")}
+                        style={styles.backRow}
+                    >
+                        <Ionicons name="arrow-back" size={17} color={colors.primaryDark} />
+                        <Text style={styles.backRowText}>
+                            {mode === "quick" ? "My appointments" : "Back to search"}
+                        </Text>
+                    </Pressable>
                 )}
 
-                {(mode === "byDoctor" || mode === "byCenter") && (
-                    <Pressable onPress={() => changeMode("quick")} style={styles.backRow}>
+                {mode === "mine" && mineFilter === "past" && (
+                    <Pressable onPress={() => setMineFilter("upcoming")} style={styles.backRow}>
                         <Ionicons name="arrow-back" size={17} color={colors.primaryDark} />
-                        <Text style={styles.backRowText}>Back to search</Text>
+                        <Text style={styles.backRowText}>Upcoming</Text>
                     </Pressable>
                 )}
 
@@ -455,47 +465,51 @@ export default function Appointments() {
                                             onReschedule={startReschedule}
                                         />
                                     )}
-                                    <FilterChips<MineFilter>
-                                        value={mineFilter}
-                                        onChange={setMineFilter}
-                                        options={[
-                                            { key: "upcoming", label: "Upcoming", count: appointments.filter((a) => a.status === "BOOKED").length },
-                                            { key: "past", label: "Past & Cancelled", count: appointments.filter((a) => a.status !== "BOOKED").length },
-                                        ]}
-                                    />
-                                    <Input
-                                        placeholder="Search by doctor, center, or order number"
-                                        value={mineQuery}
-                                        onChangeText={setMineQuery}
-                                    />
-                                    <View style={styles.filterRow}>
-                                        <View style={{ flex: 1 }}>
-                                            <SelectField
-                                                label="Specialty"
-                                                value={mineSpecialty}
-                                                options={specialties}
-                                                onChange={setMineSpecialty}
+                                    {/* Search and filters belong to Past, where the
+                                        list is a long history worth narrowing. An
+                                        upcoming list is two or three items — filtering
+                                        it is chrome that earns nothing. */}
+                                    {mineFilter === "past" && (
+                                        <>
+                                            <Input
+                                                placeholder="Search by doctor, center, or order number"
+                                                value={mineQuery}
+                                                onChangeText={setMineQuery}
                                             />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <SelectField
-                                                label="City"
-                                                value={mineCity}
-                                                options={cities}
-                                                onChange={setMineCity}
+                                            <View style={styles.filterRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <SelectField
+                                                        label="Specialty"
+                                                        value={mineSpecialty}
+                                                        options={specialties}
+                                                        onChange={setMineSpecialty}
+                                                    />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <SelectField
+                                                        label="City"
+                                                        value={mineCity}
+                                                        options={cities}
+                                                        onChange={setMineCity}
+                                                    />
+                                                </View>
+                                            </View>
+                                            <Text style={styles.sortLabel}>Sort by</Text>
+                                            <FilterChips<MineSort>
+                                                value={mineSort}
+                                                onChange={setMineSort}
+                                                options={[
+                                                    { key: "date", label: "Date/Time" },
+                                                    { key: "doctor", label: "Doctor" },
+                                                    { key: "center", label: "Center" },
+                                                ]}
                                             />
-                                        </View>
-                                    </View>
-                                    <Text style={styles.sortLabel}>Sort by</Text>
-                                    <FilterChips<MineSort>
-                                        value={mineSort}
-                                        onChange={setMineSort}
-                                        options={[
-                                            { key: "date", label: "Date/Time" },
-                                            { key: "doctor", label: "Doctor" },
-                                            { key: "center", label: "Center" },
-                                        ]}
-                                    />
+                                        </>
+                                    )}
+
+                                    {heroAppointment && mineListBody.length > 0 && (
+                                        <Text style={styles.laterLabel}>Later</Text>
+                                    )}
                                 </View>
                             }
                             renderItem={({ item }) => (
@@ -507,6 +521,26 @@ export default function Appointments() {
                                     cancelling={busyKey === item.id}
                                 />
                             )}
+                            ListFooterComponent={
+                                mineFilter === "upcoming" ? (
+                                    <View style={{ marginTop: spacing.md }}>
+                                        <Button
+                                            title="Find a doctor"
+                                            variant="secondary"
+                                            icon="search"
+                                            onPress={() => changeMode("quick")}
+                                        />
+                                        <Pressable
+                                            onPress={() => setMineFilter("past")}
+                                            style={styles.pastLink}
+                                        >
+                                            <Text style={styles.pastLinkText}>
+                                                View past appointments
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                ) : null
+                            }
                             contentContainerStyle={{ paddingBottom: spacing.xl }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
@@ -601,6 +635,16 @@ const styles = StyleSheet.create({
         marginBottom: spacing.sm,
     },
     backRowText: { fontSize: 13.5, fontWeight: "700", color: colors.primaryDark },
+    laterLabel: {
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 0.6,
+        textTransform: "uppercase",
+        color: colors.textMuted,
+        marginBottom: spacing.sm,
+    },
+    pastLink: { alignItems: "center", paddingVertical: 14 },
+    pastLinkText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
     browseCentresRow: {
         flexDirection: "row",
         alignItems: "center",

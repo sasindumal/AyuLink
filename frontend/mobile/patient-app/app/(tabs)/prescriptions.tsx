@@ -13,7 +13,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -28,7 +27,13 @@ import { useAuth } from "../../src/lib/auth";
 import { colors, radius, spacing, type } from "../../src/theme";
 import { Banner, EmptyState, ScreenHeader } from "../../src/components/ui";
 import { PrescriptionCard } from "../../src/components/PrescriptionCard";
-import { daysLeftOfCourse, daysUntilExpiry, groupFor, type RxGroup } from "../../src/lib/medication";
+import {
+    daysLeftOfCourse,
+    daysUntilExpiry,
+    groupFor,
+    nextDoseLabel,
+    type RxGroup,
+} from "../../src/lib/medication";
 import type { Prescription } from "../../src/types";
 
 const GROUP_ORDER: RxGroup[] = ["COLLECT", "TAKING", "FINISHED", "EXPIRED_UNCOLLECTED"];
@@ -162,10 +167,15 @@ export default function Prescriptions() {
                                 {GROUP_LABEL[group]} ({items.length})
                             </Text>
                             {items.map((p) => (
-                                <View key={p.id}>
-                                    <PrescriptionCard prescription={p} perspective="patient" />
-                                    <StatusFooter prescription={p} group={group} />
-                                </View>
+                                <PrescriptionCard
+                                    key={p.id}
+                                    prescription={p}
+                                    perspective="patient"
+                                    statusOverride={contextualBadge(p, group)}
+                                    footer={<GroupFooter prescription={p} group={group} />}
+                                    dimmed={group === "EXPIRED_UNCOLLECTED"}
+                                    showQrAction={group === "COLLECT"}
+                                />
                             ))}
                         </View>
                     ))
@@ -175,8 +185,35 @@ export default function Prescriptions() {
     );
 }
 
-/** The one thing the card itself can't say: where this sits in time. */
-function StatusFooter({ prescription, group }: { prescription: Prescription; group: RxGroup }) {
+/** A label that answers "what do I do now?", rather than echoing the
+ *  database status. "Not Dispensed" is a system state; "Ready" is an
+ *  instruction. */
+function contextualBadge(prescription: Prescription, group: RxGroup) {
+    const total = prescription.items.length;
+    const remaining = prescription.items.filter((i) => !i.dispensed).length;
+
+    if (group === "COLLECT") {
+        return remaining === total
+            ? { label: "Ready", color: colors.primaryDark, bg: colors.primarySoft }
+            : {
+                  label: `${remaining} of ${total} left`,
+                  color: colors.warningInk,
+                  bg: colors.warningSoft,
+              };
+    }
+    if (group === "TAKING") {
+        return { label: "In progress", color: colors.primaryDark, bg: colors.primarySoft };
+    }
+    if (group === "FINISHED") {
+        return { label: "Done", color: colors.neutral, bg: colors.neutralSoft };
+    }
+    return { label: "Expired", color: colors.danger, bg: colors.dangerSoft };
+}
+
+/** The one thing the card can't say for itself: where this sits in time.
+ *  Rendered inside the card so it reads as part of the prescription
+ *  rather than a detached note floating beneath it. */
+function GroupFooter({ prescription, group }: { prescription: Prescription; group: RxGroup }) {
     if (group === "COLLECT") {
         const days = daysUntilExpiry(prescription);
         if (days === null) return null;
@@ -186,9 +223,9 @@ function StatusFooter({ prescription, group }: { prescription: Prescription; gro
                 <Ionicons
                     name={urgent ? "alert-circle" : "time-outline"}
                     size={14}
-                    color={urgent ? colors.warningInk : colors.textMuted}
+                    color={urgent ? colors.warningInk : colors.primaryDark}
                 />
-                <Text style={[styles.footerText, urgent && { color: colors.warningInk }]}>
+                <Text style={[styles.footerText, { color: urgent ? colors.warningInk : colors.primaryDark }]}>
                     {days < 0
                         ? "Expired"
                         : days === 0
@@ -201,15 +238,17 @@ function StatusFooter({ prescription, group }: { prescription: Prescription; gro
 
     if (group === "TAKING") {
         const left = daysLeftOfCourse(prescription);
+        const dose = nextDoseLabel(prescription);
         return (
             <View style={[styles.footer, styles.footerCalm]}>
                 <Ionicons name="medkit-outline" size={14} color={colors.primaryDark} />
                 <Text style={[styles.footerText, { color: colors.primaryDark }]}>
-                    {left === null
-                        ? "Ongoing course"
-                        : left <= 0
-                          ? "Last day of the course"
-                          : `${left} day${left === 1 ? "" : "s"} left of the course`}
+                    {dose ??
+                        (left === null
+                            ? "Ongoing course"
+                            : left <= 0
+                              ? "Last day of the course"
+                              : `${left} day${left === 1 ? "" : "s"} left of the course`)}
                 </Text>
             </View>
         );
@@ -246,8 +285,7 @@ const styles = StyleSheet.create({
         borderRadius: radius.sm,
         paddingVertical: 7,
         paddingHorizontal: 10,
-        marginTop: -6,
-        marginBottom: spacing.md,
+        marginTop: spacing.sm,
     },
     footerCalm: { backgroundColor: colors.primarySoft },
     footerUrgent: { backgroundColor: colors.warningSoft },

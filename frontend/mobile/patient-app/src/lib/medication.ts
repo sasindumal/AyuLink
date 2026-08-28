@@ -11,6 +11,7 @@
 // still to collect, mid-course, or finished.
 // ==============================================
 
+import { doseHoursFor } from "./reminders";
 import type { Prescription } from "../types";
 
 /** Free-text medication duration -> whole days. Null when open-ended
@@ -98,4 +99,36 @@ export function daysLeftOfCourse(prescription: Prescription, now: Date = new Dat
     if (!end) return null;
     const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     return Math.round((startOfDay(end) - startOfDay(now)) / 86_400_000);
+}
+
+/**
+ * The next dose time today for a prescription's medications, as a label.
+ * Derived from each drug's frequency using the same mapping the reminder
+ * scheduler uses, so what this screen promises and what the notification
+ * actually fires at can't drift apart.
+ *
+ * Null when nothing has a fixed schedule ("as needed" drugs shouldn't
+ * imply a clock time) or when every dose today has already passed.
+ */
+export function nextDoseLabel(prescription: Prescription, now: Date = new Date()): string | null {
+    const dispensed = prescription.items.filter((i) => i.dispensed);
+    if (dispensed.length === 0) return null;
+
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    let best: { minutes: number; drug: string } | null = null;
+
+    for (const item of dispensed) {
+        for (const hour of doseHoursFor(item.frequency)) {
+            const minutes = hour * 60;
+            if (minutes <= nowMinutes) continue;
+            if (!best || minutes < best.minutes) best = { minutes, drug: item.drugName };
+        }
+    }
+    if (!best) return null;
+
+    const h = Math.floor(best.minutes / 60);
+    const m = best.minutes % 60;
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    const time = `${hour12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+    return `${best.drug} — next dose ${time}`;
 }
