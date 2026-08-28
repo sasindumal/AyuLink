@@ -10,7 +10,7 @@ import React from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { appointmentStatusMeta, colors, radius, spacing } from "../theme";
-import { Button, formatDate, formatTime } from "./ui";
+import { Button, formatDate, formatDateTime } from "./ui";
 import { openInMaps } from "../lib/maps";
 import type { Appointment, Treatment } from "../types";
 
@@ -117,14 +117,14 @@ export function AppointmentDetailModal({
                         <DetailRow
                             icon="time-outline"
                             label="Booked on"
-                            value={`${formatDate(a.created_at)} · ${formatTime(a.created_at)}`}
+                            value={formatDateTime(a.created_at)}
                         />
                         {a.status === "CANCELLED" && (
                             <DetailRow
                                 icon="close-circle"
                                 label="Cancelled"
                                 value={`By ${cancelledByPatient ? "you" : "the clinic"}${
-                                    a.cancelled_at ? ` on ${formatDate(a.cancelled_at)}` : ""
+                                    a.cancelled_at ? ` on ${formatDateTime(a.cancelled_at)}` : ""
                                 }${a.cancelled_reason ? ` — ${a.cancelled_reason}` : ""}`}
                             />
                         )}

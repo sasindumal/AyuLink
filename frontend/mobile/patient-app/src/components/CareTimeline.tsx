@@ -31,10 +31,17 @@ function formatWhen(iso: string | null): string {
         d.getFullYear() === today.getFullYear() &&
         d.getMonth() === today.getMonth() &&
         d.getDate() === today.getDate();
+    const clock = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
     if (sameDay) {
-        return `Today · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+        return `Today · ${clock}`;
     }
-    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    // Time on every entry, not just today's. Several events in one care
+    // journey routinely land on the same date — visit started, prescribed,
+    // dispensed — and a bare "28 Aug" against three of them tells the
+    // patient nothing about when in the day each happened. Sequence itself
+    // comes from the list order (the server sorts by timestamp); this is
+    // the detail that places each one in the day.
+    return `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })} · ${clock}`;
 }
 
 function EventLine({

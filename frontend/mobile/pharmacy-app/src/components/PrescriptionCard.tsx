@@ -8,7 +8,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, shadow, spacing, statusMeta } from "../theme";
 import type { Prescription } from "../types";
-import { StatusBadge, formatDate, formatTime } from "./ui";
+import { StatusBadge, formatDateTime } from "./ui";
 
 export function PrescriptionCard({
     prescription,
@@ -43,7 +43,7 @@ export function PrescriptionCard({
                 <View style={{ flex: 1, paddingRight: 8 }}>
                     <Text style={styles.diagnosis}>{prescription.diagnosis}</Text>
                     <Text style={styles.subline}>
-                        {formatDate(prescription.dateIssued)}
+                        {formatDateTime(prescription.dateIssued)}
                         {counterpart ? `  ·  ${counterpart}` : ""}
                     </Text>
                     {perspective === "patient" && doctorProfile && (
@@ -117,7 +117,7 @@ export function PrescriptionCard({
                                         ? ` by ${item.dispensedBy.pharmacyProfile.pharmacyName}`
                                         : ` by ${item.dispensedBy.firstName} ${item.dispensedBy.lastName}`}
                                     {item.dispensedAt
-                                        ? ` · ${formatDate(item.dispensedAt)} ${formatTime(item.dispensedAt)}`
+                                        ? ` · ${formatDateTime(item.dispensedAt)}`
                                         : ""}
                                 </Text>
                             )}

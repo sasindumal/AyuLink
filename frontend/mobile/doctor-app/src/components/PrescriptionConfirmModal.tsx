@@ -10,7 +10,7 @@ import React from "react";
 import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../theme";
-import { Banner, Button, formatDate } from "./ui";
+import { Banner, Button, formatDateTime } from "./ui";
 import type { FollowupPlan, ReferralDoctor } from "../types";
 
 export interface PrescriptionDraftItem {
@@ -116,7 +116,7 @@ export function PrescriptionConfirmModal({
                             <Text style={styles.metaText}>
                                 {draft.expiryDays == null
                                     ? "Never expires"
-                                    : `Expires ${formatDate(
+                                    : `Expires ${formatDateTime(
                                           new Date(Date.now() + draft.expiryDays * 86400000).toISOString()
                                       )}`}
                             </Text>
