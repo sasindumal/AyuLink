@@ -15,6 +15,8 @@ import { colors, radius, spacing, type } from "../theme";
 import type {
     CareEvent,
     CareEventAppointmentBooked,
+    CareEventAppointmentCancelled,
+    CareEventAppointmentCompleted,
     CareEventAppointmentStarted,
     CareEventDiagnosed,
     CareEventItemDispensed,
@@ -93,16 +95,20 @@ function renderEvent(event: CareEvent, index: number, total: number) {
 
     if (event.type === "APPOINTMENT_BOOKED") {
         const p = event.payload as CareEventAppointmentBooked;
-        const cancelled = p.status === "CANCELLED";
         const when = p.appointmentDate
             ? new Date(p.appointmentDate).toLocaleDateString(undefined, { day: "numeric", month: "short" })
             : "";
         const at = p.startTime ? ` ${p.startTime.slice(0, 5)}` : "";
+        // Always reads as "booked", even for an appointment since
+        // cancelled: the booking genuinely happened, and the cancellation
+        // is now its own later entry. This used to rewrite itself into
+        // "Appointment cancelled" because that was the only way a
+        // cancellation could show at all.
         return (
             <EventLine
                 key={event.key}
-                icon={cancelled ? "close-circle" : "calendar"}
-                title={cancelled ? "Appointment cancelled" : `Appointment booked with ${p.doctorName}`}
+                icon="calendar"
+                title={`Appointment booked with ${p.doctorName}`}
                 subtitle={[`${when}${at}`, p.centerName].filter(Boolean).join(" · ")}
                 isLast={isLast}
             />
@@ -118,6 +124,43 @@ function renderEvent(event: CareEvent, index: number, total: number) {
                 icon="medkit"
                 title={`Seen by ${p.doctorName}`}
                 subtitle={`${formatWhen(event.at)}${where}`}
+                isLast={isLast}
+            />
+        );
+    }
+
+    if (event.type === "APPOINTMENT_COMPLETED") {
+        const p = event.payload as CareEventAppointmentCompleted;
+        const where = p.centerName ? ` · ${p.centerName}` : "";
+        return (
+            <EventLine
+                key={event.key}
+                icon="checkmark-done"
+                title="Visit completed"
+                subtitle={`${formatWhen(event.at)}${where}`}
+                isLast={isLast}
+            />
+        );
+    }
+
+    if (event.type === "APPOINTMENT_CANCELLED") {
+        const p = event.payload as CareEventAppointmentCancelled;
+        // Naming who called it off matters: "the centre cancelled on me"
+        // and "I cancelled" are very different things to read back later.
+        const who =
+            p.cancelledByRole === "CHANNELING_CENTER"
+                ? "by the centre"
+                : p.cancelledByRole === "DOCTOR"
+                  ? "by the doctor"
+                  : p.cancelledByRole === "PATIENT"
+                    ? "by you"
+                    : null;
+        return (
+            <EventLine
+                key={event.key}
+                icon="close-circle"
+                title={`Appointment cancelled${who ? ` ${who}` : ""}`}
+                subtitle={[formatWhen(event.at), p.reason].filter(Boolean).join(" · ")}
                 isLast={isLast}
             />
         );
