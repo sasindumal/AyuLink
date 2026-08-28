@@ -140,6 +140,8 @@ export function AppointmentDetailModal({
                                     name: a.channelingCenter.name,
                                     address: a.channelingCenter.address,
                                     city: a.channelingCenter.city,
+                                    latitude: a.channelingCenter.latitude,
+                                    longitude: a.channelingCenter.longitude,
                                 })
                             }
                             style={{ flex: 1 }}

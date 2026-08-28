@@ -1,22 +1,23 @@
 // ==============================================
 // AyuLink Patient - Appointments
-// Three ways to find a slot (kept side by side):
-//   - Quick Search: filter by specialty/city/rating/
-//     nearest, shows the soonest slot per doctor, with
-//     a link into that doctor's full availability.
-//   - By Doctor: search doctors, pick one, see every
-//     upcoming slot they hold over the next 14 days.
-//   - By Center: browse channeling centers, pick one,
-//     see every doctor available there over the next
-//     14 days.
-// Plus My Appointments (Upcoming / Past) to manage
-// existing bookings — the detail modal is the action
-// surface (Reschedule/Cancel/Open in Maps), reachable
-// from either the list card or a notification deep link.
-// Rescheduling reuses whichever browse mode is active —
-// the mode switcher stays visible the whole time now —
-// selecting a slot calls app_reschedule_appointment
-// instead of app_book_appointment.
+//
+// Two jobs, not four search strategies:
+//   * Managing what's booked (the default). The soonest visit gets a
+//     hero card with the full address; the rest follow under "Later".
+//     Search/specialty/city/sort live on Past, where a long history
+//     actually warrants filtering.
+//   * Finding a doctor — entered deliberately from the bottom of that
+//     list, never asked upfront.
+//
+// "By doctor" and "by centre" still exist, but as drill-downs reached
+// from a result (a slot's "other times", or the browse-centres link)
+// rather than modes chosen before searching anything. Every non-default
+// view carries its own way back, so there's no mode switcher.
+//
+// The detail modal remains the action surface (Reschedule / Cancel /
+// Open in Maps), reachable from a list card or a notification deep
+// link. Rescheduling reuses the same search flow — selecting a slot
+// calls app_reschedule_appointment instead of app_book_appointment.
 // ==============================================
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -24,6 +25,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
@@ -35,10 +37,11 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, spacing } from "../../src/theme";
+import { colors, radius, spacing } from "../../src/theme";
 import { Banner, Button, EmptyState, FilterChips, Input, ScreenHeader } from "../../src/components/ui";
 import { SlotCard } from "../../src/components/SlotCard";
 import { AppointmentCard } from "../../src/components/AppointmentCard";
+import { NextAppointmentCard } from "../../src/components/NextAppointmentCard";
 import { SearchFilters, type SearchFilterState } from "../../src/components/SearchFilters";
 import { SelectField } from "../../src/components/SelectField";
 import { DoctorBrowseView } from "../../src/components/DoctorBrowseView";
@@ -73,6 +76,11 @@ export default function Appointments() {
     const { specialties, cities } = useLookups();
     const [filters, setFilters] = useState<SearchFilterState>(DEFAULT_FILTERS);
     const [slots, setSlots] = useState<DoctorSlot[]>([]);
+    // Free-text filter over the result list. This is what replaces
+    // "By Doctor" / "By Center" as top-level modes: typing a doctor's or
+    // centre's name narrows the one list, instead of the patient having to
+    // choose a search strategy before searching anything.
+    const [slotQuery, setSlotQuery] = useState("");
     const [viewingDoctor, setViewingDoctor] = useState<DoctorSummary | null>(null);
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [treatments, setTreatments] = useState<Treatment[]>([]);
@@ -151,6 +159,7 @@ export default function Appointments() {
         setDetailTarget(null);
         setRescheduleTarget(appointment);
         setFilters({ ...DEFAULT_FILTERS, specialty: appointment.doctor.specialty ?? "" });
+        setSlotQuery("");
         setMode("quick");
     };
 
@@ -205,6 +214,9 @@ export default function Appointments() {
 
     const changeMode = (next: Mode) => {
         setViewingDoctor(null);
+        // A stale text filter left over from a previous visit would
+        // silently hide results that a fresh search just returned.
+        if (next === "quick") setSlotQuery("");
         setMode(next);
     };
 
@@ -271,6 +283,33 @@ export default function Appointments() {
         ? treatments.find((t) => t.appointment_id === detailTarget.id) ?? null
         : null;
 
+    // The soonest upcoming appointment gets its own card above the list —
+    // it's what people open this tab for. Only when the list is otherwise
+    // unfiltered and sorted by date, so the "next" claim is actually true:
+    // under a name sort or an active search, the first row isn't the
+    // soonest and a hero would be lying. It's then dropped from the list
+    // below so the same appointment doesn't appear twice.
+    const isUnfilteredUpcoming =
+        mineFilter === "upcoming" &&
+        mineSort === "date" &&
+        !mineQuery.trim() &&
+        !mineSpecialty &&
+        !mineCity;
+    const heroAppointment = isUnfilteredUpcoming ? mineList[0] ?? null : null;
+    const mineListBody = heroAppointment ? mineList.slice(1) : mineList;
+
+    const visibleSlots = useMemo(() => {
+        const q = slotQuery.trim().toLowerCase();
+        if (!q) return slots;
+        return slots.filter(
+            (s) =>
+                `dr. ${s.doctorFirstName} ${s.doctorLastName}`.toLowerCase().includes(q) ||
+                (s.specialty ?? "").toLowerCase().includes(q) ||
+                s.channelingCenterName.toLowerCase().includes(q) ||
+                (s.city ?? "").toLowerCase().includes(q)
+        );
+    }, [slots, slotQuery]);
+
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
             <View style={styles.container}>
@@ -279,7 +318,11 @@ export default function Appointments() {
                     subtitle={
                         rescheduleTarget
                             ? `Choose a new slot for ${rescheduleTarget.order_number}`
-                            : "Find, book, and manage your visits"
+                            : mode !== "mine"
+                              ? "Pick a doctor and a time"
+                              : mineFilter === "past"
+                                ? "Past & cancelled"
+                                : `${appointments.filter((a) => a.status === "BOOKED").length} upcoming`
                     }
                 />
 
@@ -297,25 +340,56 @@ export default function Appointments() {
                     </View>
                 )}
 
-                <FilterChips<Mode>
-                    value={mode}
-                    onChange={changeMode}
-                    options={[
-                        { key: "quick", label: "Quick Search" },
-                        { key: "byDoctor", label: "By Doctor" },
-                        { key: "byCenter", label: "By Center" },
-                        { key: "mine", label: "My Appointments", count: appointments.length },
-                    ]}
-                />
+                {/* Two jobs, not four search strategies. "By doctor" and
+                    "by centre" are still reachable — but as drill-downs from
+                    a result (see viewOtherTimes / the browse-centres link),
+                    not as a question asked before you've searched. */}
+                {/* No mode switcher. Finding a doctor is entered deliberately
+                    from the bottom of the upcoming list, and every non-default
+                    view carries its own way back — so nothing asks the patient
+                    to choose a mode before they've done anything. */}
+                {mode !== "mine" && (
+                    <Pressable
+                        onPress={() => changeMode(mode === "quick" ? "mine" : "quick")}
+                        style={styles.backRow}
+                    >
+                        <Ionicons name="arrow-back" size={17} color={colors.primaryDark} />
+                        <Text style={styles.backRowText}>
+                            {mode === "quick" ? "My appointments" : "Back to search"}
+                        </Text>
+                    </Pressable>
+                )}
+
+                {mode === "mine" && mineFilter === "past" && (
+                    <Pressable onPress={() => setMineFilter("upcoming")} style={styles.backRow}>
+                        <Ionicons name="arrow-back" size={17} color={colors.primaryDark} />
+                        <Text style={styles.backRowText}>Upcoming</Text>
+                    </Pressable>
+                )}
 
                 {mode === "quick" && (
                     <FlatList
-                        data={slots}
+                        data={visibleSlots}
                         keyExtractor={(s) => s.doctorScheduleId}
                         ListHeaderComponent={
                             <View style={{ marginBottom: spacing.sm }}>
+                                <Input
+                                    placeholder="Doctor, specialty, or centre name"
+                                    value={slotQuery}
+                                    onChangeText={setSlotQuery}
+                                />
                                 <SearchFilters value={filters} onChange={setFilters} />
                                 <Button title="Search" onPress={search} loading={searching} />
+                                <Pressable
+                                    onPress={() => changeMode("byCenter")}
+                                    style={styles.browseCentresRow}
+                                >
+                                    <Ionicons name="business-outline" size={15} color={colors.primaryDark} />
+                                    <Text style={styles.browseCentresText}>
+                                        Or browse by channeling centre
+                                    </Text>
+                                    <Ionicons name="chevron-forward" size={15} color={colors.primaryDark} />
+                                </Pressable>
                             </View>
                         }
                         renderItem={({ item }) => (
@@ -338,13 +412,22 @@ export default function Appointments() {
                         contentContainerStyle={{ paddingBottom: spacing.xl }}
                         showsVerticalScrollIndicator={false}
                         ListEmptyComponent={
-                            !searching ? (
+                            searching ? null : slots.length > 0 ? (
+                                // Results exist; the text filter just excluded them
+                                // all. Telling someone to change their specialty
+                                // filter here would send them the wrong way.
+                                <EmptyState
+                                    icon="search-outline"
+                                    title="No matches"
+                                    message={`No doctor or centre matches "${slotQuery.trim()}".`}
+                                />
+                            ) : (
                                 <EmptyState
                                     icon="search-outline"
                                     title="No availability found"
                                     message="Try a different specialty, city, or rating filter."
                                 />
-                            ) : null
+                            )
                         }
                     />
                 )}
@@ -371,51 +454,62 @@ export default function Appointments() {
                         <ActivityIndicator size="large" color={colors.primaryDark} style={{ marginTop: spacing.xl }} />
                     ) : (
                         <FlatList
-                            data={mineList}
+                            data={mineListBody}
                             keyExtractor={(a) => a.id}
                             ListHeaderComponent={
                                 <View>
-                                    <FilterChips<MineFilter>
-                                        value={mineFilter}
-                                        onChange={setMineFilter}
-                                        options={[
-                                            { key: "upcoming", label: "Upcoming", count: appointments.filter((a) => a.status === "BOOKED").length },
-                                            { key: "past", label: "Past & Cancelled", count: appointments.filter((a) => a.status !== "BOOKED").length },
-                                        ]}
-                                    />
-                                    <Input
-                                        placeholder="Search by doctor, center, or order number"
-                                        value={mineQuery}
-                                        onChangeText={setMineQuery}
-                                    />
-                                    <View style={styles.filterRow}>
-                                        <View style={{ flex: 1 }}>
-                                            <SelectField
-                                                label="Specialty"
-                                                value={mineSpecialty}
-                                                options={specialties}
-                                                onChange={setMineSpecialty}
+                                    {heroAppointment && (
+                                        <NextAppointmentCard
+                                            appointment={heroAppointment}
+                                            onPress={setDetailTarget}
+                                            onReschedule={startReschedule}
+                                        />
+                                    )}
+                                    {/* Search and filters belong to Past, where the
+                                        list is a long history worth narrowing. An
+                                        upcoming list is two or three items — filtering
+                                        it is chrome that earns nothing. */}
+                                    {mineFilter === "past" && (
+                                        <>
+                                            <Input
+                                                placeholder="Search by doctor, center, or order number"
+                                                value={mineQuery}
+                                                onChangeText={setMineQuery}
                                             />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                            <SelectField
-                                                label="City"
-                                                value={mineCity}
-                                                options={cities}
-                                                onChange={setMineCity}
+                                            <View style={styles.filterRow}>
+                                                <View style={{ flex: 1 }}>
+                                                    <SelectField
+                                                        label="Specialty"
+                                                        value={mineSpecialty}
+                                                        options={specialties}
+                                                        onChange={setMineSpecialty}
+                                                    />
+                                                </View>
+                                                <View style={{ flex: 1 }}>
+                                                    <SelectField
+                                                        label="City"
+                                                        value={mineCity}
+                                                        options={cities}
+                                                        onChange={setMineCity}
+                                                    />
+                                                </View>
+                                            </View>
+                                            <Text style={styles.sortLabel}>Sort by</Text>
+                                            <FilterChips<MineSort>
+                                                value={mineSort}
+                                                onChange={setMineSort}
+                                                options={[
+                                                    { key: "date", label: "Date/Time" },
+                                                    { key: "doctor", label: "Doctor" },
+                                                    { key: "center", label: "Center" },
+                                                ]}
                                             />
-                                        </View>
-                                    </View>
-                                    <Text style={styles.sortLabel}>Sort by</Text>
-                                    <FilterChips<MineSort>
-                                        value={mineSort}
-                                        onChange={setMineSort}
-                                        options={[
-                                            { key: "date", label: "Date/Time" },
-                                            { key: "doctor", label: "Doctor" },
-                                            { key: "center", label: "Center" },
-                                        ]}
-                                    />
+                                        </>
+                                    )}
+
+                                    {heroAppointment && mineListBody.length > 0 && (
+                                        <Text style={styles.laterLabel}>Later</Text>
+                                    )}
                                 </View>
                             }
                             renderItem={({ item }) => (
@@ -427,6 +521,26 @@ export default function Appointments() {
                                     cancelling={busyKey === item.id}
                                 />
                             )}
+                            ListFooterComponent={
+                                mineFilter === "upcoming" ? (
+                                    <View style={{ marginTop: spacing.md }}>
+                                        <Button
+                                            title="Find a doctor"
+                                            variant="secondary"
+                                            icon="search"
+                                            onPress={() => changeMode("quick")}
+                                        />
+                                        <Pressable
+                                            onPress={() => setMineFilter("past")}
+                                            style={styles.pastLink}
+                                        >
+                                            <Text style={styles.pastLinkText}>
+                                                View past appointments
+                                            </Text>
+                                        </Pressable>
+                                    </View>
+                                ) : null
+                            }
                             contentContainerStyle={{ paddingBottom: spacing.xl }}
                             showsVerticalScrollIndicator={false}
                             refreshControl={
@@ -440,15 +554,21 @@ export default function Appointments() {
                                 />
                             }
                             ListEmptyComponent={
-                                <EmptyState
-                                    icon="calendar-outline"
-                                    title={mineFilter === "upcoming" ? "No upcoming appointments" : "No past appointments"}
-                                    message={
-                                        mineFilter === "upcoming"
-                                            ? "Search and book a doctor's slot to see it here."
-                                            : "Completed and cancelled appointments will show up here."
-                                    }
-                                />
+                                // With exactly one upcoming appointment the hero
+                                // card takes it and the list body is empty — showing
+                                // "No upcoming appointments" directly beneath the
+                                // appointment itself would be plainly wrong.
+                                heroAppointment ? null : (
+                                    <EmptyState
+                                        icon="calendar-outline"
+                                        title={mineFilter === "upcoming" ? "No upcoming appointments" : "No past appointments"}
+                                        message={
+                                            mineFilter === "upcoming"
+                                                ? "Search and book a doctor's slot to see it here."
+                                                : "Completed and cancelled appointments will show up here."
+                                        }
+                                    />
+                                )
                             }
                         />
                     ))}
@@ -507,4 +627,33 @@ const styles = StyleSheet.create({
     sortLabel: { fontSize: 13, fontWeight: "600", color: colors.text, marginBottom: 6, marginTop: 4 },
     filterRow: { flexDirection: "row", gap: 10 },
     rescheduleCancel: { fontSize: 13, fontWeight: "700", color: colors.danger },
+    backRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingVertical: 10,
+        marginBottom: spacing.sm,
+    },
+    backRowText: { fontSize: 13.5, fontWeight: "700", color: colors.primaryDark },
+    laterLabel: {
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 0.6,
+        textTransform: "uppercase",
+        color: colors.textMuted,
+        marginBottom: spacing.sm,
+    },
+    pastLink: { alignItems: "center", paddingVertical: 14 },
+    pastLinkText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
+    browseCentresRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginTop: spacing.sm,
+        paddingVertical: 11,
+        paddingHorizontal: 12,
+        borderRadius: radius.sm,
+        backgroundColor: colors.primarySoft,
+    },
+    browseCentresText: { flex: 1, fontSize: 13, fontWeight: "700", color: colors.primaryDark },
 });

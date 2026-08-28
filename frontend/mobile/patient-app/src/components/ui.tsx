@@ -44,7 +44,10 @@ export function Button({
             disabled={isDisabled}
             style={({ pressed }) => [
                 styles.button,
-                variant === "primary" && { backgroundColor: colors.primary },
+                // primaryDark, not primary — #48A111 fails WCAG AA with a
+                // white label (3.29:1); #25671E passes at 6.91:1. #48A111
+                // stays reserved for fills/shapes that never carry text.
+                variant === "primary" && { backgroundColor: colors.primaryDark },
                 variant === "secondary" && styles.buttonSecondary,
                 variant === "danger-ghost" && styles.buttonDangerGhost,
                 pressed && { opacity: 0.85, transform: [{ scale: 0.99 }] },
@@ -173,7 +176,7 @@ export function Banner({
     const palette = {
         error: { bg: colors.dangerSoft, fg: colors.danger, icon: "alert-circle" as const },
         success: { bg: colors.primarySoft, fg: colors.primaryDark, icon: "checkmark-circle" as const },
-        info: { bg: colors.warningSoft, fg: "#9A6F00", icon: "information-circle" as const },
+        info: { bg: colors.warningSoft, fg: colors.warningInk, icon: "information-circle" as const },
     }[kind];
     return (
         <View style={[styles.banner, { backgroundColor: palette.bg }]}>

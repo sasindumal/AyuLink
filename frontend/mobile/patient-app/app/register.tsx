@@ -104,7 +104,7 @@ export default function Register() {
                             <View style={{ flex: 1 }}>
                                 <Input
                                     label="First Name"
-                                    placeholder="Sasindu"
+                                    placeholder="Kasun"
                                     value={form.firstName}
                                     onChangeText={set("firstName")}
                                 />
@@ -112,7 +112,7 @@ export default function Register() {
                             <View style={{ flex: 1 }}>
                                 <Input
                                     label="Last Name"
-                                    placeholder="Malhara"
+                                    placeholder="Jayawardena"
                                     value={form.lastName}
                                     onChangeText={set("lastName")}
                                 />
@@ -196,5 +196,5 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginTop: spacing.md,
     },
-    link: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    link: { color: colors.primaryDark, fontWeight: "700", fontSize: 13 },
 });

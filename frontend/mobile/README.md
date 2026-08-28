@@ -65,7 +65,9 @@ Seed demo data **without any server**, in order (each is idempotent — safe to 
 supabase db query --linked -f supabase/seed.sql                # patient, doctor, pharmacist, 2 prescriptions
 supabase db query --linked -f supabase/seed_appointments.sql   # 2 channeling centers, schedules, 1 booking
 
-# Recommended: bulk-import Dataset_ref/ for 90 real doctors + 53 real channeling centers
+# Recommended: bulk-import every doctor + channeling center from Dataset_ref/,
+# plus 30 mock pharmacies — all loginable (NIC / license + password123).
+# Also writes demo_credentials.csv (gitignored) listing every seeded login.
 python3 backend/src/agent_workflow/ingestion/seed_postgres_dataset.py
 supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres_dataset.sql
 ```
@@ -81,7 +83,7 @@ supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres
 
 Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345678`
 
-Ran the bulk import? You also get 90 real doctor logins and 53 real channeling-center logins (same password, synthetic NICs) — find one via the Supabase Table Editor (`DoctorProfile` / `ChannelingCenter` → linked `User.nicNumber`).
+Ran the bulk import? Every doctor and channeling center from `Dataset_ref/`, plus 30 mock pharmacies, become loginable with `password123` (synthetic NICs; pharmacies also have `PL-2024-1xx` licenses). The full list — role, name, NIC/license, Medical ID — is written to `backend/src/agent_workflow/ingestion/demo_credentials.csv` (gitignored; regenerate by re-running the seeder). You can also look one up via the Supabase Table Editor (`DoctorProfile` / `ChannelingCenter` / `PharmacyProfile` → linked `User.nicNumber`).
 
 ## Assistant backend (patient app only)
 

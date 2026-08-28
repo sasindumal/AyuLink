@@ -37,11 +37,36 @@ export type AgentEvent =
     | { event: "done"; data: Record<string, never> }
     | { event: "error"; data: { message: string } };
 
+export interface FollowupDoctor {
+    id?: string;
+    firstName?: string;
+    lastName?: string;
+    specialty?: string | null;
+    slmcRegNo?: string | null;
+}
+
+export interface RatingDoctor {
+    doctorId: string;
+    appointmentId?: string;
+    firstName: string;
+    lastName: string;
+    specialty?: string | null;
+}
+
 export type InterruptPayload =
     | { type: "ask_followup"; question: string }
     | { type: "offer_doctor"; condition: string; message: string }
     | { type: "ask_location_time"; default: string; message: string }
-    | { type: "present_top5"; doctors: DoctorCard[] };
+    | { type: "present_top5"; doctors: DoctorCard[] }
+    | { type: "course_followup"; question: string }
+    | { type: "offer_complete_treatment"; message: string }
+    | {
+          type: "offer_followup_booking";
+          message: string;
+          plan: "NONE" | "MEET_SAME_DOCTOR" | "REFER_DOCTOR";
+          doctor: FollowupDoctor | null;
+      }
+    | { type: "rate_doctor"; doctor: RatingDoctor; message: string };
 
 async function getAccessToken(): Promise<string> {
     const { data } = await supabase.auth.getSession();
@@ -102,6 +127,73 @@ export async function sendMessage(
             Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ thread_id: threadId, message }),
+    });
+    await streamSSE(response as unknown as Response, onEvent);
+}
+
+export interface DispensedDrug {
+    drugName: string;
+    dosage?: string | null;
+    frequency?: string | null;
+    duration?: string | null;
+    route?: string | null;
+    instructions?: string | null;
+    durationDays?: number | null;
+    dispensedAt?: string | null;
+    pharmacyName?: string | null;
+}
+
+export interface CareSyncResult {
+    synced: number;
+    messages: string[];
+    treatmentId?: string;
+    status?: string;
+    followupPlan?: string;
+    /** Everything a pharmacy has actually handed over, for scheduling
+     *  dose reminders against. */
+    drugs: DispensedDrug[];
+    /** When the last medication of the course runs out — the app schedules
+     *  its own local notification for this. Null while nothing has been
+     *  dispensed yet, or when any medication is open-ended. */
+    courseEndsAt: string | null;
+}
+
+/**
+ * Fold everything that happened outside the chat — the doctor starting
+ * the visit, the prescription they issued, each drug a pharmacy
+ * dispensed — into the conversation. Idempotent: the backend tracks
+ * which events it has already posted, so calling this on every open
+ * never duplicates messages.
+ */
+export async function syncCareEvents(threadId: string): Promise<CareSyncResult> {
+    const token = await getAccessToken();
+    const response = await fetch(`${AGENT_API_URL}/chat/sync`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ thread_id: threadId }),
+    });
+    if (!response.ok) {
+        throw new Error(`Sync failed (${response.status})`);
+    }
+    return (await response.json()) as CareSyncResult;
+}
+
+/** Start the end-of-course check-in ("how are you feeling now?"). */
+export async function startCourseFollowup(
+    threadId: string,
+    onEvent: (evt: AgentEvent) => void
+): Promise<void> {
+    const token = await getAccessToken();
+    const response = await fetch(`${AGENT_API_URL}/chat/followup`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ thread_id: threadId }),
     });
     await streamSSE(response as unknown as Response, onEvent);
 }

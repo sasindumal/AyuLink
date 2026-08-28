@@ -11,6 +11,18 @@ import { colors, radius, spacing, treatmentStatusMeta } from "../theme";
 import { Card, formatDate } from "./ui";
 import type { Treatment } from "../types";
 
+// Care-level tag shown next to the specialty — derived from the same
+// "General Practitioner" convention the backend's disease/doctor-finder
+// agents already route on (Dataset_ref's disease catalog curates every
+// common, everyday condition to that exact specialty name), so this
+// never needs its own separate field or can drift out of sync with it.
+const GENERAL_PRACTITIONER = "General Practitioner";
+
+function careLevel(specialty: string | null | undefined): "Primary Care" | "Specialist Care" | null {
+    if (!specialty) return null;
+    return specialty === GENERAL_PRACTITIONER ? "Primary Care" : "Specialist Care";
+}
+
 export function TreatmentCard({
     treatment,
     onPress,
@@ -21,6 +33,7 @@ export function TreatmentCard({
     onDelete?: (treatment: Treatment) => void;
 }) {
     const meta = treatmentStatusMeta[treatment.status];
+    const level = careLevel(treatment.specialty);
 
     return (
         <Pressable onPress={() => onPress(treatment)}>
@@ -28,8 +41,12 @@ export function TreatmentCard({
                 <View style={styles.topRow}>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.disease}>{treatment.disease_name}</Text>
-                        {treatment.specialty && (
-                            <Text style={styles.specialty}>{treatment.specialty}</Text>
+                        {(treatment.specialty || level) && (
+                            <Text style={styles.specialty} numberOfLines={1}>
+                                {treatment.specialty}
+                                {treatment.specialty && level ? "  ·  " : ""}
+                                {level}
+                            </Text>
                         )}
                     </View>
                     <View style={[styles.badge, { backgroundColor: meta.bg }]}>

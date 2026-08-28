@@ -140,14 +140,14 @@ export default function LandingPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
                     {/* Left: Text */}
                     <div className="animate-fade-in">
-                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-action/10 text-primary-action text-sm font-semibold mb-6">
+                        <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary-action/10 text-primary-dark text-sm font-semibold mb-6">
                             <Heart className="w-4 h-4" />
                             Digital Healthcare for Sri Lanka
                         </span>
 
                         <h1 className="text-5xl md:text-6xl font-extrabold text-primary-dark leading-tight">
                             Your health records,{" "}
-                            <span className="text-primary-action">one scan</span> away
+                            <span className="text-primary-dark">one scan</span> away
                         </h1>
 
                         <p className="text-lg text-text-secondary mt-6 max-w-lg leading-relaxed">
@@ -269,7 +269,7 @@ export default function LandingPage() {
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            Why <span className="text-primary-action">AyuLink</span>?
+                            Why <span className="text-primary-dark">AyuLink</span>?
                         </h2>
                         <p className="text-text-muted mt-3 max-w-lg mx-auto">
                             From an AI-assisted first check-in to picking up medication —
@@ -306,7 +306,7 @@ export default function LandingPage() {
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            How it <span className="text-primary-action">works</span>
+                            How it <span className="text-primary-dark">works</span>
                         </h2>
                         <p className="text-text-muted mt-3">
                             Four simple steps to digital healthcare
@@ -322,7 +322,7 @@ export default function LandingPage() {
                                 )}
                                 <div className="relative card p-6 text-center hover:shadow-lg transition-shadow">
                                     <div className="w-16 h-16 rounded-2xl bg-primary-action/10 flex items-center justify-center mx-auto mb-4">
-                                        <span className="text-2xl font-bold text-primary-action">
+                                        <span className="text-2xl font-bold text-primary-dark">
                                             {s.step}
                                         </span>
                                     </div>
@@ -342,7 +342,7 @@ export default function LandingPage() {
                 <div className="max-w-7xl mx-auto">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-4xl font-bold text-primary-dark">
-                            Get the <span className="text-primary-action">app</span>
+                            Get the <span className="text-primary-dark">app</span>
                         </h2>
                         <p className="text-text-muted mt-3 max-w-lg mx-auto">
                             One free app for each side of the platform — patients, doctors, pharmacies, and channeling centers.
@@ -357,7 +357,7 @@ export default function LandingPage() {
                                     <div className="w-12 h-12 rounded-2xl bg-primary-action/10 flex items-center justify-center mb-4">
                                         <Icon className="w-6 h-6 text-primary-action" />
                                     </div>
-                                    <p className="text-xs font-semibold text-primary-action uppercase tracking-wide mb-1">
+                                    <p className="text-xs font-semibold text-primary-dark uppercase tracking-wide mb-1">
                                         {app.audience}
                                     </p>
                                     <h3 className="text-lg font-bold text-primary-dark mb-2">{app.name}</h3>
@@ -390,7 +390,7 @@ export default function LandingPage() {
                             href="https://github.com/sasindumal/AyuLink"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-primary-action font-semibold hover:underline"
+                            className="text-primary-dark font-semibold hover:underline"
                         >
                             GitHub
                         </a>
@@ -446,7 +446,7 @@ export default function LandingPage() {
                         href="https://github.com/sasindumal/AyuLink"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs font-semibold text-text-muted hover:text-primary-action"
+                        className="text-xs font-semibold text-text-muted hover:text-primary-dark"
                     >
                         Source on GitHub
                     </a>

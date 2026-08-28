@@ -60,6 +60,26 @@ class GraphState(TypedDict):
     top5: list[DoctorCard]
     selected_slot: Optional[DoctorCard]
 
+    # Timeline event keys already posted into this chat (see care_events).
+    # Plain list, not add_messages — the sync writes the full updated list
+    # each time, so a replayed sync can never double-post an event.
+    synced_event_keys: list[str]
+    # Set by the end-of-course check-in so the follow-up nodes know which
+    # doctor the patient was told to go back to, without re-querying.
+    followup_plan: Optional[Literal["NONE", "MEET_SAME_DOCTOR", "REFER_DOCTOR"]]
+    followup_doctor: Optional[dict]
+    # Narrows the doctor search to one specific doctor — set when the
+    # patient is going back to whoever treated them, or on to whoever
+    # they were referred to, rather than searching a specialty at large.
+    preferred_doctor_id: Optional[str]
+    last_seen_doctor_id: Optional[str]
+    # Doctor ids the patient chose to skip rating, this completion pass
+    # only — app_treatment_doctors_to_rate only knows about doctors
+    # actually rated (a real DoctorRating row), nothing about a "not
+    # now" answer, so without this the rating loop would re-query the
+    # same skipped doctor forever instead of moving on.
+    rating_skipped: list[str]
+
     booking_result: Optional[dict]
     # Set when the chat is rescheduling an existing appointment (rather than
     # making a fresh booking) — booking_agent uses this to call

@@ -1,67 +1,103 @@
 // ==============================================
-// AyuLink Doctor - Prescription Confirm Modal
-// Full-detail confirmation shown right after a prescription
-// is issued or edited, so the doctor can double-check exactly
-// what was sent before moving on.
+// AyuLink Doctor - Prescription Review Modal
+// Shown BEFORE a prescription is sent — everything about to be
+// issued, with Back (keep editing) or Confirm & Issue (actually
+// calls the RPC). Nothing is written to the database until the
+// doctor taps Confirm.
 // ==============================================
 
 import React from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../theme";
-import { Button, formatDate } from "./ui";
-import type { Prescription } from "../types";
+import { Banner, Button, formatDate } from "./ui";
+import type { FollowupPlan, ReferralDoctor } from "../types";
+
+export interface PrescriptionDraftItem {
+    drugName: string;
+    dosage: string;
+    frequency: string;
+    duration: string;
+    route: string;
+    instructions: string;
+}
+
+export interface PrescriptionDraft {
+    patientName: string;
+    medicalId?: string;
+    diagnosis: string;
+    age: number | null;
+    weight: number | null;
+    items: PrescriptionDraftItem[];
+    expiryDays: number | null;
+    followupPlan: FollowupPlan;
+    referredDoctor: ReferralDoctor | null;
+    /** Present when editing an existing prescription rather than issuing a new one. */
+    editing?: boolean;
+}
+
+const FOLLOWUP_LABEL: Record<FollowupPlan, string> = {
+    NONE: "Nothing specific if it doesn't clear up",
+    MEET_SAME_DOCTOR: "Come back to you if it doesn't clear up",
+    REFER_DOCTOR: "Refer onward if it doesn't clear up",
+};
 
 export function PrescriptionConfirmModal({
-    prescription,
-    edited = false,
-    onClose,
+    draft,
+    submitting = false,
+    error,
+    onBack,
+    onConfirm,
 }: {
-    prescription: Prescription | null;
-    edited?: boolean;
-    onClose: () => void;
+    draft: PrescriptionDraft | null;
+    submitting?: boolean;
+    /** Shown inside the modal when a Confirm attempt failed — the modal
+     *  stays open on failure so the doctor doesn't lose what they
+     *  reviewed, and this is the only place they'd actually see it (the
+     *  screen behind sits under the backdrop). */
+    error?: string | null;
+    onBack: () => void;
+    onConfirm: () => void;
 }) {
-    if (!prescription) return null;
+    if (!draft) return null;
 
     return (
-        <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+        <Modal visible transparent animationType="fade" onRequestClose={onBack}>
             <View style={styles.backdrop}>
                 <View style={styles.card}>
                     <View style={styles.header}>
                         <View style={styles.headerIcon}>
-                            <Ionicons name="checkmark-circle" size={26} color={colors.primary} />
+                            <Ionicons name="document-text" size={24} color={colors.primaryDark} />
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.title}>
-                                {edited ? "Prescription Updated" : "Prescription Issued"}
+                                {draft.editing ? "Confirm Changes" : "Confirm Prescription"}
                             </Text>
                             <Text style={styles.subtitle}>
-                                For {prescription.patient?.firstName} {prescription.patient?.lastName}
-                                {prescription.patient?.medicalId ? ` · ${prescription.patient.medicalId}` : ""}
+                                For {draft.patientName}
+                                {draft.medicalId ? ` · ${draft.medicalId}` : ""}
                             </Text>
                         </View>
                     </View>
 
                     <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false}>
                         <Text style={styles.diagnosisLabel}>Diagnosis</Text>
-                        <Text style={styles.diagnosis}>{prescription.diagnosis}</Text>
+                        <Text style={styles.diagnosis}>{draft.diagnosis}</Text>
 
-                        {(prescription.patientAge != null || prescription.patientWeightKg != null) && (
+                        {(draft.age != null || draft.weight != null) && (
                             <Text style={styles.ageWeight}>
                                 {[
-                                    prescription.patientAge != null ? `Age ${prescription.patientAge}` : null,
-                                    prescription.patientWeightKg != null ? `${prescription.patientWeightKg} kg` : null,
+                                    draft.age != null ? `Age ${draft.age}` : null,
+                                    draft.weight != null ? `${draft.weight} kg` : null,
                                 ]
                                     .filter(Boolean)
                                     .join(" · ")}
                             </Text>
                         )}
 
-                        <Text style={styles.sectionTitle}>
-                            Medications ({prescription.items.length})
-                        </Text>
-                        {prescription.items.map((item) => (
-                            <View key={item.id} style={styles.item}>
+                        <Text style={styles.sectionTitle}>Medications ({draft.items.length})</Text>
+                        {draft.items.map((item, i) => (
+                            <View key={i} style={styles.item}>
                                 <Text style={styles.itemName}>{item.drugName}</Text>
                                 <Text style={styles.itemDetail}>
                                     {item.route ? `${item.route} · ` : ""}
@@ -74,23 +110,50 @@ export function PrescriptionConfirmModal({
                         ))}
 
                         <View style={styles.divider} />
+
                         <View style={styles.metaRow}>
                             <Ionicons name="calendar-outline" size={15} color={colors.textMuted} />
                             <Text style={styles.metaText}>
-                                Issued {formatDate(prescription.dateIssued)}
+                                {draft.expiryDays == null
+                                    ? "Never expires"
+                                    : `Expires ${formatDate(
+                                          new Date(Date.now() + draft.expiryDays * 86400000).toISOString()
+                                      )}`}
                             </Text>
                         </View>
                         <View style={styles.metaRow}>
-                            <Ionicons name="time-outline" size={15} color={colors.textMuted} />
-                            <Text style={styles.metaText}>
-                                {prescription.expiresAt
-                                    ? `Expires ${formatDate(prescription.expiresAt)}`
-                                    : "Never expires"}
-                            </Text>
+                            <Ionicons name="return-up-forward-outline" size={15} color={colors.textMuted} />
+                            <Text style={styles.metaText}>{FOLLOWUP_LABEL[draft.followupPlan]}</Text>
                         </View>
+                        {draft.followupPlan === "REFER_DOCTOR" && draft.referredDoctor && (
+                            <View style={[styles.metaRow, { marginLeft: 21 }]}>
+                                <Text style={styles.metaTextStrong}>
+                                    Dr. {draft.referredDoctor.firstName} {draft.referredDoctor.lastName}
+                                    {draft.referredDoctor.specialty ? ` · ${draft.referredDoctor.specialty}` : ""}
+                                </Text>
+                            </View>
+                        )}
                     </ScrollView>
 
-                    <Button title="Done" onPress={onClose} style={{ marginTop: spacing.md }} />
+                    {error && (
+                        <View style={{ marginTop: spacing.sm }}>
+                            <Banner kind="error" message={error} />
+                        </View>
+                    )}
+
+                    <View style={styles.actions}>
+                        <View style={{ flex: 1 }}>
+                            <Button title="Back" variant="secondary" onPress={onBack} disabled={submitting} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Button
+                                title={draft.editing ? "Confirm & Save" : "Confirm & Issue"}
+                                icon="checkmark"
+                                loading={submitting}
+                                onPress={onConfirm}
+                            />
+                        </View>
+                    </View>
                 </View>
             </View>
         </Modal>
@@ -138,4 +201,6 @@ const styles = StyleSheet.create({
     divider: { height: 1, backgroundColor: colors.border, marginTop: spacing.sm, marginBottom: spacing.sm },
     metaRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
     metaText: { fontSize: 12, color: colors.textMuted },
+    metaTextStrong: { fontSize: 12, color: colors.text, fontWeight: "600" },
+    actions: { flexDirection: "row", gap: 10, marginTop: spacing.md },
 });

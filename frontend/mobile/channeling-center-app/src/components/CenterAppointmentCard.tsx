@@ -3,7 +3,7 @@
 // ==============================================
 
 import React, { useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, radius, spacing } from "../theme";
 import { Button, Card, StatusBadge, formatDate } from "./ui";
@@ -44,6 +44,19 @@ export function CenterAppointmentCard({
                     {a.patient.firstName} {a.patient.lastName}
                     {a.patient.medicalId ? `  ·  ${a.patient.medicalId}` : ""}
                 </Text>
+                {/* Chasing a no-show or a late patient is the actual job on
+                    this screen — so their number is one tap away, not
+                    buried in a detail view. */}
+                {!!a.patient.mobileNumber && a.status === "BOOKED" && (
+                    <Pressable
+                        onPress={() => Linking.openURL(`tel:${a.patient.mobileNumber}`)}
+                        hitSlop={8}
+                        style={styles.callBtn}
+                    >
+                        <Ionicons name="call" size={14} color={colors.primaryDark} />
+                        <Text style={styles.callText}>Call</Text>
+                    </Pressable>
+                )}
             </View>
             <View style={styles.infoRow}>
                 <Ionicons name="medkit" size={15} color={colors.textMuted} />
@@ -106,5 +119,15 @@ const styles = StyleSheet.create({
     date: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
     infoRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
     infoText: { fontSize: 13, color: colors.text, flex: 1 },
+    callBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        backgroundColor: colors.primarySoft,
+        borderRadius: radius.full,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+    },
+    callText: { fontSize: 11.5, fontWeight: "700", color: colors.primaryDark },
     actions: { flexDirection: "row", gap: 10, marginTop: spacing.md, paddingTop: spacing.sm, borderTopWidth: 1, borderTopColor: colors.border },
 });

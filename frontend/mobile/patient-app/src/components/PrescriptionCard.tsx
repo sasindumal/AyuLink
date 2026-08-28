@@ -15,11 +15,27 @@ export function PrescriptionCard({
     prescription,
     perspective,
     initiallyExpanded = false,
+    statusOverride,
+    footer,
+    dimmed = false,
+    showQrAction = false,
 }: {
     prescription: Prescription;
     /** Which counterpart to show in the header */
     perspective: "patient" | "doctor" | "pharmacy";
     initiallyExpanded?: boolean;
+    /** Replaces the raw status badge with a label that means something in
+     *  the caller's context ("Ready", "1 of 2 left", "Done") — the stored
+     *  status is a database state, not the answer to "what do I do now?". */
+    statusOverride?: { label: string; color: string; bg: string };
+    /** Rendered inside the card, under the summary line — expiry
+     *  countdowns and next-dose rows belong to the card, not floating
+     *  underneath it. */
+    footer?: React.ReactNode;
+    /** Visually retires a prescription whose collection window closed. */
+    dimmed?: boolean;
+    /** Surfaces the pharmacy QR without needing to expand the card first. */
+    showQrAction?: boolean;
 }) {
     const [expanded, setExpanded] = useState(initiallyExpanded);
     const [qrOpen, setQrOpen] = useState(false);
@@ -39,11 +55,13 @@ export function PrescriptionCard({
     return (
         <Pressable
             onPress={() => setExpanded((v) => !v)}
-            style={[styles.card, { borderLeftColor: meta.color }]}
+            style={[styles.card, { borderLeftColor: meta.color }, dimmed && styles.cardDimmed]}
         >
             <View style={styles.topRow}>
                 <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text style={styles.diagnosis}>{prescription.diagnosis}</Text>
+                    <Text style={[styles.diagnosis, dimmed && styles.diagnosisDimmed]}>
+                        {prescription.diagnosis}
+                    </Text>
                     <Text style={styles.subline}>
                         {formatDate(prescription.dateIssued)}
                         {counterpart ? `  ·  ${counterpart}` : ""}
@@ -53,7 +71,15 @@ export function PrescriptionCard({
                     )}
                 </View>
                 <View style={{ alignItems: "flex-end", gap: 6 }}>
-                    <StatusBadge status={prescription.status} />
+                    {statusOverride ? (
+                        <View style={[styles.overrideBadge, { backgroundColor: statusOverride.bg }]}>
+                            <Text style={[styles.overrideBadgeText, { color: statusOverride.color }]}>
+                                {statusOverride.label}
+                            </Text>
+                        </View>
+                    ) : (
+                        <StatusBadge status={prescription.status} />
+                    )}
                     <Ionicons
                         name={expanded ? "chevron-up" : "chevron-down"}
                         size={16}
@@ -67,6 +93,18 @@ export function PrescriptionCard({
                     {prescription.items.length} medication
                     {prescription.items.length === 1 ? "" : "s"} — tap for details
                 </Text>
+            )}
+
+            {footer}
+
+            {showQrAction && !expanded && (
+                <Button
+                    title="Show QR at pharmacy"
+                    variant="secondary"
+                    icon="qr-code"
+                    onPress={() => setQrOpen(true)}
+                    style={{ marginTop: spacing.sm }}
+                />
             )}
 
             {expanded && (
@@ -191,6 +229,10 @@ export function PrescriptionCard({
 }
 
 const styles = StyleSheet.create({
+    cardDimmed: { opacity: 0.62 },
+    diagnosisDimmed: { textDecorationLine: "line-through", color: colors.textMuted },
+    overrideBadge: { borderRadius: radius.full, paddingHorizontal: 10, paddingVertical: 4 },
+    overrideBadgeText: { fontSize: 11, fontWeight: "700" },
     card: {
         backgroundColor: colors.surface,
         borderRadius: radius.md,

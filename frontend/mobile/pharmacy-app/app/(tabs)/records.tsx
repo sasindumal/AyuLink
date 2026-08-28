@@ -6,9 +6,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
-    FlatList,
+    Pressable,
     RefreshControl,
+    SectionList,
     StyleSheet,
+    Text,
     TextInput,
     View,
 } from "react-native";
@@ -16,7 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, spacing } from "../../src/theme";
+import { colors, radius, spacing, type } from "../../src/theme";
 import {
     Banner,
     EmptyState,
@@ -30,6 +32,7 @@ export default function Records() {
     const { user } = useAuth();
     const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
     const [search, setSearch] = useState("");
+    const [statusFilter, setStatusFilter] = useState<"ALL" | "PARTIAL" | "TODAY">("ALL");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -53,18 +56,55 @@ export default function Records() {
         if (user) load();
     }, [user, load]);
 
-    const filtered = useMemo(() => {
+    /** Which day bucket a record belongs to. A pharmacist looks back in
+     *  terms of "today / yesterday / that Tuesday", not one flat list. */
+    const dayLabel = (iso: string): string => {
+        const d = new Date(iso);
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+        const same = (a: Date, b: Date) =>
+            a.getFullYear() === b.getFullYear() &&
+            a.getMonth() === b.getMonth() &&
+            a.getDate() === b.getDate();
+        if (same(d, today)) return "Today";
+        if (same(d, yesterday)) return "Yesterday";
+        return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+    };
+
+    const sections = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return prescriptions;
-        return prescriptions.filter(
-            (p) =>
+        const todayStr = new Date().toDateString();
+
+        const matched = prescriptions.filter((p) => {
+            if (statusFilter === "PARTIAL" && p.items.every((i) => i.dispensed)) return false;
+            if (
+                statusFilter === "TODAY" &&
+                !p.items.some(
+                    (i) => i.dispensed && i.dispensedAt && new Date(i.dispensedAt).toDateString() === todayStr
+                )
+            ) {
+                return false;
+            }
+            if (!q) return true;
+            return (
                 p.diagnosis.toLowerCase().includes(q) ||
                 p.id.toLowerCase().includes(q) ||
-                `${p.patient?.firstName ?? ""} ${p.patient?.lastName ?? ""}`
-                    .toLowerCase()
-                    .includes(q)
-        );
-    }, [prescriptions, search]);
+                `${p.patient?.firstName ?? ""} ${p.patient?.lastName ?? ""}`.toLowerCase().includes(q)
+            );
+        });
+
+        // Newest first, then bucketed — iterating in sorted order means the
+        // sections themselves come out newest-first without a second sort.
+        const sorted = [...matched].sort((a, b) => b.dateIssued.localeCompare(a.dateIssued));
+        const buckets = new Map<string, Prescription[]>();
+        for (const p of sorted) {
+            const key = dayLabel(p.dateIssued);
+            if (!buckets.has(key)) buckets.set(key, []);
+            buckets.get(key)!.push(p);
+        }
+        return Array.from(buckets, ([title, data]) => ({ title, data }));
+    }, [prescriptions, search, statusFilter]);
 
     const myItems = prescriptions.flatMap((p) =>
         p.items.filter((i) => i.dispensed && i.dispensedById === user?.id)
@@ -113,6 +153,22 @@ export default function Records() {
                     />
                 </View>
 
+                <View style={styles.seg}>
+                    {(["ALL", "PARTIAL", "TODAY"] as const).map((key) => (
+                        <Pressable
+                            key={key}
+                            onPress={() => setStatusFilter(key)}
+                            style={[styles.segItem, statusFilter === key && styles.segItemActive]}
+                        >
+                            <Text
+                                style={[styles.segText, statusFilter === key && styles.segTextActive]}
+                            >
+                                {key === "ALL" ? "All" : key === "PARTIAL" ? "Partial" : "Today"}
+                            </Text>
+                        </Pressable>
+                    ))}
+                </View>
+
                 {loading ? (
                     <ActivityIndicator
                         size="large"
@@ -120,9 +176,13 @@ export default function Records() {
                         style={{ marginTop: spacing.xl }}
                     />
                 ) : (
-                    <FlatList
-                        data={filtered}
+                    <SectionList
+                        sections={sections}
                         keyExtractor={(p) => p.id}
+                        stickySectionHeadersEnabled={false}
+                        renderSectionHeader={({ section }) => (
+                            <Text style={styles.sectionHeader}>{section.title}</Text>
+                        )}
                         renderItem={({ item }) => (
                             <PrescriptionCard
                                 prescription={item}
@@ -147,8 +207,8 @@ export default function Records() {
                                 icon="file-tray-outline"
                                 title="No records yet"
                                 message={
-                                    search
-                                        ? "Try adjusting your search terms."
+                                    search || statusFilter !== "ALL"
+                                        ? "Try adjusting your search or filter."
                                         : "Prescriptions you dispense will appear here."
                                 }
                             />
@@ -180,5 +240,22 @@ const styles = StyleSheet.create({
         paddingVertical: 11,
         fontSize: 14,
         color: colors.text,
+    },
+    seg: {
+        flexDirection: "row",
+        backgroundColor: colors.background,
+        borderRadius: radius.sm,
+        padding: 3,
+        marginBottom: spacing.sm,
+    },
+    segItem: { flex: 1, alignItems: "center", paddingVertical: 7, borderRadius: radius.sm - 3 },
+    segItemActive: { backgroundColor: colors.surface },
+    segText: { fontSize: 12.5, fontWeight: "700", color: colors.textMuted },
+    segTextActive: { color: colors.primaryDark },
+    sectionHeader: {
+        ...type.label,
+        color: colors.textMuted,
+        marginTop: spacing.md,
+        marginBottom: spacing.sm,
     },
 });

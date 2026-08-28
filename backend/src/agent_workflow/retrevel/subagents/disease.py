@@ -27,6 +27,26 @@ from src.agent_workflow.retrevel.tools.neo4j_tools import (
 from src.agent_workflow.retrevel.tools.postgres_tools import RpcError, create_treatment
 from src.agent_workflow.retrevel.streaming import emit_thinking
 
+# The knowledge graph already assigns every disease exactly one specialty
+# (seeded in Dataset_ref/Comprehensive Disease Entity Catalog.csv) — common,
+# self-limiting conditions (a cold, mild flu, tension headache, ...) are
+# already curated to "General Practitioner" there, same as doctor_finder's
+# own GENERAL_PRACTITIONER routing target. Deriving the care-level category
+# from that field — rather than a second, independent LLM classification
+# call — means the category can never contradict which specialty gets
+# offered/searched for right after it.
+GENERAL_PRACTITIONER = "General Practitioner"
+CARE_LEVEL_PRIMARY = "Primary Care"
+CARE_LEVEL_SPECIALIST = "Specialist Care"
+
+
+def _care_level(specialty: str | None) -> str:
+    """'Primary Care' for the graph's General Practitioner cases, else
+    'Specialist Care' — the two medically-standard tiers (GP/primary vs.
+    specialist/secondary care) this project's UI and prompts use to talk
+    about how serious/specific a matched condition looks."""
+    return CARE_LEVEL_PRIMARY if specialty == GENERAL_PRACTITIONER else CARE_LEVEL_SPECIALIST
+
 FOLLOWUP_DECISION_PROMPT = """You are a doctor conducting a triage interview. You're given \
 the patient's symptoms so far and the candidate conditions a medical knowledge graph has \
 matched against them. Decide whether you now have enough information to explain a likely \
@@ -268,20 +288,46 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
             "messages": [AIMessage(content=explanation)],
         }
 
-    specialty = confirmed.get("specialty") or "a doctor"
+    matched_specialty = confirmed.get("specialty")
+    care_level = _care_level(matched_specialty)
     patient_message_sample = _last_human_text(state.get("messages", []))
+
+    # Care pathway: the first visit is ALWAYS a General Practitioner,
+    # whatever the graph matched. A GP is the real-world entry point to
+    # Sri Lankan care — they examine the patient in person and decide
+    # whether a specialist is actually warranted, which a symptom-graph
+    # match can't. The matched specialty is still recorded on the
+    # Treatment row (and used for the care-level tag), and becomes
+    # relevant again only if the GP explicitly refers the patient on.
+    if care_level == CARE_LEVEL_PRIMARY:
+        pathway_instruction = (
+            "This matched condition is a common, everyday, primary-care-level issue — "
+            "exactly what a General Practitioner handles routinely. Recommend starting "
+            "with a General Practitioner. Keep the tone reassuring and low-key: this is "
+            "ordinary and manageable, not something to worry over. Do NOT mention any "
+            "specialist field."
+        )
+    else:
+        pathway_instruction = (
+            "Recommend that they start by seeing a General Practitioner — a GP is the "
+            "right first step, who can examine them properly and, if it turns out to be "
+            "needed, refer them onward to the right specialist. You may mention in "
+            f"passing that this area of medicine is usually handled by {matched_specialty} "
+            "IF a referral turns out to be needed, but the recommendation itself must be "
+            "to see a General Practitioner first — never tell them to go straight to a "
+            "specialist. Keep the tone calm and non-alarming, never urgent or frightening."
+        )
+
     prompt = (
         f"The patient's symptoms most closely match '{confirmed.get('disease_name')}' "
         f"(description: {confirmed.get('disease_description') or 'n/a'}) in our knowledge "
         "base — but this is a graph match, not a confirmed diagnosis. Write a short, "
-        "plain-language, non-alarming message for the patient that:\n"
+        "plain-language message for the patient that:\n"
         "1. Describes what their symptoms seem to point to, using tentative language "
         "throughout — \"it seems like this could be...\", \"this sounds like it may be...\", "
         "\"this looks similar to...\". Never state the condition as settled fact (never "
         "\"you have X\" or \"this is X\").\n"
-        f"2. Recommends seeing a {specialty} to get it properly checked out, as the "
-        "natural next step — phrase it like \"it would be best to see a "
-        f"{specialty}\" or similar, not a bare instruction.\n"
+        f"2. {pathway_instruction}\n"
         "3. Ends with a clear disclaimer that this is not a medical diagnosis.\n\n"
         "The disease/specialty names above are in English regardless of what language the "
         "patient is using — that's just the knowledge base's own language, not a cue. Write "
@@ -293,7 +339,7 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
     explanation = str(response.content)
 
     update = {
-        "confirmed_disease": confirmed,
+        "confirmed_disease": {**confirmed, "care_level": care_level},
         "condition_explanation": explanation,
         "messages": [AIMessage(content=explanation)],
     }
@@ -320,26 +366,16 @@ async def explain_condition_node(state: GraphState, config: RunnableConfig) -> d
 def offer_doctor(state: GraphState) -> Command:
     confirmed = state.get("confirmed_disease")
     condition_name = confirmed.get("disease_name") if confirmed else "this"
-    specialty = confirmed.get("specialty") if confirmed else None
-    # Same "don't state it sharply" rule as explain_condition_node's message
-    # above — offer a specialty, not the graph-matched disease name, since
-    # that reads like confirming a diagnosis rather than suggesting a
-    # next step. `condition_name` stays on the interrupt payload as
-    # internal metadata (unused by the client UI) for anything that
-    # later wants it.
+    # The first visit of any diagnosis goes to a General Practitioner —
+    # see explain_condition_node's pathway note. So the offer is always a
+    # GP, never the graph-matched specialty (which stays on the Treatment
+    # row, and only comes back into play if the GP actually refers them
+    # on). This also keeps the offer consistent with the explanation the
+    # patient just read, which recommended starting with a GP.
     #
-    # "a specialist in {specialty}" reads correctly for every specialty
-    # name in the graph (Cardiology, Infectious Diseases, Obstetrics and
-    # Gynaecology, ...) without needing a/an logic — none of them are
-    # actually doctor-type nouns like "Cardiologist", so "find a
-    # {specialty}" alone doesn't parse. General Practitioner is the one
-    # exception — it already reads as a role, not a field.
-    if not specialty:
-        offer_message = "Would you like me to find a doctor for you?"
-    elif specialty == "General Practitioner":
-        offer_message = "Would you like me to find a General Practitioner for you?"
-    else:
-        offer_message = f"Would you like me to find a specialist in {specialty} for you?"
+    # `condition_name` stays on the interrupt payload as internal
+    # metadata (unused by the client UI) for anything that later wants it.
+    offer_message = "Would you like me to find a General Practitioner for you?"
 
     answer = interrupt(
         {
@@ -353,8 +389,7 @@ def offer_doctor(state: GraphState) -> Command:
     if not wants_doctor:
         return Command(goto="__end__")
 
-    specialty_hint = confirmed.get("specialty") if confirmed else None
     return Command(
         goto="manager_agent",
-        update={"forced_route": "doctor_search", "specialty_hint": specialty_hint},
+        update={"forced_route": "doctor_search", "specialty_hint": GENERAL_PRACTITIONER},
     )

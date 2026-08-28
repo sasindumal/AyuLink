@@ -1,7 +1,10 @@
 // ==============================================
-// AyuLink Patient - Home Dashboard
-// Diagnosis entry point, quick Medical ID access,
-// and recent treatments
+// AyuLink Patient - Today
+// The morning question, answered: doses due, the next
+// appointment, and one way into the assistant. Everything
+// that used to compete for space here (the full diagnosis
+// list) now lives on My Care — this screen is deliberately
+// short.
 // ==============================================
 
 import React, { useCallback, useState } from "react";
@@ -9,49 +12,103 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import * as Notifications from "expo-notifications";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, shadow, spacing } from "../../src/theme";
-import { Banner, Button, Card, EmptyState, ScreenHeader } from "../../src/components/ui";
-import { TreatmentCard } from "../../src/components/TreatmentCard";
-import type { Treatment } from "../../src/types";
+import { colors, radius, shadow, spacing, type } from "../../src/theme";
+import { Banner, Button, Card } from "../../src/components/ui";
+import { openInMaps } from "../../src/lib/maps";
+import type { Appointment } from "../../src/types";
+
+interface DoseReminder {
+    id: string;
+    drugName: string;
+    body: string;
+    hour: number;
+    minute: number;
+}
+
+function formatApptTime(dateStr: string, startTime: string): string {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const sameDay = (a: Date, b: Date) =>
+        a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+    const day = sameDay(date, today)
+        ? "Today"
+        : sameDay(date, tomorrow)
+          ? "Tomorrow"
+          : date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    return `${day} · ${startTime.slice(0, 5)}`;
+}
 
 export default function Home() {
     const { user, logout } = useAuth();
-    const [treatments, setTreatments] = useState<Treatment[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [doses, setDoses] = useState<DoseReminder[]>([]);
+    const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [refreshing, setRefreshing] = useState(false);
-    const [loaded, setLoaded] = useState(false);
 
     const load = useCallback(async () => {
-        try {
-            const data = await rpc<Treatment[]>("app_list_my_treatments");
-            setTreatments(data ?? []);
-            setError(null);
-        } catch (e) {
-            setError(e instanceof Error ? e.message : "Failed to load treatments");
-        } finally {
-            setLoaded(true);
-            setRefreshing(false);
-        }
         rpc<number>("app_unread_notification_count")
             .then(setUnreadCount)
             .catch(() => {});
+
+        try {
+            const appts = await rpc<Appointment[]>("app_list_my_appointments");
+            const upcoming = (appts ?? [])
+                .filter((a) => a.status === "BOOKED")
+                .sort((a, b) =>
+                    `${a.appointment_date}${a.start_time}`.localeCompare(`${b.appointment_date}${b.start_time}`)
+                );
+            setNextAppointment(upcoming[0] ?? null);
+            setError(null);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Failed to load your appointments");
+        }
+
+        // Doses due today: every medication reminder is a DAILY repeating
+        // local notification (see src/lib/reminders.ts), so "scheduled at
+        // all" already means "due today" — no server round-trip needed.
+        try {
+            const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+            const meds = scheduled
+                .filter((n) => n.content.data?.kind === "medication")
+                .map((n) => {
+                    // Daily reminders surface differently per platform: Android
+                    // returns { type: "daily", hour, minute } directly, iOS
+                    // returns { type: "calendar", dateComponents: { hour, minute } }
+                    // for the same repeating schedule.
+                    const trigger = n.trigger as
+                        | { type?: string; hour?: number; minute?: number; dateComponents?: { hour?: number; minute?: number } }
+                        | null;
+                    const hour = trigger?.hour ?? trigger?.dateComponents?.hour ?? 0;
+                    const minute = trigger?.minute ?? trigger?.dateComponents?.minute ?? 0;
+                    return {
+                        id: n.identifier,
+                        drugName: (n.content.data?.drugName as string) ?? n.content.title ?? "Medication",
+                        body: n.content.body ?? "",
+                        hour,
+                        minute,
+                    };
+                })
+                .sort((a, b) => a.hour * 60 + a.minute - (b.hour * 60 + b.minute));
+            setDoses(meds);
+        } catch {
+            setDoses([]);
+        }
+
+        setRefreshing(false);
     }, []);
 
-    // useFocusEffect (not useEffect) — tab screens stay mounted when you
-    // switch tabs, so this re-fetches every time Home regains focus (e.g.
-    // after booking/diagnosing via chat), not just on first mount.
     useFocusEffect(
         useCallback(() => {
             if (user) load();
         }, [user, load])
     );
-
-    const openTreatment = (t: Treatment) => {
-        router.push({ pathname: "/diagnosis", params: { threadId: t.thread_id } });
-    };
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -68,43 +125,100 @@ export default function Home() {
                     />
                 }
             >
-                <ScreenHeader
-                    title={`Hi, ${user?.firstName ?? "there"} 👋`}
-                    subtitle="Welcome to AyuLink"
-                    right={
-                        <View style={styles.headerActions}>
-                            <Pressable
-                                onPress={() => router.push("/notifications")}
-                                style={[styles.iconButton, { backgroundColor: colors.primarySoft }]}
-                            >
-                                <Ionicons name="notifications-outline" size={22} color={colors.primaryDark} />
-                                {unreadCount > 0 && (
-                                    <View style={styles.badge}>
-                                        <Text style={styles.badgeText}>
-                                            {unreadCount > 9 ? "9+" : unreadCount}
-                                        </Text>
-                                    </View>
-                                )}
-                            </Pressable>
-                            <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
-                                <Ionicons
-                                    name="log-out-outline"
-                                    size={22}
-                                    color={colors.danger}
-                                />
-                            </Pressable>
-                        </View>
-                    }
-                />
+                <View style={styles.headerRow}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.greeting}>Hi, {user?.firstName ?? "there"}</Text>
+                        <Text style={styles.date}>
+                            {new Date().toLocaleDateString(undefined, {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                            })}
+                        </Text>
+                    </View>
+                    <View style={styles.headerActions}>
+                        <Pressable
+                            onPress={() => router.push("/notifications")}
+                            style={[styles.iconButton, { backgroundColor: colors.primarySoft }]}
+                        >
+                            <Ionicons name="notifications-outline" size={22} color={colors.primaryDark} />
+                            {unreadCount > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                                </View>
+                            )}
+                        </Pressable>
+                        <Pressable onPress={logout} style={[styles.iconButton, { backgroundColor: colors.dangerSoft }]}>
+                            <Ionicons name="log-out-outline" size={22} color={colors.danger} />
+                        </Pressable>
+                    </View>
+                </View>
 
                 {error && <Banner kind="error" message={error} />}
+
+                {doses.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Today's doses</Text>
+                        {doses.map((d) => (
+                            <View key={d.id} style={styles.doseRow}>
+                                <View style={styles.doseCheckbox} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.doseTitle}>
+                                        {d.drugName} — {formatHour(d.hour, d.minute)}
+                                    </Text>
+                                    {!!d.body && (
+                                        <Text style={styles.doseBody} numberOfLines={1}>
+                                            {d.body}
+                                        </Text>
+                                    )}
+                                </View>
+                            </View>
+                        ))}
+                    </>
+                )}
+
+                {nextAppointment && (
+                    <Card style={styles.apptCard}>
+                        <Text style={styles.label}>Next appointment</Text>
+                        <Text style={styles.apptDoctor}>
+                            Dr. {nextAppointment.doctor.firstName} {nextAppointment.doctor.lastName}
+                        </Text>
+                        <Text style={styles.apptMeta}>
+                            {formatApptTime(nextAppointment.appointment_date, nextAppointment.start_time)}
+                            {nextAppointment.channelingCenter?.name ? ` · ${nextAppointment.channelingCenter.name}` : ""}
+                        </Text>
+                        <View style={styles.apptActions}>
+                            <Button
+                                title="Directions"
+                                variant="secondary"
+                                icon="navigate"
+                                onPress={() =>
+                                    openInMaps({
+                                        name: nextAppointment.channelingCenter?.name,
+                                        address: nextAppointment.channelingCenter?.address ?? "",
+                                        city: nextAppointment.channelingCenter?.city,
+                                        latitude: nextAppointment.channelingCenter?.latitude,
+                                        longitude: nextAppointment.channelingCenter?.longitude,
+                                    })
+                                }
+                                style={{ flex: 1 }}
+                            />
+                            <Button
+                                title="View"
+                                variant="secondary"
+                                onPress={() => router.push("/(tabs)/appointments")}
+                                style={{ flex: 1 }}
+                            />
+                        </View>
+                    </Card>
+                )}
 
                 <Card style={styles.diagnosisCard}>
                     <View style={styles.diagnosisIcon}>
                         <Ionicons name="pulse" size={26} color="#fff" />
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.diagnosisTitle}>Do you have any disease?</Text>
+                        <Text style={styles.diagnosisTitle}>Feeling unwell?</Text>
                         <Text style={styles.diagnosisSubtitle}>
                             Describe your symptoms and we'll help you find a doctor.
                         </Text>
@@ -126,56 +240,36 @@ export default function Home() {
                             <Text style={styles.idTitle}>My Medical ID</Text>
                             <Text style={styles.idValue}>{user?.medicalId}</Text>
                         </View>
-                        <Ionicons
-                            name="chevron-forward"
-                            size={20}
-                            color={colors.primaryDark}
-                        />
+                        <Ionicons name="chevron-forward" size={20} color={colors.primaryDark} />
                     </Card>
                 </Pressable>
 
-                <Text style={styles.sectionTitle}>Recent Treatments</Text>
-
-                {loaded && treatments.length === 0 && !error ? (
-                    <EmptyState
-                        icon="pulse-outline"
-                        title="No treatments yet"
-                        message="Tap Diagnosis above to describe your symptoms and get started."
-                    />
-                ) : (
-                    treatments.slice(0, 3).map((t) => (
-                        <TreatmentCard key={t.id} treatment={t} onPress={openTreatment} />
-                    ))
-                )}
-
-                {treatments.length > 3 && (
-                    <Pressable
-                        onPress={() => router.push("/(tabs)/treatments")}
-                        style={styles.viewAll}
-                    >
-                        <Text style={styles.viewAllText}>
-                            View all {treatments.length} treatments
-                        </Text>
-                        <Ionicons
-                            name="arrow-forward"
-                            size={15}
-                            color={colors.primary}
-                        />
-                    </Pressable>
-                )}
+                <Pressable onPress={() => router.push("/(tabs)/treatments")} style={styles.careLink}>
+                    <Text style={styles.careLinkText}>See your full care history</Text>
+                    <Ionicons name="arrow-forward" size={15} color={colors.primaryDark} />
+                </Pressable>
             </ScrollView>
         </SafeAreaView>
     );
 }
 
+function formatHour(hour: number, minute: number): string {
+    const h = hour % 12 === 0 ? 12 : hour % 12;
+    const ampm = hour < 12 ? "AM" : "PM";
+    return `${h}:${String(minute).padStart(2, "0")} ${ampm}`;
+}
+
 const styles = StyleSheet.create({
     safe: { flex: 1, backgroundColor: colors.background },
     scroll: { padding: spacing.lg, paddingBottom: spacing.xl },
+    headerRow: { flexDirection: "row", alignItems: "flex-start", marginBottom: spacing.lg },
+    greeting: { ...type.display, color: colors.text },
+    date: { ...type.caption, color: colors.textMuted, marginTop: 2 },
     headerActions: { flexDirection: "row", gap: 8 },
     iconButton: {
         width: 40,
         height: 40,
-        borderRadius: 20,
+        borderRadius: radius.sm,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -194,52 +288,68 @@ const styles = StyleSheet.create({
         borderColor: colors.background,
     },
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+    sectionTitle: { ...type.label, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
+    doseRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: colors.primarySoft,
+        borderRadius: radius.md,
+        padding: spacing.sm + 2,
+        marginBottom: spacing.sm,
+    },
+    doseCheckbox: {
+        width: 18,
+        height: 18,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        borderColor: colors.primaryDark,
+    },
+    doseTitle: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
+    doseBody: { fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+    label: { ...type.label, color: colors.textMuted },
+    apptCard: { marginTop: spacing.sm, marginBottom: spacing.md },
+    apptDoctor: { fontSize: 15, fontWeight: "700", color: colors.text, marginTop: 4 },
+    apptMeta: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
+    apptActions: { flexDirection: "row", gap: 8, marginTop: spacing.sm },
     diagnosisCard: {
         flexDirection: "row",
-        alignItems: "flex-start",
-        gap: 14,
+        gap: spacing.md,
         marginBottom: spacing.md,
         ...shadow.card,
     },
     diagnosisIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: radius.sm,
+        width: 52,
+        height: 52,
+        borderRadius: radius.md,
         backgroundColor: colors.primary,
         alignItems: "center",
         justifyContent: "center",
     },
-    diagnosisTitle: { fontSize: 15.5, fontWeight: "800", color: colors.text },
-    diagnosisSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 2, lineHeight: 18 },
+    diagnosisTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+    diagnosisSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 3, lineHeight: 17 },
     idCard: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 14,
-        marginBottom: spacing.lg,
-        backgroundColor: colors.primarySoft,
+        gap: spacing.md,
+        marginBottom: spacing.md,
     },
     idIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: radius.sm,
+        width: 52,
+        height: 52,
+        borderRadius: radius.md,
         backgroundColor: colors.primaryDark,
         alignItems: "center",
         justifyContent: "center",
     },
-    idTitle: { fontSize: 14.5, fontWeight: "700", color: colors.primaryDark },
-    idValue: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: "800",
-        color: colors.text,
-        marginBottom: spacing.sm,
-    },
-    viewAll: {
+    idTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
+    idValue: { fontSize: 12.5, color: colors.textMuted, marginTop: 2, fontFamily: "monospace" },
+    careLink: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
-        paddingVertical: 10,
+        paddingVertical: spacing.sm,
     },
-    viewAllText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
+    careLinkText: { color: colors.primaryDark, fontWeight: "700", fontSize: 13.5 },
 });

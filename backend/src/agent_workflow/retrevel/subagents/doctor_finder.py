@@ -175,6 +175,19 @@ async def doctor_finder_agent(state: GraphState) -> dict:
         city = state.get("location_pref")
         city = city if city and city != "nearest" else None
         results = await search_doctors(jwt, specialty=specialty, city=city, min_rating=None)
+
+        # The end-of-course follow-up can name one specific doctor — the
+        # one who treated them (come back to me) or the one they were
+        # referred on to. Narrow to that doctor when they're actually in
+        # the results; if they aren't (no upcoming slots, or they've since
+        # been deactivated), fall through to the full list rather than
+        # showing the patient nothing at all.
+        preferred_id = state.get("preferred_doctor_id")
+        if preferred_id:
+            narrowed = [r for r in results if str(r.get("doctorId")) == str(preferred_id)]
+            if narrowed:
+                results = narrowed
+
         return {"doctor_pool": [_to_doctor_card(r) for r in results]}
 
     if state.get("location_asked") and not state.get("availability_annotated"):

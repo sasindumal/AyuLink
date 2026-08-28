@@ -63,7 +63,7 @@ insert into "User" (
     "id", "nicNumber", "firstName", "lastName", "mobileNumber",
     "dob", "role", "verified", "medicalId"
 ) values
-    ('a0000000-0000-4000-8000-000000000001', '200012345678', 'Sasindu', 'Malhara',
+    ('a0000000-0000-4000-8000-000000000001', '200012345678', 'Kasun', 'Jayawardena',
      '0771234567', '2000-05-15', 'PATIENT', true, 'AYU-200012345678'),
     ('a0000000-0000-4000-8000-000000000002', '199812345678', 'Amal', 'Perera',
      '0779876543', '1998-03-22', 'DOCTOR', true, 'AYU-199812345678'),
