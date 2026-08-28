@@ -3,6 +3,8 @@
 // Shapes match the Next.js API responses
 // ==============================================
 
+import type { FollowupDoctor } from "./lib/agentChat";
+
 export type Role = "PATIENT" | "DOCTOR" | "PHARMACIST" | "CHANNELING_CENTER";
 
 export type PrescriptionStatus =
@@ -230,6 +232,63 @@ export interface Treatment {
     created_at: string;
     updated_at: string;
     appointment: TreatmentAppointmentRef | null;
+}
+
+// ----- Care timeline (app_treatment_timeline) -----
+
+export type CareEventType = "APPOINTMENT_STARTED" | "PRESCRIPTION_ISSUED" | "ITEM_DISPENSED";
+
+export interface CareEventAppointmentStarted {
+    doctorName: string;
+    specialty: string | null;
+    centerName: string | null;
+    orderNumber: string;
+}
+
+export interface CareEventPrescriptionIssued {
+    diagnosis: string;
+    followupPlan: "NONE" | "MEET_SAME_DOCTOR" | "REFER_DOCTOR";
+    referredDoctor: FollowupDoctor | null;
+    doctor?: { id: string; firstName: string; lastName: string } | null;
+    items: {
+        id: string;
+        drugName: string;
+        dosage: string;
+        frequency: string;
+        duration: string;
+        route: string;
+        instructions: string;
+    }[];
+}
+
+export interface CareEventItemDispensed {
+    drugName: string;
+    dosage: string | null;
+    frequency: string | null;
+    duration: string | null;
+    route: string | null;
+    instructions: string | null;
+    durationDays: number | null;
+    dispensedAt: string | null;
+    pharmacyName: string | null;
+}
+
+export interface CareEvent {
+    key: string;
+    type: CareEventType;
+    at: string | null;
+    payload: CareEventAppointmentStarted | CareEventPrescriptionIssued | CareEventItemDispensed;
+}
+
+// Shape returned by app_treatment_timeline().
+export interface CareTimeline {
+    treatmentId: string;
+    threadId: string;
+    status: TreatmentStatus;
+    diseaseName: string;
+    courseEndsAt: string | null;
+    followupPlan: "NONE" | "MEET_SAME_DOCTOR" | "REFER_DOCTOR";
+    events: CareEvent[];
 }
 
 // ----- Notifications -----

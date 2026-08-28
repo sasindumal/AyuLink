@@ -16,7 +16,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, spacing } from "../../src/theme";
+import { colors, radius, spacing, type } from "../../src/theme";
 import { Banner, Card, ScreenHeader, StatCard } from "../../src/components/ui";
 import type { PharmacyProfile, Prescription } from "../../src/types";
 
@@ -65,6 +65,24 @@ export default function Home() {
         p.items.filter((i) => i.dispensed && i.dispensedById === myId)
     );
     const patientsServed = new Set(prescriptions.map((p) => p.patientId)).size;
+
+    // "Recent" — grouped by prescription rather than one row per item,
+    // since a pharmacist thinks in terms of "I served this patient",
+    // not individual line items. Derived entirely from data already on
+    // the screen; no separate endpoint needed.
+    const recent = prescriptions
+        .filter((p) => p.items.some((i) => i.dispensed && i.dispensedById === myId))
+        .map((p) => {
+            const mine = p.items.filter((i) => i.dispensed && i.dispensedById === myId);
+            const latestAt = mine.reduce(
+                (max, i) => (i.dispensedAt && i.dispensedAt > max ? i.dispensedAt : max),
+                ""
+            );
+            const allDone = p.items.every((i) => i.dispensed);
+            return { prescription: p, count: mine.length, latestAt, allDone };
+        })
+        .sort((a, b) => b.latestAt.localeCompare(a.latestAt))
+        .slice(0, 5);
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -182,6 +200,42 @@ export default function Home() {
                     </Card>
                 </Pressable>
 
+                {recent.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Recent</Text>
+                        <Card style={{ marginBottom: spacing.md }}>
+                            {recent.map(({ prescription: p, count, latestAt, allDone }, i) => (
+                                <View
+                                    key={p.id}
+                                    style={[styles.recentRow, i > 0 && styles.recentRowBorder]}
+                                >
+                                    <View style={styles.recentAvatar}>
+                                        <Text style={styles.recentInitial}>
+                                            {p.patient?.firstName?.[0]?.toUpperCase() ?? "?"}
+                                        </Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.recentName}>
+                                            {p.patient ? `${p.patient.firstName} ${p.patient.lastName}` : "Patient"}
+                                        </Text>
+                                        <Text style={styles.recentMeta}>
+                                            {allDone ? `${count} item${count === 1 ? "" : "s"}` : `${count} of ${p.items.length}`}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.recentTime}>
+                                        {latestAt
+                                            ? new Date(latestAt).toLocaleTimeString(undefined, {
+                                                  hour: "numeric",
+                                                  minute: "2-digit",
+                                              })
+                                            : ""}
+                                    </Text>
+                                </View>
+                            ))}
+                        </Card>
+                    </>
+                )}
+
                 <Pressable onPress={() => router.push("/(tabs)/records")}>
                     <Card style={[styles.actionCard, { backgroundColor: colors.surface }]}>
                         <View
@@ -267,4 +321,19 @@ const styles = StyleSheet.create({
     },
     actionTitle: { fontSize: 14.5, fontWeight: "700", color: colors.primaryDark },
     actionText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    sectionTitle: { ...type.label, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
+    recentRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
+    recentRowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    recentAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        backgroundColor: colors.primarySoft,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    recentInitial: { fontSize: 12, fontWeight: "700", color: colors.primaryDark },
+    recentName: { fontSize: 13, fontWeight: "700", color: colors.text },
+    recentMeta: { fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+    recentTime: { fontSize: 11, fontWeight: "700", color: colors.primaryDark, flexShrink: 0 },
 });

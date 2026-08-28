@@ -64,6 +64,19 @@ export const shadow = {
     },
 };
 
+// Six-step type scale — replaces the inline fontSize:11.5/12.5/13.5
+// literals scattered per-component. New components should read from
+// this; existing ones migrate incrementally (mixing old and new sizes
+// is safe, nothing here is a breaking change).
+export const type = {
+    display: { fontSize: 28, fontWeight: "700" as const, letterSpacing: -0.3 },
+    title: { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.2 },
+    heading: { fontSize: 16, fontWeight: "600" as const },
+    body: { fontSize: 15, fontWeight: "400" as const },
+    caption: { fontSize: 13, fontWeight: "400" as const },
+    label: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.6, textTransform: "uppercase" as const },
+};
+
 export const statusMeta: Record<
     PrescriptionStatus,
     { label: string; color: string; bg: string }
