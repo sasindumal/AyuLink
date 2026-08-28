@@ -28,6 +28,7 @@ from src.agent_workflow.retrevel.subagents.rating import (
 from src.agent_workflow.retrevel.subagents.doctor_finder import (
     ask_location_time,
     availability_check,
+    choose_slot,
     doctor_finder_agent,
     present_top5,
     route_after_doctor_finder,
@@ -84,6 +85,7 @@ def build_graph_builder() -> StateGraph:
     builder.add_node("ask_location_time", ask_location_time)
     builder.add_node("availability_check", availability_check)
     builder.add_node("present_top5", present_top5)
+    builder.add_node("choose_slot", choose_slot)
     builder.add_node("booking_agent", booking_agent)
     builder.add_node("course_followup", course_followup)
     builder.add_node("offer_complete_treatment", offer_complete_treatment)
@@ -130,7 +132,11 @@ def build_graph_builder() -> StateGraph:
     )
     builder.add_edge("ask_location_time", "doctor_finder_agent")
     builder.add_edge("availability_check", "doctor_finder_agent")
-    # present_top5 returns a Command(goto="manager_agent")
+    # present_top5 returns Command(goto="choose_slot") once a doctor is
+    # tapped — tapping "Book" opens that doctor's schedule rather than
+    # committing anything. choose_slot then returns
+    # Command(goto="manager_agent", forced_route="booking") on confirm, or
+    # back to doctor_finder_agent if the patient backs out of the picker.
 
     # course_followup / offer_complete_treatment / offer_followup_booking
     # all return Command(goto=...) — to each other, to manager_agent when

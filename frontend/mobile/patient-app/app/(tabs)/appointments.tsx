@@ -49,7 +49,15 @@ import { CenterBrowseView } from "../../src/components/CenterBrowseView";
 import { useLookups } from "../../src/lib/lookups";
 import { AppointmentDetailModal } from "../../src/components/AppointmentDetailModal";
 import { ConfirmModal } from "../../src/components/ConfirmModal";
-import type { Appointment, DoctorSlot, DoctorSummary, Treatment } from "../../src/types";
+import { SlotPicker, type PickerSlot } from "../../src/components/SlotPicker";
+import { syncAppointmentReminders } from "../../src/lib/reminders";
+import type {
+    Appointment,
+    DoctorAvailabilitySlot,
+    DoctorSlot,
+    DoctorSummary,
+    Treatment,
+} from "../../src/types";
 
 type Mode = "quick" | "byDoctor" | "byCenter" | "mine";
 type MineFilter = "upcoming" | "past";
@@ -88,6 +96,16 @@ export default function Appointments() {
     const [detailTarget, setDetailTarget] = useState<Appointment | null>(null);
     const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
     const [error, setError] = useState<string | null>(null);
+    // Booking is a two-step commit here too: picking a doctor loads their
+    // whole schedule into this picker, and only Confirm calls the RPC.
+    // Same component the assistant's choose_slot step uses, so a slot
+    // chosen by tapping and one chosen by chatting are the same thing.
+    const [picker, setPicker] = useState<{
+        doctor: { first_name?: string; last_name?: string; specialty?: string | null; rating?: number | null };
+        slots: PickerSlot[];
+        preselected: { doctor_schedule_id?: string | null; date?: string | null };
+    } | null>(null);
+    const [loadingSlots, setLoadingSlots] = useState(false);
     const [searching, setSearching] = useState(false);
     const [loadingMine, setLoadingMine] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -102,6 +120,11 @@ export default function Appointments() {
             setAppointments(appts ?? []);
             setTreatments(tx ?? []);
             setError(null);
+            // Keep the "3 hours before" nudges in step with what's
+            // actually booked — this runs on every focus, so a reschedule
+            // or cancellation made anywhere (here, the chat, the centre's
+            // own app) corrects the reminder on the next visit.
+            syncAppointmentReminders(appts ?? []).catch(() => {});
         } catch (e) {
             setError(e instanceof Error ? e.message : "Failed to load your appointments");
         } finally {
@@ -163,6 +186,59 @@ export default function Appointments() {
         setMode("quick");
     };
 
+    /** Step 1 of booking: load this doctor's real schedule and open the
+     *  picker with the tapped slot preselected. Nothing is committed. */
+    const openSlotPicker = async (slot: DoctorSlot) => {
+        setLoadingSlots(true);
+        setError(null);
+        try {
+            const available = await rpc<DoctorAvailabilitySlot[]>("app_get_doctor_availability", {
+                p_doctor_id: slot.doctorId,
+                p_lookahead_days: 21,
+            });
+            setPicker({
+                doctor: {
+                    first_name: slot.doctorFirstName,
+                    last_name: slot.doctorLastName,
+                    specialty: slot.specialty,
+                    rating: slot.rating,
+                },
+                slots: (available ?? []) as PickerSlot[],
+                preselected: {
+                    doctor_schedule_id: slot.doctorScheduleId,
+                    date: slot.nextAvailableDate,
+                },
+            });
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Couldn't load that doctor's times");
+        } finally {
+            setLoadingSlots(false);
+        }
+    };
+
+    /** Same, for the by-doctor / by-centre drill-downs, which already hand
+     *  back a concrete (schedule, date) pair. */
+    const openSlotPickerForDoctor = async (
+        doctorId: string,
+        doctor: { first_name?: string; last_name?: string; specialty?: string | null; rating?: number | null },
+        preselect: { doctor_schedule_id: string; date: string }
+    ) => {
+        setLoadingSlots(true);
+        setError(null);
+        try {
+            const available = await rpc<DoctorAvailabilitySlot[]>("app_get_doctor_availability", {
+                p_doctor_id: doctorId,
+                p_lookahead_days: 21,
+            });
+            setPicker({ doctor, slots: (available ?? []) as PickerSlot[], preselected: preselect });
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Couldn't load that doctor's times");
+        } finally {
+            setLoadingSlots(false);
+        }
+    };
+
+    /** Step 2: the patient confirmed an exact slot — commit it. */
     const book = async (scheduleId: string, date: string) => {
         const key = `${scheduleId}-${date}`;
         setBusyKey(key);
@@ -183,6 +259,7 @@ export default function Appointments() {
                 });
                 Alert.alert("Booked!", `Your order number is ${booked.order_number}.`);
             }
+            setPicker(null);
             setViewingDoctor(null);
             setMode("mine");
             setMineFilter("upcoming");
@@ -404,8 +481,8 @@ export default function Appointments() {
                                 date={item.nextAvailableDate}
                                 startTime={item.startTime}
                                 endTime={item.endTime}
-                                onBook={() => book(item.doctorScheduleId, item.nextAvailableDate)}
-                                booking={busyKey === `${item.doctorScheduleId}-${item.nextAvailableDate}`}
+                                onBook={() => openSlotPicker(item)}
+                                booking={loadingSlots || busyKey === `${item.doctorScheduleId}-${item.nextAvailableDate}`}
                                 onViewOtherTimes={() => viewOtherTimes(item)}
                             />
                         )}
@@ -435,7 +512,18 @@ export default function Appointments() {
                 {mode === "byDoctor" && (
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
                         <DoctorBrowseView
-                            onBook={book}
+                            onBook={(scheduleId, date, doctor) =>
+                                openSlotPickerForDoctor(
+                                    doctor.doctorId,
+                                    {
+                                        first_name: doctor.doctorFirstName,
+                                        last_name: doctor.doctorLastName,
+                                        specialty: doctor.specialty,
+                                        rating: doctor.rating,
+                                    },
+                                    { doctor_schedule_id: scheduleId, date }
+                                )
+                            }
                             bookingKey={busyKey}
                             initialDoctor={viewingDoctor}
                             onLeaveInitialDoctor={() => setViewingDoctor(null)}
@@ -445,7 +533,21 @@ export default function Appointments() {
 
                 {mode === "byCenter" && (
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>
-                        <CenterBrowseView onBook={book} bookingKey={busyKey} />
+                        <CenterBrowseView
+                            onBook={(scheduleId, date, slot) =>
+                                openSlotPickerForDoctor(
+                                    slot.doctorId,
+                                    {
+                                        first_name: slot.doctorFirstName,
+                                        last_name: slot.doctorLastName,
+                                        specialty: slot.specialty,
+                                        rating: slot.rating,
+                                    },
+                                    { doctor_schedule_id: scheduleId, date }
+                                )
+                            }
+                            bookingKey={busyKey}
+                        />
                     </ScrollView>
                 )}
 
@@ -585,6 +687,24 @@ export default function Appointments() {
                     }}
                     onViewTreatment={goToTreatment}
                 />
+
+                {picker && (
+                    <SlotPicker
+                        visible
+                        doctor={picker.doctor}
+                        slots={picker.slots}
+                        preselected={picker.preselected}
+                        message={
+                            rescheduleTarget
+                                ? `Moving ${rescheduleTarget.order_number} — pick the new time.`
+                                : null
+                        }
+                        confirmLabel={rescheduleTarget ? "Confirm New Time" : "Confirm Booking"}
+                        busy={!!busyKey}
+                        onConfirm={(s) => book(s.doctorScheduleId, s.date)}
+                        onCancel={() => setPicker(null)}
+                    />
+                )}
 
                 <ConfirmModal
                     visible={!!cancelTarget}

@@ -6,6 +6,7 @@ decides which stage comes next based on the location_asked /
 availability_annotated flags.
 """
 
+from datetime import date, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, Field, create_model
@@ -18,7 +19,12 @@ from src.agent_workflow.retrevel.tools.neo4j_tools import (
     find_diseases_for_symptoms_hybrid,
     list_specialty_names,
 )
-from src.agent_workflow.retrevel.tools.postgres_tools import get_doctor_availability, search_doctors
+from src.agent_workflow.retrevel.tools.postgres_tools import (
+    RpcError,
+    get_doctor_availability,
+    list_cities,
+    search_doctors,
+)
 from src.agent_workflow.retrevel.streaming import emit_thinking
 
 _NONE_OF_THESE = "None of these"
@@ -166,6 +172,109 @@ def _to_doctor_card(record: dict) -> DoctorCard:
     }
 
 
+# ---------------------------------------------------------------------------
+# Preference matching
+#
+# A DoctorSchedule is a *block* (e.g. 17:00-20:00 at one centre on one date),
+# not a discrete appointment slot — so "what time?" really means "which
+# block?". A time band is matched against the block's START hour.
+# ---------------------------------------------------------------------------
+
+LOOKAHEAD_DAYS = 21
+# Never show fewer than this while the database still has something to
+# offer. A patient who asked for "Kandy, next Tuesday" and gets one card is
+# worse off than one who gets that card plus four honest near-misses.
+MIN_RESULTS = 5
+
+TIME_BANDS: dict[str, tuple[int, int]] = {
+    "morning": (0, 12),
+    "afternoon": (12, 17),
+    "evening": (17, 24),
+}
+
+
+def _start_hour(slot: dict) -> int:
+    raw = str(slot.get("startTime") or "0")
+    try:
+        return int(raw.split(":")[0])
+    except (ValueError, IndexError):
+        return 0
+
+
+def _in_band(slot: dict, band: str | None) -> bool:
+    if not band:
+        return True
+    lo, hi = TIME_BANDS.get(band, (0, 24))
+    return lo <= _start_hour(slot) < hi
+
+
+def _day_gap(slot: dict, date_pref: str | None) -> int:
+    """Absolute distance in days between a slot and the requested date.
+    0 when no date was requested, so it never perturbs ranking."""
+    if not date_pref or not slot.get("date"):
+        return 0
+    try:
+        want = date.fromisoformat(date_pref)
+        got = date.fromisoformat(str(slot["date"]))
+        return abs((got - want).days)
+    except (ValueError, TypeError):
+        return 0
+
+
+def _rank_slot(slot: dict, date_pref: str | None, band: str | None) -> tuple:
+    """Sort key for one of a doctor's blocks against the patient's
+    preference — exact day first, then the right part of that day, then
+    whatever is soonest. Lower sorts better."""
+    gap = _day_gap(slot, date_pref)
+    return (gap, 0 if _in_band(slot, band) else 1, str(slot.get("date") or ""), _start_hour(slot))
+
+
+def _describe_relaxation(
+    date_pref: str | None, band: str | None, city: str | None, best: dict | None
+) -> str | None:
+    """One honest sentence about how far the results drifted from what was
+    asked for — or None when they didn't. Returned to the client so the
+    patient is never quietly handed a different day or city than they
+    picked."""
+    if not best:
+        return None
+    if date_pref and str(best.get("date")) != date_pref:
+        where = f" in {city}" if city else ""
+        return (
+            f"Nothing was free{where} on {date_pref}, so these are the closest "
+            "available times instead."
+        )
+    if band and not _in_band(best, band):
+        return f"No {band} slots were free on {date_pref or 'that day'} — here's what is."
+    return None
+
+
+async def _search_with_city_fallback(
+    jwt: str, specialty: str | None, city: str | None
+) -> tuple[list[dict], str | None]:
+    """Doctors for a specialty, preferring the requested city but never
+    returning nothing just because that one city has none.
+
+    Returns (results, relaxation_note). The note is what the patient is
+    told — an empty city is a real answer ("no cardiologist in Mannar"),
+    and silently showing Colombo results under a Mannar heading would be
+    a lie, so the widening is always surfaced.
+    """
+    if city:
+        results = await search_doctors(jwt, specialty=specialty, city=city, min_rating=None)
+        if results:
+            return results, None
+        # Nothing in that city — widen to everywhere, ranked by distance
+        # later in availability_check/present_top5.
+        wider = await search_doctors(jwt, specialty=specialty, city=None, min_rating=None)
+        if wider:
+            what = specialty or "doctor"
+            return wider, f"No {what} is available in {city} right now — showing the nearest instead."
+        return [], None
+
+    return await search_doctors(jwt, specialty=specialty, city=None, min_rating=None), None
+
+
 async def doctor_finder_agent(state: GraphState) -> dict:
     jwt = state["patient_jwt"]
     doctor_pool = state.get("doctor_pool", [])
@@ -174,7 +283,7 @@ async def doctor_finder_agent(state: GraphState) -> dict:
         specialty, _doctor_name = _resolve_query(state)
         city = state.get("location_pref")
         city = city if city and city != "nearest" else None
-        results = await search_doctors(jwt, specialty=specialty, city=city, min_rating=None)
+        results, relaxation = await _search_with_city_fallback(jwt, specialty, city)
 
         # The end-of-course follow-up can name one specific doctor — the
         # one who treated them (come back to me) or the one they were
@@ -187,16 +296,23 @@ async def doctor_finder_agent(state: GraphState) -> dict:
             narrowed = [r for r in results if str(r.get("doctorId")) == str(preferred_id)]
             if narrowed:
                 results = narrowed
+                relaxation = None
 
-        return {"doctor_pool": [_to_doctor_card(r) for r in results]}
+        return {
+            "doctor_pool": [_to_doctor_card(r) for r in results],
+            "search_relaxation": relaxation,
+        }
 
     if state.get("location_asked") and not state.get("availability_annotated"):
         city = state.get("location_pref")
         if city and city != "nearest":
             specialty, _ = _resolve_query(state)
-            results = await search_doctors(jwt, specialty=specialty, city=city, min_rating=None)
+            results, relaxation = await _search_with_city_fallback(jwt, specialty, city)
             if results:
-                return {"doctor_pool": [_to_doctor_card(r) for r in results]}
+                return {
+                    "doctor_pool": [_to_doctor_card(r) for r in results],
+                    "search_relaxation": relaxation,
+                }
 
     return {}
 
@@ -209,46 +325,87 @@ def route_after_doctor_finder(state: GraphState) -> str:
     return "present_top5"
 
 
-def ask_location_time(state: GraphState) -> dict:
+async def ask_location_time(state: GraphState) -> dict:
+    """Ask where and when — as a structured picker, not free text.
+
+    The payload carries everything the client's picker needs to render
+    itself offline: the real city list (so it can't offer a city the
+    search would find nothing in) and the bookable date window. Every
+    field is optional; skipping all of them means "nearest, soonest",
+    which is exactly what the old free-text default did.
+    """
+    try:
+        cities = await list_cities(state["patient_jwt"])
+    except RpcError:
+        # A dropdown with no options is still fine — the client falls back
+        # to "nearest" and the search proceeds unfiltered.
+        cities = []
+
+    today = date.today()
     resume = interrupt(
         {
             "type": "ask_location_time",
             "default": "nearest",
-            "message": "Any preferred city or time? (default: nearest available)",
+            "message": "Where and when suits you? Leave anything blank and I'll find the nearest, soonest option.",
+            "cities": cities,
+            "specialty": state.get("specialty_hint"),
+            "min_date": today.isoformat(),
+            "max_date": (today + timedelta(days=LOOKAHEAD_DAYS)).isoformat(),
+            "time_bands": list(TIME_BANDS),
         }
     )
-    location = None
-    time_pref = None
+
+    location = time_pref = date_pref = band = None
     if isinstance(resume, dict):
         location = (resume.get("location") or "").strip() or None
         time_pref = (resume.get("time") or "").strip() or None
-    return {"location_pref": location or "nearest", "time_pref": time_pref, "location_asked": True}
+        date_pref = (resume.get("date") or "").strip() or None
+        raw_band = (resume.get("time_band") or "").strip().lower() or None
+        band = raw_band if raw_band in TIME_BANDS else None
+
+    return {
+        "location_pref": location or "nearest",
+        "time_pref": time_pref,
+        "date_pref": date_pref,
+        "time_band": band,
+        "location_asked": True,
+    }
 
 
 async def availability_check(state: GraphState) -> dict:
+    """Attach every bookable block each pooled doctor holds, and pick the
+    one that best matches the patient's date/time preference as the card's
+    headline. Doctors with no availability at all are dropped — a card the
+    patient can't act on is noise."""
     jwt = state["patient_jwt"]
     pool = state.get("doctor_pool", [])
+    date_pref = state.get("date_pref")
+    band = state.get("time_band")
     annotated: list[DoctorCard] = []
 
     for card in pool:
         doctor_id = card.get("doctor_id")
         if not doctor_id:
             continue
-        slots = await get_doctor_availability(jwt, doctor_id)
+        slots = await get_doctor_availability(jwt, doctor_id, lookahead_days=LOOKAHEAD_DAYS)
         if not slots:
             continue
-        soonest = slots[0]
+        # Best match, not merely soonest: with a date/band preference the
+        # headline should be the slot the patient actually asked for, so
+        # the card they tap is already showing the right day.
+        best = min(slots, key=lambda s: _rank_slot(s, date_pref, band))
         annotated.append(
             {
                 **card,
-                "channeling_center_id": soonest.get("channelingCenterId"),
-                "channeling_center_name": soonest.get("channelingCenterName"),
-                "address": soonest.get("address"),
-                "city": soonest.get("city"),
-                "doctor_schedule_id": soonest.get("doctorScheduleId"),
-                "date": soonest.get("date"),
-                "start_time": soonest.get("startTime"),
-                "end_time": soonest.get("endTime"),
+                "channeling_center_id": best.get("channelingCenterId"),
+                "channeling_center_name": best.get("channelingCenterName"),
+                "address": best.get("address"),
+                "city": best.get("city"),
+                "doctor_schedule_id": best.get("doctorScheduleId"),
+                "date": best.get("date"),
+                "start_time": best.get("startTime"),
+                "end_time": best.get("endTime"),
+                "slots": slots,
             }
         )
 
@@ -256,22 +413,137 @@ async def availability_check(state: GraphState) -> dict:
 
 
 def present_top5(state: GraphState) -> Command:
+    """Rank and show the shortlist. Tapping "Book" here does NOT book —
+    it hands off to choose_slot so the patient sees that doctor's real
+    schedule and confirms a specific time first."""
     pool = state.get("doctor_pool", [])
+    date_pref = state.get("date_pref")
+    band = state.get("time_band")
+
+    # Preference first (right day, right part of day), rating second. A
+    # 4.9-rated doctor free three weeks out is not a better answer to
+    # "Tuesday morning" than a 4.2 who is actually free Tuesday morning.
     ranked = sorted(
         pool,
-        key=lambda c: (-(c.get("rating") or 0), c.get("date") or "9999-99-99"),
+        key=lambda c: (
+            _day_gap({"date": c.get("date")}, date_pref),
+            0 if _in_band({"startTime": c.get("start_time")}, band) else 1,
+            -(c.get("rating") or 0),
+            c.get("date") or "9999-99-99",
+        ),
     )
-    top5 = ranked[:5]
+    top5 = ranked[:MIN_RESULTS]
 
-    resume = interrupt({"type": "present_top5", "doctors": top5})
+    relaxation = state.get("search_relaxation") or _describe_relaxation(
+        date_pref,
+        band,
+        state.get("location_pref") if state.get("location_pref") != "nearest" else None,
+        top5[0] if top5 else None,
+    )
 
-    doctor_schedule_id = resume.get("doctor_schedule_id") if isinstance(resume, dict) else None
-    date = resume.get("date") if isinstance(resume, dict) else None
-    selected = next((c for c in top5 if c.get("doctor_schedule_id") == doctor_schedule_id), {})
-    if date:
-        selected = {**selected, "date": date}
+    resume = interrupt(
+        {"type": "present_top5", "doctors": top5, "note": relaxation}
+    )
+
+    # The client sends back only which doctor was tapped — the slot itself
+    # is chosen in the next step, against that doctor's full schedule.
+    doctor_id = resume.get("doctor_id") if isinstance(resume, dict) else None
+    if not doctor_id:
+        # Older clients (and the "none of these" path) still send a slot
+        # directly; honour it rather than dead-ending the turn.
+        schedule_id = resume.get("doctor_schedule_id") if isinstance(resume, dict) else None
+        selected = next((c for c in top5 if c.get("doctor_schedule_id") == schedule_id), {})
+        if isinstance(resume, dict) and resume.get("date"):
+            selected = {**selected, "date": resume["date"]}
+        return Command(
+            goto="manager_agent",
+            update={"top5": top5, "selected_slot": selected, "forced_route": "booking"},
+        )
+
+    return Command(
+        goto="choose_slot",
+        update={"top5": top5, "selected_doctor_id": doctor_id},
+    )
+
+
+def choose_slot(state: GraphState) -> Command:
+    """Show one doctor's whole schedule and let the patient settle on the
+    exact date and time before anything is committed.
+
+    This is the step that makes "Book" safe to tap: whatever slot the card
+    was showing arrives here pre-selected, but every other block that
+    doctor holds is on the table too, and the booking only happens once
+    the patient confirms one.
+    """
+    doctor_id = state.get("selected_doctor_id")
+    top5 = state.get("top5", [])
+    card = next((c for c in top5 if str(c.get("doctor_id")) == str(doctor_id)), None)
+
+    if not card:
+        return Command(
+            goto="manager_agent",
+            update={"forced_route": "booking", "selected_slot": {}},
+        )
+
+    slots = card.get("slots") or []
+    preselected = {
+        "doctor_schedule_id": card.get("doctor_schedule_id"),
+        "date": card.get("date"),
+    }
+
+    resume = interrupt(
+        {
+            "type": "choose_slot",
+            "doctor": {
+                "doctor_id": card.get("doctor_id"),
+                "first_name": card.get("first_name"),
+                "last_name": card.get("last_name"),
+                "specialty": card.get("specialty"),
+                "rating": card.get("rating"),
+            },
+            "slots": slots,
+            "preselected": preselected,
+            "message": f"Pick a time with Dr. {card.get('first_name')} {card.get('last_name')}.",
+        }
+    )
+
+    # "Back" from the picker returns to the shortlist rather than booking
+    # something nobody confirmed.
+    if isinstance(resume, dict) and resume.get("cancelled"):
+        return Command(
+            goto="doctor_finder_agent",
+            update={"availability_annotated": False, "selected_doctor_id": None},
+        )
+
+    schedule_id = resume.get("doctor_schedule_id") if isinstance(resume, dict) else None
+    chosen_date = resume.get("date") if isinstance(resume, dict) else None
+    chosen = next(
+        (s for s in slots if s.get("doctorScheduleId") == schedule_id and s.get("date") == chosen_date),
+        None,
+    )
+
+    selected: DoctorCard = {
+        **{k: v for k, v in card.items() if k != "slots"},
+        "doctor_schedule_id": schedule_id or preselected["doctor_schedule_id"],
+        "date": chosen_date or preselected["date"],
+    }
+    if chosen:
+        selected.update(
+            {
+                "channeling_center_id": chosen.get("channelingCenterId"),
+                "channeling_center_name": chosen.get("channelingCenterName"),
+                "address": chosen.get("address"),
+                "city": chosen.get("city"),
+                "start_time": chosen.get("startTime"),
+                "end_time": chosen.get("endTime"),
+            }
+        )
 
     return Command(
         goto="manager_agent",
-        update={"top5": top5, "selected_slot": selected, "forced_route": "booking"},
+        update={
+            "selected_slot": selected,
+            "selected_doctor_id": None,
+            "forced_route": "booking",
+        },
     )

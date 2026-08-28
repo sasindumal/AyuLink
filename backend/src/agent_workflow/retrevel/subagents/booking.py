@@ -209,15 +209,31 @@ async def _retry_after_race(state: GraphState, jwt: str, doctor_schedule_id: str
             ]
         }
 
+    # Re-open the same slot picker the patient just used, now showing what
+    # is genuinely still free. Handing back a single "here's the next one"
+    # card would force a slot on someone whose original choice was taken
+    # out from under them; this lets them choose again properly.
     soonest = refreshed[0]
-    updated_card = {
-        **slot,
-        "doctor_schedule_id": soonest.get("doctorScheduleId"),
-        "date": soonest.get("date"),
-        "start_time": soonest.get("startTime"),
-        "end_time": soonest.get("endTime"),
-    }
-    new_selection = interrupt({"type": "present_top5", "doctors": [updated_card]})
+    new_selection = interrupt(
+        {
+            "type": "choose_slot",
+            "doctor": {
+                "doctor_id": doctor_id,
+                "first_name": slot.get("first_name"),
+                "last_name": slot.get("last_name"),
+                "specialty": slot.get("specialty"),
+                "rating": slot.get("rating"),
+            },
+            "slots": refreshed,
+            "preselected": {
+                "doctor_schedule_id": soonest.get("doctorScheduleId"),
+                "date": soonest.get("date"),
+            },
+            "message": "That time was just taken. Here's what's still free — pick another.",
+        }
+    )
+    if isinstance(new_selection, dict) and new_selection.get("cancelled"):
+        return {"messages": [AIMessage(content="Booking cancelled.")]}
     new_id = new_selection.get("doctor_schedule_id") if isinstance(new_selection, dict) else None
     new_date = new_selection.get("date") if isinstance(new_selection, dict) else None
     if new_id and new_date:

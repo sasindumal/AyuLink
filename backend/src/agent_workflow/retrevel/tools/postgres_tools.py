@@ -40,6 +40,15 @@ async def search_doctors(
     return data or []
 
 
+async def list_cities(jwt: str) -> list[str]:
+    """Every city that actually has a channeling center — the option list
+    for the chat's city dropdown. Sent to the client rather than having it
+    call Supabase separately, so the picker can never offer a city the
+    search would then find nothing in."""
+    data = await _call(jwt, "app_list_cities", {})
+    return [c for c in (data or []) if c]
+
+
 async def get_doctor_availability(jwt: str, doctor_id: str, lookahead_days: int = 14) -> list[dict]:
     data = await _call(
         jwt,

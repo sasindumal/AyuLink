@@ -259,13 +259,13 @@ system is enforced at the database layer, not client-side.
 ## 7. AI Assistant (Agentic System)
 
 The patient app's Diagnosis/Assistant tab is a LangGraph multi-agent
-system — a 21-node `StateGraph` whose `manager_agent` routes each turn to
+system — a 22-node `StateGraph` whose `manager_agent` routes each turn to
 one of four branches: a clinical-triage branch (grounded in a Neo4j
 symptom→disease→specialty knowledge graph, with hybrid exact+vector
 retrieval), a doctor-search branch, a booking branch, and a **post-care**
 branch (an end-of-course check-in that marks a diagnosis complete —
 collecting per-doctor 1–5 star ratings first — or steers the patient back
-into booking if they're still unwell). Nine nodes issue human-in-the-loop
+into booking if they're still unwell). Ten nodes issue human-in-the-loop
 `interrupt()`s wherever the patient needs to make a choice; everything is
 streamed to the client over Server-Sent Events and persisted via a
 Postgres-backed checkpointer so a conversation survives a server restart

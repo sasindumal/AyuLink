@@ -17,6 +17,12 @@ class DoctorCard(TypedDict, total=False):
     date: str
     start_time: str
     end_time: str
+    # Every block this doctor holds in the lookahead window, as returned by
+    # app_get_doctor_availability. The headline fields above are whichever
+    # one best matched the patient's date/time preference; this is the full
+    # list the "change the time" picker (choose_slot) is built from, so
+    # opening it never needs a second round trip.
+    slots: list[dict]
 
 
 class GraphState(TypedDict):
@@ -54,11 +60,28 @@ class GraphState(TypedDict):
 
     location_pref: Optional[str]
     time_pref: Optional[str]
+    # An exact date the patient picked in the calendar (YYYY-MM-DD), and a
+    # coarse part-of-day ("morning"/"afternoon"/"evening") — kept separate
+    # from time_pref (free text) so the search cascade can relax them
+    # independently: a date miss widens by days, a time-band miss just
+    # drops the band.
+    date_pref: Optional[str]
+    time_band: Optional[Literal["morning", "afternoon", "evening"]]
     location_asked: bool
     availability_annotated: bool
     doctor_pool: list[DoctorCard]
     top5: list[DoctorCard]
     selected_slot: Optional[DoctorCard]
+    # Which fallback rung actually produced `top5` (see doctor_finder's
+    # RELAXATION_LADDER). present_top5 turns this into the one honest
+    # sentence the patient reads above the cards — "nothing in Kandy on
+    # the 3rd, here's the nearest instead" — instead of silently handing
+    # back results that don't match what was asked for.
+    search_relaxation: Optional[str]
+    # The doctor whose "Book" button was tapped in present_top5. choose_slot
+    # reads it to load that doctor's full schedule; it is NOT a booking —
+    # nothing is committed until the patient confirms a slot.
+    selected_doctor_id: Optional[str]
 
     # Timeline event keys already posted into this chat (see care_events).
     # Plain list, not add_messages — the sync writes the full updated list

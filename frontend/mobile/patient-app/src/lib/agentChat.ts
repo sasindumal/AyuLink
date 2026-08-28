@@ -53,11 +53,49 @@ export interface RatingDoctor {
     specialty?: string | null;
 }
 
+/** One bookable block from app_get_doctor_availability, forwarded through
+ *  the graph so the slot picker can render without a second round trip. */
+export interface AgentSlot {
+    doctorScheduleId: string;
+    channelingCenterId?: string;
+    channelingCenterName?: string;
+    address?: string;
+    city?: string | null;
+    date: string;
+    startTime: string;
+    endTime: string;
+    distanceKm?: number | null;
+}
+
 export type InterruptPayload =
     | { type: "ask_followup"; question: string }
     | { type: "offer_doctor"; condition: string; message: string }
-    | { type: "ask_location_time"; default: string; message: string }
-    | { type: "present_top5"; doctors: DoctorCard[] }
+    | {
+          type: "ask_location_time";
+          default: string;
+          message: string;
+          /** Real cities with channeling centres — the dropdown's options. */
+          cities?: string[];
+          specialty?: string | null;
+          min_date?: string;
+          max_date?: string;
+          time_bands?: string[];
+      }
+    | {
+          type: "present_top5";
+          doctors: DoctorCard[];
+          /** Set when results drifted from what was asked (different day,
+           *  wider city) — shown above the cards so the patient is never
+           *  quietly handed something they didn't ask for. */
+          note?: string | null;
+      }
+    | {
+          type: "choose_slot";
+          doctor: DoctorCard;
+          slots: AgentSlot[];
+          preselected?: { doctor_schedule_id?: string | null; date?: string | null } | null;
+          message: string;
+      }
     | { type: "course_followup"; question: string }
     | { type: "offer_complete_treatment"; message: string }
     | {
