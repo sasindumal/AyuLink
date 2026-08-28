@@ -125,11 +125,85 @@ async def booking_agent(state: GraphState):
         return await _cancel_booking(state, jwt, existing)
 
     if intent == "reschedule":
+        return await _start_reschedule(state, jwt, existing)
+
+    return {"messages": [AIMessage(content=_format_status(existing))]}
+
+
+async def _start_reschedule(state: GraphState, jwt: str, existing: dict):
+    """Rescheduling means the same doctor at the same place, at a
+    different time — so it goes straight to that doctor's remaining slots
+    at that one centre, skipping the specialty-wide search entirely.
+
+    Sending someone re-picking a time back through "which city? which
+    doctor?" is not a reschedule, it's a re-booking; and offering the same
+    doctor's slots at a clinic on the other side of the island is an
+    excellent way to send a patient to the wrong building. Wanting a
+    different doctor or centre is a cancel-then-book, which the cancel
+    intent already handles.
+    """
+    doctor = existing.get("doctor") or {}
+    center = existing.get("channelingCenter") or {}
+    doctor_id = doctor.get("id")
+    center_id = center.get("id")
+
+    if not doctor_id:
+        # Nothing to narrow to (shouldn't happen for a real booking) —
+        # fall back to the old full search rather than dead-ending.
         update = {"rescheduling_appointment_id": existing.get("id")}
         update.update(_FRESH_SEARCH_STATE)
         return Command(goto="doctor_finder_agent", update=update)
 
-    return {"messages": [AIMessage(content=_format_status(existing))]}
+    try:
+        slots = await get_doctor_availability(jwt, doctor_id, lookahead_days=21)
+    except RpcError as exc:
+        return {"messages": [AIMessage(content=f"Couldn't load their other times: {exc}")]}
+
+    if center_id:
+        slots = [s for s in slots if str(s.get("channelingCenterId")) == str(center_id)]
+
+    if not slots:
+        where = f" at {center.get('name')}" if center.get("name") else ""
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        f"Dr. {doctor.get('firstName', '')} {doctor.get('lastName', '')}".strip()
+                        + f" has no other available times{where} in the next 3 weeks. "
+                        "I can cancel this appointment and find you a different doctor if you'd like."
+                    )
+                )
+            ]
+        }
+
+    # choose_slot reads the doctor's card (with its slots) out of top5, so
+    # a one-card shortlist reuses that node exactly as the search path does.
+    card = {
+        "doctor_id": doctor_id,
+        "first_name": doctor.get("firstName"),
+        "last_name": doctor.get("lastName"),
+        "specialty": doctor.get("specialty"),
+        "rating": doctor.get("rating"),
+        "channeling_center_id": center_id,
+        "channeling_center_name": center.get("name"),
+        "address": center.get("address"),
+        "city": center.get("city"),
+        "doctor_schedule_id": slots[0].get("doctorScheduleId"),
+        "date": slots[0].get("date"),
+        "start_time": slots[0].get("startTime"),
+        "end_time": slots[0].get("endTime"),
+        "slots": slots,
+    }
+
+    return Command(
+        goto="choose_slot",
+        update={
+            "rescheduling_appointment_id": existing.get("id"),
+            "top5": [card],
+            "selected_doctor_id": doctor_id,
+            "selected_slot": None,
+        },
+    )
 
 
 async def _cancel_booking(state: GraphState, jwt: str, existing: dict) -> dict:

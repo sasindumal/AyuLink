@@ -404,11 +404,22 @@ Three jobs, decided by what's already in state:
    classify intent (cancel/reschedule/status) via structured output
    (falls back to a keyword scan), and act directly: cancel calls
    `cancel_appointment()` and best-effort unlinks the `Treatment`;
-   reschedule hands off to `doctor_finder_agent` with a fresh search
-   state and `rescheduling_appointment_id` set, so the *same* search UX
-   is reused and the eventual `_commit_booking` calls
-   `reschedule_appointment()` instead of a fresh `book_appointment()`;
-   status just formats the existing booking into a message.
+   reschedule goes to `_start_reschedule`, which loads that doctor's
+   remaining slots **at the same channeling centre only** and jumps
+   straight to `choose_slot` with `rescheduling_appointment_id` set, so
+   the eventual `_commit_booking` calls `reschedule_appointment()`
+   instead of a fresh `book_appointment()`; status just formats the
+   existing booking into a message.
+
+   Rescheduling deliberately skips the search entirely. Sending someone
+   re-picking a time back through "which city? which doctor?" is a
+   re-booking, not a reschedule — and offering the same doctor's slots at
+   a clinic on the other side of the island is a good way to send a
+   patient to the wrong building. Wanting a different doctor or centre is
+   a cancel-then-book, which the cancel intent already handles. Backing
+   out of the picker mid-reschedule ends the turn with the existing
+   appointment untouched, rather than falling through to a doctor
+   search.
 3. **Neither** → a plain "please pick a doctor first" message.
 
 ### `course_followup` (post-care branch entry)

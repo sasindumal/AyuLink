@@ -178,12 +178,28 @@ export default function Appointments() {
         if (mode === "quick" && user) search();
     }, [mode, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Rescheduling is "same doctor, same centre, different time" — so it
+    // opens that doctor's remaining slots at that centre directly, rather
+    // than dropping the patient back into a specialty-wide search. Moving
+    // to a different doctor or a different clinic isn't a reschedule; it's
+    // a cancel-and-rebook, which the detail modal already offers.
     const startReschedule = (appointment: Appointment) => {
         setDetailTarget(null);
         setRescheduleTarget(appointment);
-        setFilters({ ...DEFAULT_FILTERS, specialty: appointment.doctor.specialty ?? "" });
-        setSlotQuery("");
-        setMode("quick");
+        openSlotPickerForDoctor(
+            appointment.doctor.id,
+            {
+                first_name: appointment.doctor.firstName,
+                last_name: appointment.doctor.lastName,
+                specialty: appointment.doctor.specialty,
+                rating: appointment.doctor.rating,
+            },
+            {
+                doctor_schedule_id: appointment.doctor_schedule_id,
+                date: appointment.appointment_date,
+            },
+            appointment.channeling_center_id
+        );
     };
 
     /** Step 1 of booking: load this doctor's real schedule and open the
@@ -217,11 +233,18 @@ export default function Appointments() {
     };
 
     /** Same, for the by-doctor / by-centre drill-downs, which already hand
-     *  back a concrete (schedule, date) pair. */
+     *  back a concrete (schedule, date) pair.
+     *
+     *  `onlyCenterId` narrows to a single channeling centre — used when
+     *  rescheduling, where "same doctor, same place, different time" is
+     *  what the patient means, and offering that doctor's slots at a
+     *  clinic across the island is a way to send someone to the wrong
+     *  building. */
     const openSlotPickerForDoctor = async (
         doctorId: string,
         doctor: { first_name?: string; last_name?: string; specialty?: string | null; rating?: number | null },
-        preselect: { doctor_schedule_id: string; date: string }
+        preselect: { doctor_schedule_id: string; date: string },
+        onlyCenterId?: string
     ) => {
         setLoadingSlots(true);
         setError(null);
@@ -230,7 +253,18 @@ export default function Appointments() {
                 p_doctor_id: doctorId,
                 p_lookahead_days: 21,
             });
-            setPicker({ doctor, slots: (available ?? []) as PickerSlot[], preselected: preselect });
+            const slots = (available ?? []).filter(
+                (s) => !onlyCenterId || s.channelingCenterId === onlyCenterId
+            ) as PickerSlot[];
+            if (slots.length === 0) {
+                setError(
+                    onlyCenterId
+                        ? "That doctor has no other times at this centre in the next 3 weeks. You can cancel and book a different one instead."
+                        : "That doctor has no available times in the next 3 weeks."
+                );
+                return;
+            }
+            setPicker({ doctor, slots, preselected: preselect });
         } catch (e) {
             setError(e instanceof Error ? e.message : "Couldn't load that doctor's times");
         } finally {
@@ -285,6 +319,7 @@ export default function Appointments() {
 
     const cancelReschedule = () => {
         setRescheduleTarget(null);
+        setPicker(null);
         setViewingDoctor(null);
         setMode("mine");
     };
@@ -696,13 +731,19 @@ export default function Appointments() {
                         preselected={picker.preselected}
                         message={
                             rescheduleTarget
-                                ? `Moving ${rescheduleTarget.order_number} — pick the new time.`
+                                ? `Moving ${rescheduleTarget.order_number} — these are ${rescheduleTarget.doctor.firstName ? `Dr. ${rescheduleTarget.doctor.lastName}` : "the doctor"}'s other times at ${rescheduleTarget.channelingCenter.name}.`
                                 : null
                         }
                         confirmLabel={rescheduleTarget ? "Confirm New Time" : "Confirm Booking"}
                         busy={!!busyKey}
                         onConfirm={(s) => book(s.doctorScheduleId, s.date)}
-                        onCancel={() => setPicker(null)}
+                        // Backing out of a reschedule abandons it entirely —
+                        // leaving the banner up with no way to reopen the
+                        // picker would be a dead end.
+                        onCancel={() => {
+                            setPicker(null);
+                            setRescheduleTarget(null);
+                        }}
                     />
                 )}
 

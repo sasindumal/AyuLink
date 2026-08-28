@@ -9,6 +9,7 @@ availability_annotated flags.
 from datetime import date, timedelta
 from typing import Literal
 
+from langchain_core.messages import AIMessage
 from pydantic import BaseModel, Field, create_model
 from langgraph.types import Command, interrupt
 
@@ -491,6 +492,21 @@ def choose_slot(state: GraphState) -> Command:
         "date": card.get("date"),
     }
 
+    # A reschedule arrives here already narrowed to one doctor at one
+    # centre (see booking._start_reschedule) — say so, so the patient
+    # isn't left wondering why no other doctors are on offer.
+    is_reschedule = bool(state.get("rescheduling_appointment_id"))
+    doctor_label = f"Dr. {card.get('first_name')} {card.get('last_name')}"
+    if is_reschedule:
+        where = card.get("channeling_center_name")
+        message = (
+            f"Pick a new time with {doctor_label}"
+            + (f" at {where}" if where else "")
+            + "."
+        )
+    else:
+        message = f"Pick a time with {doctor_label}."
+
     resume = interrupt(
         {
             "type": "choose_slot",
@@ -503,13 +519,29 @@ def choose_slot(state: GraphState) -> Command:
             },
             "slots": slots,
             "preselected": preselected,
-            "message": f"Pick a time with Dr. {card.get('first_name')} {card.get('last_name')}.",
+            "message": message,
         }
     )
 
-    # "Back" from the picker returns to the shortlist rather than booking
-    # something nobody confirmed.
     if isinstance(resume, dict) and resume.get("cancelled"):
+        # Backing out of a *reschedule* keeps the appointment that already
+        # exists — falling through to a fresh doctor search would be the
+        # opposite of what "never mind" means, and would leave
+        # rescheduling_appointment_id armed against a later slot pick.
+        if is_reschedule:
+            return Command(
+                goto="__end__",
+                update={
+                    "rescheduling_appointment_id": None,
+                    "selected_doctor_id": None,
+                    "top5": [],
+                    "messages": [
+                        AIMessage(content="No problem — I've left your appointment as it is.")
+                    ],
+                },
+            )
+        # "Back" from a search returns to the shortlist rather than booking
+        # something nobody confirmed.
         return Command(
             goto="doctor_finder_agent",
             update={"availability_annotated": False, "selected_doctor_id": None},
