@@ -23,7 +23,9 @@ export function CenterBrowseView({
     onBook,
     bookingKey,
 }: {
-    onBook: (scheduleId: string, date: string) => void;
+    /** `slot` carries the doctor, so the caller can open the shared
+     *  confirm/adjust picker rather than booking on a single tap. */
+    onBook: (scheduleId: string, date: string, slot: CenterAvailabilitySlot) => void;
     bookingKey: string | null;
 }) {
     const [query, setQuery] = useState("");
@@ -159,7 +161,7 @@ export function CenterBrowseView({
                                 date={item.date}
                                 startTime={item.startTime}
                                 endTime={item.endTime}
-                                onBook={() => onBook(item.doctorScheduleId, item.date)}
+                                onBook={() => onBook(item.doctorScheduleId, item.date, item)}
                                 booking={bookingKey === `${item.doctorScheduleId}-${item.date}`}
                             />
                         )}

@@ -240,6 +240,8 @@ export type CareEventType =
     | "DIAGNOSED"
     | "APPOINTMENT_BOOKED"
     | "APPOINTMENT_STARTED"
+    | "APPOINTMENT_COMPLETED"
+    | "APPOINTMENT_CANCELLED"
     | "PRESCRIPTION_ISSUED"
     | "ITEM_DISPENSED";
 
@@ -263,6 +265,20 @@ export interface CareEventAppointmentStarted {
     specialty: string | null;
     centerName: string | null;
     orderNumber: string;
+}
+
+/** Same shape as APPOINTMENT_STARTED — the visit closed out normally. */
+export type CareEventAppointmentCompleted = CareEventAppointmentStarted;
+
+export interface CareEventAppointmentCancelled {
+    doctorName: string;
+    specialty: string | null;
+    centerName: string | null;
+    orderNumber: string;
+    reason: string | null;
+    /** Who called it off, so the patient isn't left guessing whether the
+     *  centre dropped it or they cancelled it themselves. */
+    cancelledByRole: Role | null;
 }
 
 export interface CareEventPrescriptionIssued {
@@ -301,6 +317,8 @@ export interface CareEvent {
         | CareEventDiagnosed
         | CareEventAppointmentBooked
         | CareEventAppointmentStarted
+        | CareEventAppointmentCompleted
+        | CareEventAppointmentCancelled
         | CareEventPrescriptionIssued
         | CareEventItemDispensed;
 }

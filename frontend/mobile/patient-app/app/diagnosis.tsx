@@ -38,11 +38,12 @@ import {
     startCourseFollowup,
     syncCareEvents,
 } from "../src/lib/agentChat";
-import { Banner, Button, Input } from "../src/components/ui";
+import { Banner, Button, Input, formatDate } from "../src/components/ui";
 import { FormattedText } from "../src/components/FormattedText";
 import { AttachMenu } from "../src/components/AttachMenu";
 import { DoctorRatingInput } from "../src/components/DoctorRatingInput";
-import { BookingConfirmModal } from "../src/components/BookingConfirmModal";
+import { PreferencePicker } from "../src/components/PreferencePicker";
+import { SlotPicker, formatClock, type PickerSlot } from "../src/components/SlotPicker";
 import { VoiceControl } from "../src/components/VoiceControl";
 import {
     cancelCourseReminders,
@@ -89,7 +90,10 @@ export default function Diagnosis() {
     // for this one render while a structured-output LLM call is in flight.
     const [thinkingMessage, setThinkingMessage] = useState<string | null>(null);
     const [awaitingInterrupt, setAwaitingInterrupt] = useState<InterruptPayload | null>(null);
-    const [pendingBooking, setPendingBooking] = useState<DoctorCard | null>(null);
+    // The slot picker opens itself the moment a choose_slot interrupt
+    // lands (tapping "Book" on a doctor card is what triggers it), and can
+    // be reopened from the inline card if it's dismissed by accident.
+    const [slotPickerOpen, setSlotPickerOpen] = useState(false);
     const [attachMenuVisible, setAttachMenuVisible] = useState(false);
     // Care-journey state, refreshed by syncCareEvents on open.
     const [courseEndsAt, setCourseEndsAt] = useState<string | null>(null);
@@ -155,6 +159,7 @@ export default function Diagnosis() {
                 if (history.interrupt) {
                     hydrated.push({ id: nextId(), kind: "interrupt", payload: history.interrupt, resolved: false });
                     setAwaitingInterrupt(history.interrupt);
+                    if (history.interrupt.type === "choose_slot") setSlotPickerOpen(true);
                 }
                 setItems(hydrated.length ? hydrated : [
                     { id: nextId(), kind: "assistant", text: "Welcome back — let's continue where we left off." },
@@ -201,8 +206,10 @@ export default function Diagnosis() {
                 return payload.message;
             case "present_top5":
                 return payload.doctors.length
-                    ? `I found ${payload.doctors.length} matching doctor${payload.doctors.length === 1 ? "" : "s"}. Take a look and tap Book Now on the one you'd like.`
+                    ? `${payload.note ? `${payload.note} ` : ""}I found ${payload.doctors.length} matching doctor${payload.doctors.length === 1 ? "" : "s"}. Take a look and tap Book on the one you'd like.`
                     : "I couldn't find any matching doctors with availability right now.";
+            case "choose_slot":
+                return payload.message;
             default:
                 return "";
         }
@@ -246,6 +253,7 @@ export default function Diagnosis() {
             case "interrupt": {
                 finishAssistantTurn();
                 setAwaitingInterrupt(evt.data);
+                if (evt.data.type === "choose_slot") setSlotPickerOpen(true);
                 setItems((prev) => [
                     ...prev,
                     { id: nextId(), kind: "interrupt", payload: evt.data, resolved: false },
@@ -347,7 +355,8 @@ export default function Diagnosis() {
                 treatmentId,
                 dispensedDrugs,
                 messages,
-                courseEndsAt
+                courseEndsAt,
+                threadId
             );
             if (count === 0) {
                 setItems((prev) => [
@@ -392,6 +401,7 @@ export default function Diagnosis() {
         (value: unknown, label?: string) => {
             if (busy) return;
             setAwaitingInterrupt(null);
+            setSlotPickerOpen(false);
             setItems((prev) => prev.map((it) => (it.kind === "interrupt" ? { ...it, resolved: true } : it)));
             if (label) {
                 setItems((prev) => [...prev, { id: nextId(), kind: "user", text: label }]);
@@ -439,15 +449,35 @@ export default function Diagnosis() {
 
     const stopListening = useCallback(() => {}, []);
 
-    const confirmBooking = useCallback(() => {
-        if (!pendingBooking) return;
-        const doc = pendingBooking;
-        setPendingBooking(null);
-        resolveInterrupt(
-            { doctor_schedule_id: doc.doctor_schedule_id, date: doc.date },
-            `Book Dr. ${doc.first_name} ${doc.last_name} — ${doc.date}`
-        );
-    }, [pendingBooking, resolveInterrupt]);
+    // Tapping "Book" on a shortlist card commits nothing — it asks the
+    // graph for that doctor's full schedule (choose_slot), which arrives
+    // as the next interrupt and opens the picker.
+    const requestSlots = useCallback(
+        (doctor: DoctorCard) => {
+            resolveInterrupt(
+                { doctor_id: doctor.doctor_id },
+                `Show me Dr. ${doctor.first_name} ${doctor.last_name}'s times`
+            );
+        },
+        [resolveInterrupt]
+    );
+
+    const confirmSlot = useCallback(
+        (slot: PickerSlot) => {
+            resolveInterrupt(
+                { doctor_schedule_id: slot.doctorScheduleId, date: slot.date },
+                `Confirm ${formatDate(slot.date)} · ${formatClock(slot.startTime)}`
+            );
+        },
+        [resolveInterrupt]
+    );
+
+    // Backing out of the picker returns to the shortlist rather than
+    // leaving the turn stranded on an interrupt nobody can answer.
+    const cancelSlotPicker = useCallback(() => {
+        setSlotPickerOpen(false);
+        resolveInterrupt({ cancelled: true }, "Show me the other doctors");
+    }, [resolveInterrupt]);
 
     const attachReport = useCallback(async () => {
         if (busy) return;
@@ -523,7 +553,8 @@ export default function Diagnosis() {
                                 <ChatBubble
                                     item={item}
                                     onResolveInterrupt={resolveInterrupt}
-                                    onRequestBooking={setPendingBooking}
+                                    onRequestBooking={requestSlots}
+                                    onOpenSlotPicker={() => setSlotPickerOpen(true)}
                                     busy={busy}
                                 />
                             )}
@@ -628,12 +659,18 @@ export default function Diagnosis() {
                 onPickDocument={attachReport}
             />
 
-            <BookingConfirmModal
-                doctor={pendingBooking}
-                busy={busy}
-                onConfirm={confirmBooking}
-                onCancel={() => setPendingBooking(null)}
-            />
+            {awaitingInterrupt?.type === "choose_slot" && (
+                <SlotPicker
+                    visible={slotPickerOpen}
+                    doctor={awaitingInterrupt.doctor}
+                    slots={awaitingInterrupt.slots}
+                    preselected={awaitingInterrupt.preselected}
+                    message={awaitingInterrupt.message}
+                    busy={busy}
+                    onConfirm={confirmSlot}
+                    onCancel={cancelSlotPicker}
+                />
+            )}
         </SafeAreaView>
     );
 }
@@ -642,11 +679,13 @@ function ChatBubble({
     item,
     onResolveInterrupt,
     onRequestBooking,
+    onOpenSlotPicker,
     busy,
 }: {
     item: ChatItem;
     onResolveInterrupt: (value: unknown, label?: string) => void;
     onRequestBooking: (doctor: DoctorCard) => void;
+    onOpenSlotPicker: () => void;
     busy: boolean;
 }) {
     if (item.kind === "user") {
@@ -677,6 +716,7 @@ function ChatBubble({
             busy={busy}
             onResolve={onResolveInterrupt}
             onRequestBooking={onRequestBooking}
+            onOpenSlotPicker={onOpenSlotPicker}
         />
     );
 }
@@ -687,16 +727,16 @@ function InterruptCard({
     busy,
     onResolve,
     onRequestBooking,
+    onOpenSlotPicker,
 }: {
     payload: InterruptPayload;
     resolved: boolean;
     busy: boolean;
     onResolve: (value: unknown, label?: string) => void;
     onRequestBooking: (doctor: DoctorCard) => void;
+    onOpenSlotPicker: () => void;
 }) {
     const [text, setText] = useState("");
-    const [city, setCity] = useState("");
-    const [time, setTime] = useState("");
 
     if (payload.type === "ask_followup" || payload.type === "course_followup") {
         return (
@@ -809,30 +849,34 @@ function InterruptCard({
             <View style={[styles.bubble, styles.assistantBubble]}>
                 <FormattedText text={payload.message} style={styles.assistantText} />
                 {!resolved && (
-                    <View style={{ marginTop: spacing.sm, gap: 8 }}>
-                        <Input placeholder="City (default: nearest)" value={city} onChangeText={setCity} editable={!busy} />
-                        <Input placeholder="Preferred date/time (optional)" value={time} onChangeText={setTime} editable={!busy} />
-                        <View style={{ flexDirection: "row", gap: 8 }}>
-                            <Button
-                                title="Use nearest"
-                                variant="secondary"
-                                onPress={() => onResolve({ location: null, time: null }, "Use nearest available")}
-                                disabled={busy}
-                                style={{ flex: 1 }}
-                            />
-                            <Button
-                                title="Apply"
-                                onPress={() =>
-                                    onResolve(
-                                        { location: city.trim() || null, time: time.trim() || null },
-                                        [city, time].filter(Boolean).join(", ") || "Applied preferences"
-                                    )
-                                }
-                                disabled={busy}
-                                style={{ flex: 1 }}
-                            />
-                        </View>
-                    </View>
+                    <PreferencePicker
+                        cities={payload.cities ?? []}
+                        minDate={payload.min_date}
+                        maxDate={payload.max_date}
+                        timeBands={payload.time_bands ?? ["morning", "afternoon", "evening"]}
+                        busy={busy}
+                        onSubmit={(value, label) => onResolve(value, label)}
+                    />
+                )}
+            </View>
+        );
+    }
+
+    if (payload.type === "choose_slot") {
+        // The picker itself is a sheet (see SlotPicker in the screen body);
+        // this card is its anchor in the transcript, so a dismissed sheet
+        // is one tap from coming back rather than a dead end.
+        return (
+            <View style={[styles.bubble, styles.assistantBubble]}>
+                <FormattedText text={payload.message} style={styles.assistantText} />
+                {!resolved && (
+                    <Button
+                        title="Pick a time"
+                        icon="calendar-outline"
+                        onPress={onOpenSlotPicker}
+                        disabled={busy}
+                        style={{ marginTop: spacing.sm }}
+                    />
                 )}
             </View>
         );
@@ -841,16 +885,22 @@ function InterruptCard({
     // present_top5
     return (
         <View style={{ gap: spacing.sm }}>
+            {payload.note ? (
+                <View style={[styles.bubble, styles.assistantBubble]}>
+                    <Text style={styles.noteText}>{payload.note}</Text>
+                </View>
+            ) : null}
             {payload.doctors.length === 0 && (
                 <View style={[styles.bubble, styles.assistantBubble]}>
                     <Text style={styles.assistantText}>
                         I couldn't find any matching doctors with availability right now.
+                        Tell me another city or day and I'll look again.
                     </Text>
                 </View>
             )}
             {payload.doctors.map((doc, i) => (
                 <DoctorResultCard
-                    key={`${doc.doctor_schedule_id}-${i}`}
+                    key={`${doc.doctor_id ?? doc.doctor_schedule_id}-${i}`}
                     doctor={doc}
                     disabled={resolved || busy}
                     onBook={() => onRequestBooking(doc)}
@@ -894,12 +944,16 @@ function DoctorResultCard({
                     </Text>
                 )}
                 {doctor.date && (
+                    // Labelled "Earliest" because tapping Book no longer
+                    // takes this slot — it opens the full schedule with
+                    // this one preselected, so this is a preview, not a
+                    // commitment.
                     <Text style={styles.doctorSlot}>
-                        {doctor.date} · {doctor.start_time}–{doctor.end_time}
+                        Earliest: {formatDate(doctor.date)} · {formatClock(doctor.start_time)}
                     </Text>
                 )}
             </View>
-            <Button title="Book Now" onPress={onBook} disabled={disabled || !doctor.doctor_schedule_id} />
+            <Button title="Book" onPress={onBook} disabled={disabled || !doctor.doctor_id} />
         </View>
     );
 }
@@ -938,6 +992,8 @@ const styles = StyleSheet.create({
     },
     userText: { color: "#fff", fontSize: 14.5, lineHeight: 20 },
     assistantText: { color: colors.text, fontSize: 14.5, lineHeight: 20 },
+    // The "these aren't quite what you asked for" line above the shortlist.
+    noteText: { color: colors.warningInk, fontSize: 13.5, lineHeight: 19, fontWeight: "600" },
     thinkingRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
     reminderBar: {
         flexDirection: "row",
