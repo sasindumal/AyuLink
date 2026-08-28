@@ -8,6 +8,14 @@ generating a SQL file (not executing directly) so it can be applied
 the same way every other migration/seed in this repo is applied
 (`supabase db query --linked -f <file>`).
 
+It also generates a fixed pool of 30 mock Pharmacy accounts (there is
+no pharmacy CSV in Dataset_ref/, unlike doctors/centers) so every role
+is loginable for demos, and writes demo_credentials.csv next to this
+script listing EVERY seeded login (the hand-written demo accounts, all
+bulk doctors, all bulk centers, and the 30 pharmacies) — NIC / license
+and the shared password. That CSV is gitignored; regenerate it by
+re-running this script.
+
 Run AFTER supabase/seed.sql and supabase/seed_appointments.sql, so
 the hand-written demo accounts (fixed UUIDs) are unaffected — this
 script generates its own deterministic UUIDs (uuid5, distinct
@@ -32,9 +40,32 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DATASET_DIR = PROJECT_ROOT / "Dataset_ref"
 OUT_FILE = Path(__file__).resolve().parent / "seed_postgres_dataset.sql"
+CREDENTIALS_CSV = Path(__file__).resolve().parent / "demo_credentials.csv"
 
 NAMESPACE = uuid.UUID("6f1c2e2a-6b2b-4e3a-9c1d-8a2f3b4c5d6e")
-PASSWORD_HASH_EXPR = "crypt('password123', gen_salt('bf'))"
+DEMO_PASSWORD = "password123"
+PASSWORD_HASH_EXPR = f"crypt('{DEMO_PASSWORD}', gen_salt('bf'))"
+
+# How many mock pharmacies to generate. No pharmacy CSV exists in
+# Dataset_ref/, so this pool is synthesised here (see build_pharmacies).
+PHARMACY_COUNT = 30
+
+# The hand-written demo accounts from supabase/seed.sql and
+# supabase/seed_appointments.sql — not created here (their fixed UUIDs
+# are), but listed in demo_credentials.csv so it's the single complete
+# reference for a demo. Columns match _cred_row().
+FIXED_DEMO_CREDS = [
+    ("PATIENT", "Kasun Jayawardena", "NIC", "200012345678",
+     "AYU-200012345678", "supabase/seed.sql"),
+    ("DOCTOR", "Amal Perera", "NIC", "199812345678",
+     "AYU-199812345678", "SLMC-12345 · Cardiology · supabase/seed.sql"),
+    ("PHARMACIST", "Nimal Fernando", "NIC or License", "199512345678 / PL-2024-001",
+     "AYU-199512345678", "MediCare Pharmacy · supabase/seed.sql"),
+    ("CHANNELING_CENTER", "Colombo Central Channeling Center", "NIC", "199012345678",
+     "AYU-199012345678", "Colombo · supabase/seed_appointments.sql"),
+    ("CHANNELING_CENTER", "Kandy Wellness Channeling Center", "NIC", "199112345678",
+     "AYU-199112345678", "Kandy · supabase/seed_appointments.sql"),
+]
 
 
 def read_csv(filename: str) -> list[dict]:
@@ -56,11 +87,67 @@ def center_uuid(name: str) -> str:
     return str(uuid.uuid5(NAMESPACE, f"center:{name}"))
 
 
+def pharmacy_uuid(license_no: str) -> str:
+    return str(uuid.uuid5(NAMESPACE, f"pharmacy:{license_no}"))
+
+
+_NIC_PREFIX = {"doctor": "1", "center": "2", "pharmacy": "3"}
+
+
 def synthetic_nic(kind: str, index: int) -> str:
     # 12-digit synthetic NIC, matching the User table's NIC regex.
-    # "1" doctors, "2" centers — keeps the two pools disjoint.
-    prefix = "1" if kind == "doctor" else "2"
-    return f"{prefix}9{index:010d}"
+    # "1" doctors, "2" centers, "3" pharmacies — keeps the pools disjoint.
+    return f"{_NIC_PREFIX[kind]}9{index:010d}"
+
+
+def _cred_row(role, name, login_type, login_value, medical_id, notes):
+    """One row for demo_credentials.csv. Password is always DEMO_PASSWORD."""
+    return (role, name, login_type, login_value, DEMO_PASSWORD, medical_id, notes)
+
+
+# ---- Mock pharmacies (no source CSV — synthesised) -------------------
+PHARMACY_CITIES = [
+    ("Colombo", 79.8612, 6.9271), ("Dehiwala", 79.8636, 6.8510),
+    ("Moratuwa", 79.8816, 6.7730), ("Negombo", 79.8358, 7.2083),
+    ("Kandy", 80.6337, 7.2906), ("Galle", 80.2170, 6.0535),
+    ("Matara", 80.5353, 5.9485), ("Kurunegala", 80.3647, 7.4863),
+    ("Jaffna", 80.0255, 9.6615), ("Anuradhapura", 80.4037, 8.3114),
+    ("Batticaloa", 81.7000, 7.7170), ("Trincomalee", 81.2335, 8.5874),
+    ("Ratnapura", 80.4037, 6.6828), ("Badulla", 81.0550, 6.9934),
+    ("Kalutara", 79.9607, 6.5854),
+]
+PHARMACY_BRANDS = [
+    "MediCare", "HealthGuard", "CityCare", "LifeLine", "WellPharma",
+    "GreenCross", "CarePlus", "PrimeMed", "Nova", "Sunrise",
+]
+PHARMACY_OWNERS = [
+    ("Nimali", "Fernando"), ("Kamal", "Perera"), ("Sunil", "Bandara"),
+    ("Anoma", "Silva"), ("Ruwan", "Jayasuriya"), ("Dilani", "Wickramasinghe"),
+    ("Chaminda", "Gunawardena"), ("Priya", "Rajapaksa"),
+    ("Lakmal", "Dissanayake"), ("Sanduni", "Ekanayake"),
+]
+
+
+def build_pharmacies(count: int = PHARMACY_COUNT) -> list[dict]:
+    out = []
+    for i in range(count):
+        city, lng, lat = PHARMACY_CITIES[i % len(PHARMACY_CITIES)]
+        brand = PHARMACY_BRANDS[i % len(PHARMACY_BRANDS)]
+        first, last = PHARMACY_OWNERS[i % len(PHARMACY_OWNERS)]
+        # deterministic jitter so two pharmacies in one city aren't stacked
+        jitter = (i // len(PHARMACY_CITIES)) * 0.012
+        out.append({
+            "name": f"{brand} Pharmacy - {city}",
+            # PL-2024-100.. keeps clear of PL-2024-001 (supabase/seed.sql)
+            "license": f"PL-2024-{i + 100:03d}",
+            "city": city,
+            "lng": round(lng + jitter, 4),
+            "lat": round(lat + jitter, 4),
+            "first": first,
+            "last": last,
+            "mobile": f"+9478{i:07d}",
+        })
+    return out
 
 
 def extract_city(address: str) -> str | None:
@@ -135,14 +222,19 @@ def main() -> None:
     centers = read_csv("Master Channeling Centres Registry.csv")
     timeslots = read_csv("Specialist Channelling Timeslots and Tariffs Dataset.csv")
 
+    pharmacies = build_pharmacies()
+
     doctor_id_by_slmc: dict[str, str] = {}
     center_id_by_name: dict[str, str] = {}
+    # Every login this run creates, for demo_credentials.csv (written at
+    # the end). Seeded with the fixed hand-written demo accounts.
+    cred_rows: list[tuple] = [_cred_row(*row) for row in FIXED_DEMO_CREDS]
 
     lines: list[str] = [
         "-- Auto-generated by backend/src/agent_workflow/ingestion/seed_postgres_dataset.py",
-        "-- Bulk-imports Dataset_ref/ doctors, channeling centers, and",
-        "-- schedules into Postgres. Idempotent — every insert uses a",
-        "-- deterministic uuid5 id with `on conflict do nothing`.",
+        "-- Bulk-imports Dataset_ref/ doctors + channeling centers, 30 mock",
+        "-- pharmacies, and doctor schedules into Postgres. Idempotent — every",
+        "-- insert uses a deterministic uuid5 id with `on conflict do nothing`.",
         "begin;",
         "",
     ]
@@ -187,6 +279,10 @@ def main() -> None:
             f"{sql_str(doc_id)}::uuid", sql_str(slmc_id), sql_str(specialty), rating,
         ])
         doctor_specialty_pairs.append((doc_id, specialty))
+        cred_rows.append(_cred_row(
+            "DOCTOR", f"{first_name} {last_name}".strip(), "NIC", nic,
+            "AYU-" + nic, f"SLMC {slmc_id} · {specialty}",
+        ))
 
     lines += emit_batched_insert(
         "auth.users",
@@ -256,6 +352,9 @@ def main() -> None:
             f"{sql_str(cc_id)}::uuid", f"{sql_str(cc_id)}::uuid", sql_str(name), sql_str(address),
             sql_str(contact), f"point({lng}, {lat})", sql_str(city),
         ])
+        cred_rows.append(_cred_row(
+            "CHANNELING_CENTER", name, "NIC", nic, "AYU-" + nic, city or "",
+        ))
 
     lines += emit_batched_insert(
         "auth.users",
@@ -278,6 +377,72 @@ def main() -> None:
         '"ChannelingCenter"',
         ['"id"', '"user_id"', '"name"', '"address"', '"contact_number"', '"location"', '"city"'],
         channeling_center_rows, 'on conflict ("id") do nothing',
+    )
+    lines.append("")
+
+    # ----- Mock pharmacies -----
+    # No source CSV — a fixed pool (build_pharmacies) so every role has
+    # loginable demo accounts. Same auth.users/auth.identities/User shape
+    # as doctors and centers; PharmacyProfile.location always has real
+    # coordinates here (the optional-coords default only applies to the
+    # in-app registration form).
+    lines.append("-- ===== Mock pharmacies =====")
+    ph_auth_users_rows: list[list[str]] = []
+    ph_auth_identities_rows: list[list[str]] = []
+    ph_user_rows: list[list[str]] = []
+    pharmacy_profile_rows: list[list[str]] = []
+
+    for i, ph in enumerate(pharmacies):
+        ph_id = pharmacy_uuid(ph["license"])
+        nic = synthetic_nic("pharmacy", i)
+        email = f"{nic}@nic.ayulink.app"
+
+        ph_auth_users_rows.append([
+            "'00000000-0000-0000-0000-000000000000'", f"{sql_str(ph_id)}::uuid", "'authenticated'",
+            "'authenticated'", sql_str(email), PASSWORD_HASH_EXPR, "now()",
+            '\'{"provider":"email","providers":["email"]}\'::jsonb', "'{}'::jsonb", "now()", "now()",
+            "''", "''", "''", "''", "''",
+        ])
+        ph_auth_identities_rows.append([
+            "gen_random_uuid()", f"{sql_str(ph_id)}::uuid", sql_str(ph_id), "'email'",
+            f"jsonb_build_object('sub', {sql_str(ph_id)}, 'email', {sql_str(email)}, "
+            f"'email_verified', true, 'phone_verified', false)",
+            "now()", "now()", "now()",
+        ])
+        ph_user_rows.append([
+            f"{sql_str(ph_id)}::uuid", sql_str(nic), sql_str(ph["first"]), sql_str(ph["last"]),
+            sql_str(ph["mobile"]), "'1985-01-01'", "'PHARMACIST'", "true", sql_str("AYU-" + nic),
+        ])
+        pharmacy_profile_rows.append([
+            f"{sql_str(ph_id)}::uuid", sql_str(ph["name"]), sql_str(ph["license"]),
+            f"point({ph['lng']}, {ph['lat']})",
+        ])
+        cred_rows.append(_cred_row(
+            "PHARMACIST", ph["name"], "NIC or License", f"{nic} / {ph['license']}",
+            "AYU-" + nic, ph["city"],
+        ))
+
+    lines += emit_batched_insert(
+        "auth.users",
+        ["instance_id", "id", "aud", "role", "email", "encrypted_password", "email_confirmed_at",
+         "raw_app_meta_data", "raw_user_meta_data", "created_at", "updated_at", "confirmation_token",
+         "recovery_token", "email_change", "email_change_token_new", "email_change_token_current"],
+        ph_auth_users_rows, "on conflict (id) do nothing",
+    )
+    lines += emit_batched_insert(
+        "auth.identities",
+        ["id", "user_id", "provider_id", "provider", "identity_data", "last_sign_in_at", "created_at", "updated_at"],
+        ph_auth_identities_rows, "on conflict do nothing",
+    )
+    lines += emit_batched_insert(
+        '"User"',
+        ['"id"', '"nicNumber"', '"firstName"', '"lastName"', '"mobileNumber"', '"dob"', '"role"', '"verified"', '"medicalId"'],
+        ph_user_rows, 'on conflict ("id") do nothing',
+    )
+    lines += emit_batched_insert(
+        '"PharmacyProfile"',
+        ['"userId"', '"pharmacyName"', '"licenseNumber"', '"location"'],
+        pharmacy_profile_rows, 'on conflict ("userId") do nothing',
     )
     lines.append("")
 
@@ -322,9 +487,18 @@ def main() -> None:
     lines.append("commit;")
 
     OUT_FILE.write_text("\n".join(lines) + "\n")
-    print(f"Doctors: {len(doctors)}  Centers: {len(centers)}")
+
+    with open(CREDENTIALS_CSV, "w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(
+            ["role", "name", "login_type", "login_value", "password", "medical_id", "notes"]
+        )
+        writer.writerows(cred_rows)
+
+    print(f"Doctors: {len(doctors)}  Centers: {len(centers)}  Pharmacies: {len(pharmacies)}")
     print(f"DoctorSchedule rows written: {written}  skipped (dup/unmatched): {skipped}")
     print(f"Wrote {OUT_FILE}")
+    print(f"Wrote {CREDENTIALS_CSV}  ({len(cred_rows)} credentials, password '{DEMO_PASSWORD}')")
 
 
 if __name__ == "__main__":

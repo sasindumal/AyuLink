@@ -85,7 +85,7 @@ function splitDosage(dosage: string): { amount: string; unit: string } {
 }
 
 export default function Scan() {
-    const params = useLocalSearchParams<{ editId?: string; editPayload?: string }>();
+    const params = useLocalSearchParams<{ editId?: string; editPayload?: string; medicalId?: string }>();
     const [editingId, setEditingId] = useState<string | null>(null);
 
     const [scannerOpen, setScannerOpen] = useState(false);
@@ -164,6 +164,17 @@ export default function Scan() {
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [params.editId]);
+
+    // Reached via "Start visit" on the Today clinic list — pre-loads the
+    // patient so the doctor lands straight on the prescription form
+    // instead of having to scan/type the Medical ID again for someone
+    // already sitting in front of them.
+    useEffect(() => {
+        if (params.medicalId && !params.editId) {
+            lookup(params.medicalId);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [params.medicalId]);
 
     useEffect(() => {
         if (!successMessage) return;

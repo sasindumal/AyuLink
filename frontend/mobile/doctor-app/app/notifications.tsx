@@ -123,5 +123,5 @@ const styles = StyleSheet.create({
     },
     headerTitle: { fontSize: 20, fontWeight: "800", color: colors.text },
     headerSubtitle: { fontSize: 12.5, color: colors.textMuted, marginTop: 1 },
-    markAllText: { color: colors.primary, fontWeight: "700", fontSize: 12.5 },
+    markAllText: { color: colors.primaryDark, fontWeight: "700", fontSize: 12.5 },
 });

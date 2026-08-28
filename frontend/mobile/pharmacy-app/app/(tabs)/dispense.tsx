@@ -461,7 +461,8 @@ const styles = StyleSheet.create({
         marginTop: 3,
     },
     dispenseBtn: {
-        backgroundColor: colors.primary,
+        // primaryDark, not primary — white text on #48A111 fails AA (3.29:1).
+        backgroundColor: colors.primaryDark,
         borderRadius: radius.full,
         paddingHorizontal: 14,
         paddingVertical: 8,

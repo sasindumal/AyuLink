@@ -315,8 +315,9 @@ const styles = StyleSheet.create({
         borderColor: colors.border,
     },
     specialtyChipActive: {
-        backgroundColor: colors.primary,
-        borderColor: colors.primary,
+        // primaryDark, not primary — white text on #48A111 fails AA (3.29:1).
+        backgroundColor: colors.primaryDark,
+        borderColor: colors.primaryDark,
     },
     specialtyChipDisabled: {
         opacity: 0.4,
@@ -339,5 +340,5 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginTop: spacing.md,
     },
-    link: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    link: { color: colors.primaryDark, fontWeight: "700", fontSize: 13 },
 });

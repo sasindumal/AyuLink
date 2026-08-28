@@ -117,7 +117,8 @@ const styles = StyleSheet.create({
     center: { fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
     aiRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
     aiText: { fontSize: 12, color: colors.primaryDark, fontWeight: "600", flexShrink: 1 },
-    warn: { fontSize: 11.5, color: colors.warning, marginTop: 4, fontWeight: "600" },
+    // warningInk, not warning — #F2B50B as text on white is barely legible.
+    warn: { fontSize: 11.5, color: colors.warningInk, marginTop: 4, fontWeight: "600" },
     order: {
         fontSize: 11,
         color: colors.textMuted,

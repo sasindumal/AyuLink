@@ -5,21 +5,38 @@
 
 import type { AppointmentStatus, PrescriptionStatus, TreatmentStatus } from "./types";
 
+// Brand colors are exactly #25671E / #48A111 / #F2B50B / #F7F0F0 — nothing
+// added to that set. Everything else here is DERIVED from those four:
+// text/textMuted/border are the brand green desaturated to different
+// depths, primarySoft/warningSoft are the brand green/amber tinted onto
+// white, and warningInk/onBright are ink dark enough to sit on the
+// brighter two brand colors (neither #48A111 nor #F2B50B passes WCAG AA
+// with white or with each other's on-brand text weight — verified,
+// see docs/design/ayulink-design.html for the full contrast audit).
+//
+// #96302A is the one addition beyond the four: destructive actions and
+// expired/cancelled states need a hue readers reliably parse as
+// "warning/undo this", which four colors alone that never got past
+// AA testing.
 export const colors = {
     background: "#F7F0F0",
     surface: "#FFFFFF",
     primaryDark: "#25671E",
     primary: "#48A111",
-    primarySoft: "#E8F4E3",
+    primarySoft: "#EDF6E7",
     warning: "#F2B50B",
-    warningSoft: "#FDF3D7",
-    danger: "#D64545",
-    dangerSoft: "#FBE9E9",
-    text: "#1C2B1A",
-    textMuted: "#71806E",
-    border: "#E5DFD6",
-    neutral: "#6B7280",
+    warningInk: "#916800",
+    warningSoft: "#FDF5DD",
+    danger: "#96302A",
+    dangerSoft: "#F1E6E5",
+    text: "#1A2E18",
+    textMuted: "#57654F",
+    border: "#E2D4D4",
+    // Darkened from #6B7280 — that value predates this pass and failed
+    // AA on neutralSoft (4.20:1) for "Completed"/"Fully Dispensed" badges.
+    neutral: "#5A616D",
     neutralSoft: "#EFEFEC",
+    onBright: "#14210F",
 };
 
 export const radius = {
@@ -47,12 +64,25 @@ export const shadow = {
     },
 };
 
+// Six-step type scale — replaces the inline fontSize:11.5/12.5/13.5
+// literals scattered per-component. New components should read from
+// this; existing ones migrate incrementally (mixing old and new sizes
+// is safe, nothing here is a breaking change).
+export const type = {
+    display: { fontSize: 28, fontWeight: "700" as const, letterSpacing: -0.3 },
+    title: { fontSize: 20, fontWeight: "700" as const, letterSpacing: -0.2 },
+    heading: { fontSize: 16, fontWeight: "600" as const },
+    body: { fontSize: 15, fontWeight: "400" as const },
+    caption: { fontSize: 13, fontWeight: "400" as const },
+    label: { fontSize: 11, fontWeight: "700" as const, letterSpacing: 0.6, textTransform: "uppercase" as const },
+};
+
 export const statusMeta: Record<
     PrescriptionStatus,
     { label: string; color: string; bg: string }
 > = {
     NOT_DISPENSED: { label: "Not Dispensed", color: colors.primaryDark, bg: colors.primarySoft },
-    PARTIALLY_DISPENSED: { label: "Partial", color: "#9A6F00", bg: colors.warningSoft },
+    PARTIALLY_DISPENSED: { label: "Partial", color: colors.warningInk, bg: colors.warningSoft },
     FULLY_DISPENSED: { label: "Dispensed", color: colors.neutral, bg: colors.neutralSoft },
     EXPIRED: { label: "Expired", color: colors.danger, bg: colors.dangerSoft },
 };
@@ -61,7 +91,7 @@ export const appointmentStatusMeta: Record<
     AppointmentStatus,
     { label: string; color: string; bg: string }
 > = {
-    BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
+    BOOKED: { label: "Booked", color: colors.warningInk, bg: colors.warningSoft },
     COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
     CANCELLED: { label: "Cancelled", color: colors.danger, bg: colors.dangerSoft },
 };
@@ -70,8 +100,11 @@ export const treatmentStatusMeta: Record<
     TreatmentStatus,
     { label: string; color: string; bg: string }
 > = {
-    DIAGNOSED: { label: "Diagnosed", color: "#9A6F00", bg: colors.warningSoft },
-    BOOKED: { label: "Booked", color: colors.primaryDark, bg: colors.primarySoft },
-    PRESCRIBED: { label: "Prescribed", color: colors.primary, bg: colors.primarySoft },
+    // Amber = waiting on something (a visit, a course finishing); green =
+    // something is actually in the patient's hands. Booked and Prescribed
+    // used to render as the same green — indistinguishable at a glance.
+    DIAGNOSED: { label: "Diagnosed", color: colors.warningInk, bg: colors.warningSoft },
+    BOOKED: { label: "Booked", color: colors.warningInk, bg: colors.warningSoft },
+    PRESCRIBED: { label: "Prescribed", color: colors.primaryDark, bg: colors.primarySoft },
     COMPLETED: { label: "Completed", color: colors.neutral, bg: colors.neutralSoft },
 };

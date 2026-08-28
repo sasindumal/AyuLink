@@ -158,5 +158,5 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginTop: spacing.md,
     },
-    link: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    link: { color: colors.primaryDark, fontWeight: "700", fontSize: 13 },
 });

@@ -116,6 +116,22 @@ export interface DoctorPatientAppointment {
     prescriptionId: string | null;
 }
 
+/** One row on the caller-doctor's own clinic list for one day —
+ *  returned by app_doctor_today_appointments(). */
+export interface DoctorClinicAppointment {
+    id: string;
+    orderNumber: string;
+    status: "BOOKED" | "COMPLETED" | "CANCELLED";
+    appointmentDate: string;
+    startTime: string;
+    endTime: string;
+    doctorStartedAt: string | null;
+    patient: { id: string; firstName: string; lastName: string; medicalId: string };
+    channelingCenter: { id: string; name: string; city: string | null } | null;
+    treatment: { id: string; diseaseName: string; specialty: string | null } | null;
+    prescriptionId: string | null;
+}
+
 export interface PatientLookup {
     id: string;
     firstName: string;

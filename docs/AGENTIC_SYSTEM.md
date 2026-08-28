@@ -43,6 +43,20 @@ One conversation thread can, without the patient switching screens:
   exactly as it would from the mobile app itself.
 - Accept a photographed medical report or a PDF upload and fold a
   summary of it into the conversation before continuing.
+- Run an **end-of-course check-in** once a prescribed course of
+  medication has finished — ask how the patient is doing, then either
+  offer to mark the diagnosis **completed** (collecting a 1–5 star
+  rating for every doctor actually seen for it first) or, if they're
+  still unwell, steer them straight back into doctor search / booking
+  honouring whatever follow-up the prescribing doctor set (see the same
+  doctor again, or the doctor they were referred to). This turn is
+  opened by the patient app from a local notification it scheduled for
+  the course-end moment (`POST /chat/followup`), so it enters the graph
+  directly rather than through intent classification.
+- Fold everything that happened to the patient *outside* the chat — the
+  doctor starting the visit, the prescription they issued, each drug a
+  pharmacy dispensed — into the same thread on demand (`POST /chat/sync`),
+  as plain appended messages that never re-trigger routing.
 
 ## 2. Tech stack
 
@@ -64,6 +78,7 @@ One conversation thread can, without the patient switching screens:
 flowchart TD
     START([START]) -->|has pdf_bytes| pdf[pdf_to_images]
     START -->|has image_bytes| img[image_to_summary]
+    START -->|forced_route course_followup| cf[course_followup]
     START -->|plain text| norm[normalise_input]
     pdf --> docsum[document_summarizer]
     img --> docsum
@@ -91,24 +106,42 @@ flowchart TD
 
     booking -->|reschedule, Command| finder
     booking --> END2([END])
+
+    cf -->|resolved, Command| octr[offer_complete_treatment]
+    cf -->|not resolved, Command| ofb[offer_followup_booking]
+    octr -->|no, Command| END3([END])
+    octr -->|yes, Command| sdr[start_doctor_ratings]
+    sdr -->|nobody to rate, Command| ctn[complete_treatment_node]
+    sdr -->|Command| rdn[rate_doctor_node]
+    rdn -->|next doctor, Command| rdn
+    rdn -->|done, Command| ctn
+    ctn --> END4([END])
+    ofb -->|no, Command| END5([END])
+    ofb -->|yes, Command| mgr
 ```
 
-- **Entry routing** (`_entry_router` in `agent.py`) picks the ingestion
-  path once, at the very start of a turn: a PDF upload, an image upload,
-  or plain text. Both upload paths converge into `document_summarizer`,
-  which folds a plain-language summary into the conversation as if the
-  patient had typed it, then continues into `normalise_input` (a no-op
-  passthrough — every downstream node reads state via `.get()` with
-  defaults, so there's nothing to initialize).
+The graph registers **21 nodes** (`build_graph_builder` in `agent.py`);
+`manager_agent` routes to one of four branches.
+
+- **Entry routing** (`_entry_router` in `agent.py`) picks the entry path
+  once, at the very start of a turn, in this priority order: an
+  app-initiated end-of-course check-in (`forced_route == "course_followup"`,
+  set by `POST /chat/followup` — the patient hasn't typed anything, the
+  assistant is opening the conversation), then a PDF upload, an image
+  upload, then plain text. Both upload paths converge into
+  `document_summarizer`, which folds a plain-language summary into the
+  conversation as if the patient had typed it, then continues into
+  `normalise_input` (a no-op passthrough — every downstream node reads
+  state via `.get()` with defaults, so there's nothing to initialize).
 - **`manager_agent`** is the only true router — every fresh turn passes
   through it, and it's also the node three different `interrupt()`-ing
   nodes hand control *back* to (via `Command(goto="manager_agent",
   update={"forced_route": ...})`) once the patient has answered a
   yes/no or picked something, so the manager doesn't need to
   re-classify an answer like `"yes"` — see `forced_route` in §4.
-- **Three branches**, each internally loop-y (a node re-entering itself
-  via a conditional edge until it decides it's done), not three
-  independent linear pipelines:
+- **Four branches**, each internally loop-y (a node re-entering itself
+  via a conditional edge, or a chain of `Command(goto=...)` hops, until
+  it decides it's done), not independent linear pipelines:
   - **clinical**: `symptom_agent` → `disease_agent` ⇄ `ask_followup`
     (LLM decides each round whether to conclude or ask one more
     question) → `explain_condition_node` → `offer_doctor`.
@@ -121,6 +154,14 @@ flowchart TD
     booking already exists on this thread) classifies free-text intent
     (cancel/reschedule/status) and acts on it directly, no re-search
     needed for a status check or cancellation.
+  - **post-care** (entered only via `POST /chat/followup`):
+    `course_followup` asks how the finished course went, then a chain of
+    `Command(goto=...)` nodes — `offer_complete_treatment` /
+    `start_doctor_ratings` ⇄ `rate_doctor_node` → `complete_treatment_node`
+    on "better", or `offer_followup_booking` (→ back to `manager_agent`
+    with a `doctor_search` forced route) on "still unwell". A diagnosis
+    only ever reaches `COMPLETED` through this branch — the patient
+    saying so — never because a channeling center closed the appointment.
 
 ## 4. State (`GraphState`)
 
@@ -170,6 +211,21 @@ Selected fields and why they exist (not just their types):
   `Treatment` row (best-effort; a Postgres hiccup here must never break
   the diagnosis turn itself), later used by `booking_agent` to link that
   treatment to whatever appointment gets booked out of this same thread.
+- **`followup_plan`** / **`followup_doctor`** / **`last_seen_doctor_id`** /
+  **`preferred_doctor_id`** — the post-care branch's working memory.
+  `course_followup` re-reads these from `app_treatment_timeline` rather
+  than trusting state, because the prescription that carries the doctor's
+  follow-up instruction (`MEET_SAME_DOCTOR` / `REFER_DOCTOR` / `NONE`) is
+  written by the doctor app long after this thread's last turn and may
+  not be in state at all. `offer_followup_booking` turns the plan into a
+  `specialty_hint` / `preferred_doctor_id` for the reused doctor-search
+  flow.
+- **`rating_skipped`** — doctor ids the patient skipped rating in the
+  current pass. `rate_doctor_node` re-queries `app_treatment_doctors_to_rate`
+  every round (so the loop is crash-safe — which doctors are still unrated
+  is always read from the DB, not cached in state); this list is the only
+  per-pass state it keeps, to exclude a doctor the patient explicitly
+  skipped from being re-asked.
 
 ## 5. Nodes, in detail
 
@@ -317,18 +373,69 @@ Three jobs, decided by what's already in state:
    status just formats the existing booking into a message.
 3. **Neither** → a plain "please pick a doctor first" message.
 
+### `course_followup` (post-care branch entry)
+
+Entered only from `_entry_router` when `forced_route == "course_followup"`
+(`POST /chat/followup`). Re-reads the treatment's timeline
+(`treatment_by_thread` → `treatment_timeline`) to recover the
+`followupPlan` and any referred doctor from the `PRESCRIPTION_ISSUED`
+event — deliberately not trusting graph state, since the prescription is
+written by the doctor app well after this thread's previous turn. One LLM
+call writes a short, warm "how are you feeling now?" message (falls back
+to a fixed sentence on any LLM hiccup — never strand the patient),
+`interrupt()`s for the answer, then a second structured-output call
+(`FollowupOutcome`) classifies it as resolved / not — ambiguous or
+off-topic is treated as **not** resolved, since keeping a diagnosis open
+is safer than wrongly closing one. Routes via `Command` to
+`offer_complete_treatment` (resolved) or `offer_followup_booking` (not).
+
+### `offer_complete_treatment` / `start_doctor_ratings` / `rate_doctor_node` / `complete_treatment_node`
+
+The "patient is better" tail. `offer_complete_treatment` `interrupt()`s a
+yes/no; "no" ends the turn leaving the diagnosis open. "Yes" routes to
+`start_doctor_ratings`, which lists every doctor actually *seen* for this
+diagnosis and not yet rated (`app_treatment_doctors_to_rate` — a booking
+that never became a started visit doesn't count) and routes straight to
+`complete_treatment_node` if there's nobody to rate. Otherwise
+`rate_doctor_node` asks about one doctor at a time, re-querying the DB
+each round (crash-safe — the still-unrated set is never cached in state;
+only `rating_skipped` is) and `interrupt()`ing with a `rate_doctor`
+payload. Unlike every other interrupt in the graph, the resume value here
+is a **structured value the client sends directly** —
+`{"rating": 1–5, "feedback": str | null}` or `{"skip": true}` — because
+the app renders a real star picker, so there's nothing for an LLM to
+parse. `rate_doctor` persists each rating best-effort (`app_rate_doctor`),
+loops back for the next doctor, and finally falls through to
+`complete_treatment_node`, which calls `app_complete_treatment` (on
+failure: tell the patient they can complete it from the Diagnoses tab).
+
+### `offer_followup_booking`
+
+The "patient is still unwell" tail. Phrases the offer around whatever the
+prescribing doctor set — `REFER_DOCTOR` names the referred doctor,
+`MEET_SAME_DOCTOR` points back to the same one, `NONE` is a generic "find
+you a doctor" — then `interrupt()`s a yes/no. "No" ends the turn. "Yes"
+hands control to `manager_agent` with `forced_route: "doctor_search"` and,
+where known, a `specialty_hint` / `preferred_doctor_id`, so the normal
+search/booking flow is reused rather than duplicated here.
+
 ## 6. Human-in-the-loop
 
-Five nodes call LangGraph's `interrupt()`: `ask_followup`,
-`offer_doctor`, `ask_location_time`, `present_top5`, and
-`_retry_after_race` (inside `booking_agent`). Each pauses the graph mid-run
-and emits its payload as the SSE `interrupt` event (see §9); the mobile
-app renders the appropriate UI (a text question, a yes/no, a
-location/time form, a list of doctor cards) and the *next* HTTP call is
+Nine nodes call LangGraph's `interrupt()`: `ask_followup`, `offer_doctor`,
+`ask_location_time`, `present_top5`, `_retry_after_race` (inside
+`booking_agent`), and the post-care branch's `course_followup`,
+`offer_complete_treatment`, `rate_doctor_node`, and
+`offer_followup_booking`. Each pauses the graph mid-run and emits its
+payload as the SSE `interrupt` event (see §9); the mobile app renders the
+appropriate UI (a text question, a yes/no, a location/time form, a list
+of doctor cards, a star-rating picker) and the *next* HTTP call is
 `POST /chat/resume` with whatever the patient answered, which the server
 turns into `Command(resume=value)` — LangGraph resumes execution of that
 exact node with `interrupt()`'s return value being whatever was passed
-in, continuing the run from there rather than restarting the turn.
+in, continuing the run from there rather than restarting the turn. Most
+resume values are plain text an LLM then interprets; `rate_doctor_node`
+is the exception, taking a structured `{rating, feedback}` / `{skip}`
+object straight from the client.
 
 This is why the graph is checkpointed (§10): a resume has to reload
 exactly where the run paused, potentially in a different HTTP request
@@ -480,6 +587,8 @@ except `/health`:
 | `POST /chat/resume` | Resume a paused (`interrupt()`ed) turn with the patient's answer. SSE stream. |
 | `POST /chat/pdf` | Start/continue a turn with a PDF upload (multipart). SSE stream. |
 | `POST /chat/image` | Start/continue a turn with an image upload (multipart). SSE stream. |
+| `POST /chat/followup` | Open the end-of-course check-in on a diagnosis — enters the graph directly at `course_followup` with an empty message (the assistant speaks first). SSE stream. |
+| `POST /chat/sync` | Non-streaming: fold the out-of-chat care events (visit started, prescription issued, items dispensed) for this thread's `Treatment` into its message history as appended messages, without running the graph or disturbing a pending interrupt. Idempotent via the timeline's stable event keys. Also returns `status`, `followupPlan`, dispensed `drugs`, and `courseEndsAt` for the app to schedule its local course-end notification. |
 | `GET /chat/history?thread_id=` | Non-streaming: the current message transcript + any pending interrupt for a thread, so the app can hydrate a reopened conversation (e.g. reopening a Treatment) without replaying the whole graph. |
 
 The JWT itself isn't cryptographically verified by this service — Supabase

@@ -28,7 +28,7 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="home"
                 options={{
-                    title: "Home",
+                    title: "Today",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="home" size={size} color={color} />
                     ),
@@ -37,7 +37,7 @@ export default function TabsLayout() {
             <Tabs.Screen
                 name="scan"
                 options={{
-                    title: "Scan & Prescribe",
+                    title: "Scan",
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="scan" size={size} color={color} />
                     ),

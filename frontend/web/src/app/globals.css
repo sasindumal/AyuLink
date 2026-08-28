@@ -17,13 +17,19 @@
     --color-primary-action-hover: #3D8C0E;
     /* Darker lime for hover states */
     --color-accent-warning: #F2B50B;
-    /* Golden Amber - pending statuses, alerts */
+    /* Golden Amber - pending statuses, alerts. Too light to hold its own
+       text (1.74:1 on a 10% tint of itself) — use --color-warning-ink for
+       any text/icon drawn in the amber "voice", this stays for fills only */
+    --color-warning-ink: #916800;
+    /* Amber darkened for text/badge labels — verified 4.5:1+ on white and
+       on accent-warning's own 10% tint */
     --color-surface: #FFFFFF;
     /* Pure White - floating cards */
     --color-border: #E5DFD6;
     /* Soft border color */
-    --color-text-muted: #6B7280;
-    /* Muted text */
+    --color-text-muted: #5A616D;
+    /* Muted text — darkened from #6B7280, which failed WCAG AA (4.30:1)
+       against --color-background */
     --color-text-secondary: #4B5563;
     /* Secondary text */
 
@@ -72,18 +78,21 @@
 /* ----- Component Styles ----- */
 @layer components {
 
-    /* Primary CTA Button */
+    /* Primary CTA Button — primary-dark, not primary-action: white text on
+       #48A111 measured 3.29:1, failing WCAG AA (needs 4.5:1). #25671E
+       passes at 6.91:1. primary-action stays reserved for fills/shapes
+       that never carry text (see the design audit in docs/design/). */
     .btn-primary {
-        @apply bg-primary-action text-white font-semibold px-6 py-3;
+        @apply bg-primary-dark text-white font-semibold px-6 py-3;
         border-radius: var(--radius-button);
         box-shadow: var(--shadow-button);
         transition: all 0.2s ease;
     }
 
     .btn-primary:hover {
-        @apply bg-primary-action-hover;
+        background-color: #1a5016;
         transform: translateY(-1px);
-        box-shadow: 0 4px 16px rgba(72, 161, 17, 0.4);
+        box-shadow: 0 4px 16px rgba(37, 103, 30, 0.4);
     }
 
     .btn-primary:active {
@@ -114,9 +123,12 @@
         box-shadow: var(--shadow-card-hover);
     }
 
-    /* Status Badges */
+    /* Status Badges — each pairs a soft 10% tint with its DARK/ink
+       variant for the label text, not the bright color itself: raw
+       primary-action or accent-warning text on their own 10% tint
+       measured 2.97:1 and 1.74:1, both failing WCAG AA. */
     .badge-active {
-        @apply bg-primary-action/10 text-primary-action font-medium text-sm px-3 py-1;
+        @apply bg-primary-action/10 text-primary-dark font-medium text-sm px-3 py-1;
         border-radius: 9999px;
     }
 
@@ -126,7 +138,7 @@
     }
 
     .badge-warning {
-        @apply bg-accent-warning/10 text-accent-warning font-medium text-sm px-3 py-1;
+        @apply bg-accent-warning/10 text-warning-ink font-medium text-sm px-3 py-1;
         border-radius: 9999px;
     }
 

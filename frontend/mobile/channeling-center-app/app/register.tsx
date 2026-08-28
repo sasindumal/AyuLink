@@ -40,8 +40,6 @@ export default function Register() {
         centerAddress: "",
         centerContactNumber: "",
         centerCity: "",
-        centerLatitude: "",
-        centerLongitude: "",
         password: "",
         confirm: "",
     });
@@ -55,7 +53,7 @@ export default function Register() {
         const required = [
             form.nicNumber, form.firstName, form.lastName, form.mobileNumber,
             form.dob, form.centerName, form.centerAddress, form.centerContactNumber,
-            form.centerCity, form.centerLatitude, form.centerLongitude,
+            form.centerCity,
             form.password,
         ];
         if (required.some((v) => !v.trim())) {
@@ -85,8 +83,6 @@ export default function Register() {
                     centerAddress: form.centerAddress.trim(),
                     centerContactNumber: form.centerContactNumber.trim(),
                     centerCity: form.centerCity.trim(),
-                    centerLatitude: form.centerLatitude.trim(),
-                    centerLongitude: form.centerLongitude.trim(),
                 },
                 form.password
             );
@@ -190,26 +186,6 @@ export default function Register() {
                                 options={CITIES.map((c) => ({ key: c, label: c }))}
                             />
                         </View>
-                        <View style={styles.row}>
-                            <View style={{ flex: 1 }}>
-                                <Input
-                                    label="Latitude"
-                                    placeholder="6.9101"
-                                    value={form.centerLatitude}
-                                    onChangeText={set("centerLatitude")}
-                                    keyboardType="numeric"
-                                />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Input
-                                    label="Longitude"
-                                    placeholder="79.8475"
-                                    value={form.centerLongitude}
-                                    onChangeText={set("centerLongitude")}
-                                    keyboardType="numeric"
-                                />
-                            </View>
-                        </View>
 
                         <Text style={styles.section}>Security</Text>
                         <Input
@@ -288,5 +264,5 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginTop: spacing.md,
     },
-    link: { color: colors.primary, fontWeight: "700", fontSize: 13 },
+    link: { color: colors.primaryDark, fontWeight: "700", fontSize: 13 },
 });

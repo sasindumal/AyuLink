@@ -84,8 +84,13 @@ export default function Treatments() {
         }, [user, load])
     );
 
+    // Opens the episode's own story (timeline: visit, prescription, each
+    // drug dispensed) rather than jumping straight into the chat — the
+    // whole point of the timeline is to surface that story before diving
+    // back into conversation. "Continue in chat" lives as its own button
+    // inside the episode screen for when that's actually what's wanted.
     const openTreatment = (t: Treatment) => {
-        router.push({ pathname: "/diagnosis", params: { threadId: t.thread_id } });
+        router.push({ pathname: "/care-episode", params: { treatmentId: t.id } });
     };
 
     const confirmDelete = async () => {
@@ -139,8 +144,8 @@ export default function Treatments() {
                 ListHeaderComponent={
                     <>
                         <ScreenHeader
-                            title="Diagnoses"
-                            subtitle="Your diagnoses and care journey"
+                            title="My Care"
+                            subtitle="Every diagnosis, told as one story"
                             right={
                                 <Pressable onPress={() => router.push("/diagnosis")} style={styles.newBtn}>
                                     <Text style={styles.newBtnText}>+ New</Text>

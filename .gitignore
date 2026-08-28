@@ -53,3 +53,7 @@ __pycache__/
 /backend/.venv
 /graphify-out
 /Dataset_ref
+
+# generated demo login list (NIC/license + shared password for every
+# seeded account) — regenerate with seed_postgres_dataset.py
+/backend/src/agent_workflow/ingestion/demo_credentials.csv

@@ -325,7 +325,7 @@ const styles = StyleSheet.create({
     sortToggleText: { fontSize: 12.5, fontWeight: "600", color: colors.textMuted },
     sortToggleTextActive: { color: "#fff" },
     backRow: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: spacing.sm },
-    backText: { color: colors.primary, fontWeight: "700", fontSize: 13.5 },
+    backText: { color: colors.primaryDark, fontWeight: "700", fontSize: 13.5 },
     selectedTitle: { fontSize: 17, fontWeight: "800", color: colors.primaryDark },
     selectedSubtitle: { fontSize: 13, color: colors.textMuted, marginTop: 2, marginBottom: spacing.md },
     doctorCard: {

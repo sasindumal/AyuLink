@@ -16,7 +16,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../../src/lib/api";
 import { useAuth } from "../../src/lib/auth";
-import { colors, radius, spacing } from "../../src/theme";
+import { colors, radius, spacing, type } from "../../src/theme";
 import { Banner, Card, ScreenHeader, StatCard } from "../../src/components/ui";
 import type { Appointment, ChannelingCenterProfile } from "../../src/types";
 
@@ -52,9 +52,19 @@ export default function Home() {
     }, [user, load]);
 
     const today = new Date().toISOString().slice(0, 10);
-    const todayCount = appointments.filter((a) => a.appointment_date === today && a.status === "BOOKED").length;
+    const nowTime = new Date().toTimeString().slice(0, 8);
+    const todaysAppts = appointments
+        .filter((a) => a.appointment_date === today && a.status === "BOOKED")
+        .sort((a, b) => a.start_time.localeCompare(b.start_time));
+    const todayCount = todaysAppts.length;
     const upcoming = appointments.filter((a) => a.status === "BOOKED").length;
     const completed = appointments.filter((a) => a.status === "COMPLETED").length;
+
+    // Running late: booked for today, start time already passed, not
+    // marked complete or cancelled — the exceptions a channeling center
+    // actually needs to act on, not the whole day's schedule at once.
+    const late = todaysAppts.filter((a) => a.start_time < nowTime);
+    const onTrack = todaysAppts.filter((a) => a.start_time >= nowTime);
 
     return (
         <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -109,6 +119,62 @@ export default function Home() {
                     <StatCard label="Upcoming" value={upcoming} icon="calendar" tint={colors.primary} />
                     <StatCard label="Completed" value={completed} icon="checkmark-done" tint={colors.warning} />
                 </View>
+
+                {late.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Needs attention</Text>
+                        <Card style={[styles.listCard, { borderLeftWidth: 3, borderLeftColor: colors.warning }]}>
+                            {late.map((a, i) => (
+                                <Pressable
+                                    key={a.id}
+                                    onPress={() => router.push("/(tabs)/appointments")}
+                                    style={[styles.apptRow, i > 0 && styles.apptRowBorder]}
+                                >
+                                    <Text style={styles.apptTime}>{a.start_time.slice(0, 5)}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.apptName}>
+                                            {a.patient.firstName} {a.patient.lastName}
+                                        </Text>
+                                        <Text style={styles.apptMeta}>
+                                            Dr. {a.doctor.firstName} {a.doctor.lastName} · running late
+                                        </Text>
+                                    </View>
+                                    <View style={styles.latePill}>
+                                        <Text style={styles.latePillText}>Late</Text>
+                                    </View>
+                                </Pressable>
+                            ))}
+                        </Card>
+                    </>
+                )}
+
+                {onTrack.length > 0 && (
+                    <>
+                        <Text style={styles.sectionTitle}>Rest of today</Text>
+                        <Card style={styles.listCard}>
+                            {onTrack.slice(0, 6).map((a, i) => (
+                                <Pressable
+                                    key={a.id}
+                                    onPress={() => router.push("/(tabs)/appointments")}
+                                    style={[styles.apptRow, i > 0 && styles.apptRowBorder]}
+                                >
+                                    <Text style={styles.apptTime}>{a.start_time.slice(0, 5)}</Text>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.apptName}>
+                                            {a.patient.firstName} {a.patient.lastName}
+                                        </Text>
+                                        <Text style={styles.apptMeta}>
+                                            Dr. {a.doctor.firstName} {a.doctor.lastName}
+                                        </Text>
+                                    </View>
+                                </Pressable>
+                            ))}
+                            {onTrack.length > 6 && (
+                                <Text style={styles.moreText}>+ {onTrack.length - 6} more today</Text>
+                            )}
+                        </Card>
+                    </>
+                )}
 
                 <Pressable onPress={() => router.push("/(tabs)/appointments")}>
                     <Card style={styles.actionCard}>
@@ -172,4 +238,14 @@ const styles = StyleSheet.create({
     },
     actionTitle: { fontSize: 14.5, fontWeight: "700", color: colors.primaryDark },
     actionText: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+    sectionTitle: { ...type.label, color: colors.textMuted, marginTop: spacing.sm, marginBottom: spacing.sm },
+    listCard: { marginBottom: spacing.md, paddingVertical: 4 },
+    apptRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 9 },
+    apptRowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    apptTime: { fontSize: 13, fontWeight: "800", color: colors.primaryDark, width: 46 },
+    apptName: { fontSize: 13.5, fontWeight: "700", color: colors.text },
+    apptMeta: { fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
+    latePill: { backgroundColor: colors.warningSoft, borderRadius: radius.full, paddingHorizontal: 9, paddingVertical: 4 },
+    latePillText: { fontSize: 10.5, fontWeight: "700", color: colors.warningInk },
+    moreText: { fontSize: 11.5, color: colors.textMuted, textAlign: "center", paddingVertical: 8 },
 });
