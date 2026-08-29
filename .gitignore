@@ -65,3 +65,10 @@ docs/README.md
 docs/WORKFLOW.md
 backend/src/agent_workflow/ayu/Ayu_StateGraph.drawio
 backend/src/agent_workflow/retrevel/AyuLink_StateGraph_Updated.drawio
+
+# demo hub — live tunnel URLs, written at runtime by scripts/demo-tunnel.js
+frontend/web/public/demo/links.json
+/frontend/mobile/channeling-center-app/dist
+/frontend/mobile/doctor-app/dist
+/frontend/mobile/patient-app/dist
+/frontend/mobile/pharmacy-app/dist

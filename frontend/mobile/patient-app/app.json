@@ -45,6 +45,12 @@
         "projectId": "180f87ff-2fd6-4f23-b891-8fe51253bad7"
       }
     },
-    "owner": "orton.com"
+    "owner": "orton.com",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/180f87ff-2fd6-4f23-b891-8fe51253bad7"
+    }
   }
 }

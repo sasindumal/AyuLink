@@ -833,7 +833,7 @@ diabetes started, and `since` is a `date` column that cannot hold
 year-only precision (`'2015'::date` is a hard error, and `2015-01-01`
 would show a doctor "since 1 January" that nobody said).
 
-### 13.4a What gets asked
+### 13.4 What gets asked
 
 Both `INTAKE` and `CHECKIN` ask **only about what the profile is still
 missing** — a patient can fill part of it on the profile screen before
@@ -849,7 +849,7 @@ told the name it already has and asks only for the phone number.
 `INTAKE` differs from `CHECKIN` only in the greeting and in stamping
 `profile_completed_at` when it ends.
 
-### 13.4 The three LLM roles
+### 13.5 The three LLM roles
 
 **PLAN** (`llm_io.plan_sections`) — given a summary of what is on file and
 the sections still unanswered, return them ordered by clinical importance.
@@ -877,7 +877,7 @@ UNKNOWN — never as "the patient has none", which would be a clinical claim
 nobody made. Ayu going quiet mid-interview is worse than Ayu asking a
 plainer question.
 
-### 13.5 The "anything else?" loop
+### 13.6 The "anything else?" loop
 
 After each completed item a LIST section asks whether there is another.
 An answer that already names it — "yes, also prawns" — is read straight
@@ -895,7 +895,7 @@ it was written down. If a section ends with the patient having said "yes"
 but nothing usable captured, its status is reconciled back to UNKNOWN
 rather than left as LISTED-with-nothing-under-it.
 
-### 13.6 Report, edit, save
+### 13.7 Report, edit, save
 
 `show_report` renders everything gathered in the patient's own language,
 with the English values inside it, and interrupts. Nothing has reached the
@@ -909,7 +909,7 @@ Values are rendered as labels, not internals: `Blood group: O+`,
 field names and the database's enum values, and both used to be printed
 raw at the patient.
 
-### 13.7 Interrupt vocabulary
+### 13.8 Interrupt vocabulary
 
 | Type | Client renders | Resume value |
 |---|---|---|
@@ -926,7 +926,7 @@ persists its question into `messages` and delivers it as an interrupt, so
 its message stream is suppressed. Without that the client renders every
 question twice — once from the interrupt, once from the resumed stream.
 
-### 13.8 On/off, and the monthly check
+### 13.9 On/off, language, and the monthly check
 
 `PatientProfile.ayu_enabled`, `ayu_last_prompted_at` and
 `profile_completed_at` drive whether the bubble shows and whether a
@@ -940,3 +940,25 @@ free-tier backend returned an error, and both the bubble *and* the
 off-switch disappeared — leaving anyone who had turned Ayu off with no
 way to turn it back on. A toggle must not depend on the thing it toggles
 being reachable. The endpoints remain for server-side callers.
+
+The Ayu **thread id** (`src/lib/ayu.ts` `ayuThreadId`) carries the
+patient id, the mode, the **language**, and a per-device **generation**
+tag — because a thread's language and checkpoint are fixed the first time
+`start` runs on it.
+
+- **Changing the language** persists `preferred_language`, clears
+  `ayu_last_prompted_at` (so the switch is noticed rather than held back
+  by a month-old snooze — a real clear only from migration
+  `20260919000000`), and, via the language in the id, means the next open
+  is a fresh thread that greets in the new language.
+- **Turning Ayu off and back on** bumps the generation tag, so the next
+  open is a brand-new thread rather than the old one resumed with its
+  history replayed. The tag lives locally, not on the server, because the
+  toggle must work while the backend is asleep — the backend just sees a
+  thread id it has never seen and runs `start` from scratch.
+- **A thread that stalled before asking anything** (a server restart mid
+  first-question compose) is detected by the client — started, no pending
+  interrupt, not saved — and restarted rather than shown a dead greeting.
+
+Abandoned threads' checkpoint rows are left in place (harmless; a few KB
+each).

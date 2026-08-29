@@ -8,7 +8,7 @@ Studio, or OpenRouter).
 | Agent | Job | Endpoints |
 |---|---|---|
 | **Diagnosis** | Symptom triage against the Neo4j knowledge graph, doctor search, booking, and the end-of-course follow-up. 22 nodes, 4 branches. | `/chat`, `/chat/resume`, `/chat/pdf`, `/chat/image`, `/chat/followup`, `/chat/sync`, `/chat/history` |
-| **Ayu** | Fills the patient's health profile through a fixed 10-question interview, in English or Sinhala. 5 nodes. | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
+| **Ayu** | Fills the patient's health profile through an interview it **plans per patient** from what the profile is still missing — the LLM picks the sections and writes every question; a section is not done until each required attribute is given or declined. English or Sinhala; every value stored in English. 7 nodes. | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
 
 They are separate graphs on purpose — one classifies free-form intent and
 routes, the other runs a script to completion. Merging them would make
@@ -28,7 +28,7 @@ backend/
 │   ├── api/                        auth, SSE streaming, LangGraph checkpointer
 │   └── agent_workflow/
 │       ├── retrevel/               DIAGNOSIS agent — agent.py (graph), state, schemas, tools, subagents
-│       ├── ayu/                     AYU agent — graph.py, nodes.py, questions.py, state.py
+│       ├── ayu/                     AYU agent — graph.py, nodes.py, state.py, schema.py (sections + attrs), llm_io.py (plan/compose/extract), guards.py (deterministic vetoes)
 │       └── ingestion/               Neo4j + Postgres dataset seeders (separate requirements.txt)
 └── tests/
     └── test_pipeline.py            live end-to-end script (not pytest)

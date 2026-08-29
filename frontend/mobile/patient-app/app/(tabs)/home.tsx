@@ -22,7 +22,7 @@ import type { Appointment } from "../../src/types";
 import { ProfileButton } from "../../src/components/ProfileButton";
 import { AyuBubble } from "../../src/components/AyuBubble";
 import { ConfirmModal } from "../../src/components/ConfirmModal";
-import { ayuSetEnabled, ayuSnooze, ayuStatus, type AyuStatus } from "../../src/lib/ayu";
+import { ayuGeneration, ayuSetEnabled, ayuSnooze, ayuStatus, type AyuStatus } from "../../src/lib/ayu";
 
 interface DoseReminder {
     id: string;
@@ -274,15 +274,17 @@ export default function Home() {
                         ? `${ayu.missingCount} thing${ayu.missingCount === 1 ? "" : "s"} still missing from your health profile.`
                         : "Let's set up your health profile so doctors know your background."
                 }
-                onPress={() =>
+                onPress={async () => {
+                    const gen = user?.id ? await ayuGeneration(user.id) : "";
                     router.push({
                         pathname: "/ayu",
                         params: {
                             mode: ayu?.everCompleted ? "CHECKIN" : "INTAKE",
                             lang: ayu?.language ?? "EN",
+                            gen,
                         },
-                    })
-                }
+                    });
+                }}
                 onDismiss={() => {
                     setAyuDismissed(true);
                     // A dismiss is a SNOOZE, not an off switch — it pushes
@@ -303,7 +305,7 @@ export default function Home() {
                     setAyuOffOpen(false);
                     if (!ayu) return;
                     setAyu({ ...ayu, enabled: false });
-                    await ayuSetEnabled(false).catch(() => setAyu(ayu));
+                    await ayuSetEnabled(false, user?.id).catch(() => setAyu(ayu));
                 }}
                 onCancel={() => setAyuOffOpen(false)}
             />

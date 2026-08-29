@@ -1,0 +1,71 @@
+# AyuLink — Render Blueprint
+# ---------------------------------------------------------------------------
+# One `render.yaml` for the whole hosted footprint:
+#
+#   ayulink   FastAPI + LangGraph (the two agents)          — web service
+#   ayulink-web   marketing site + the /demo hands-on hub       — static site
+#
+# Deploy: push this file, then in the Render dashboard
+#   New +  ->  Blueprint  ->  pick this repo.
+# Render creates both services and wires the env groups below.
+#
+# The four MOBILE apps are NOT hosted here — a phone can't run a Render
+# process. They reach ayulink over the public URL. Get them onto a
+# phone one of three ways (see docs/DEMO.md and https://.../demo/):
+#   1. install the APK from GitHub Releases          (always on, Android)
+#   2. open in Expo Go via an EAS Update deep link   (needs `eas update`)
+#   3. `scripts/demo-tunnel.js` + `expo start --tunnel` (live demo only)
+# ---------------------------------------------------------------------------
+
+services:
+  # ----------------------------------------------------------------- backend
+  - type: web
+    name: ayulink
+    runtime: python
+    rootDir: backend
+    plan: starter                      # free tier also works; it sleeps after 15 min
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
+      - fromGroup: ayulink-secrets     # create this group in the dashboard, see below
+
+  # -------------------------------------------------------------- marketing + demo
+  - type: web
+    name: ayulink-web
+    runtime: static
+    rootDir: frontend/web
+    plan: starter
+    buildCommand: npm ci && npm run build
+    staticPublishPath: out
+    autoDeploy: true
+    # Static export copies public/ verbatim, so the hub lives at /demo/.
+    routes:
+      - type: rewrite
+        source: /demo
+        destination: /demo/index.html
+    headers:
+      - path: /demo/*
+        name: Cache-Control
+        value: "public, max-age=300"
+
+# ---------------------------------------------------------------------------
+# Env group `ayulink-secrets` — create once in the dashboard
+# (Environment  ->  Environment Groups) and attach to ayulink:
+#
+#   NEXT_PUBLIC_SUPABASE_URL        https://<project>.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY       <service role key>
+#   SUPABASE_ANON_KEY              <anon key>
+#   AGENTS_CHECKPOINT_DATABASE_URL  postgresql://...pooler.supabase.com:5432/postgres
+#   LLM_PROVIDER                    openrouter | google | lm_studio
+#   OPENROUTER_API_KEY / OPENROUTER_MODEL   (or GOOGLE_API_KEY / GOOGLE_MODEL)
+#   NEO4J_URI / NEO4J_USERNAME / NEO4J_PASSWORD
+#
+# The mobile apps are built (EAS / `expo start`) with:
+#   EXPO_PUBLIC_AGENT_API_URL=https://ayulink.onrender.com
+#   EXPO_PUBLIC_SUPABASE_URL / EXPO_PUBLIC_SUPABASE_ANON_KEY
+# so a scanned-in demo talks to the same deployed backend and database.
+# ---------------------------------------------------------------------------

@@ -361,21 +361,27 @@ headache" from an answer to question 4 of an interview. They share the
 FastAPI process, the Postgres checkpointer and the LLM provider layer —
 not the graph.
 
-Two decisions carry the design:
+Four ideas carry the design (full detail in
+[`AGENTIC_SYSTEM.md` §13](AGENTIC_SYSTEM.md#13-ayu--the-health-profile-assistant)):
 
+- **Planned, not fixed.** `start` reads the profile and asks only about
+  the sections still missing — first run and monthly check-in alike. The
+  LLM orders them and writes every question; a deterministic floor makes
+  sure no genuine gap is dropped.
+- **An entry is not usable until it is complete.** Each attribute in
+  `schema.py` is `required` or not; a required one still empty produces a
+  follow-up asking *only* for it by name (which relative, which year, the
+  dose *and* the frequency). Chased once, then taken as it stands.
 - **The conversation may be Sinhala; the stored values never are.**
-  Doctors, the drug catalogue and the Neo4j graph are English-only. Every
-  extraction prompt says so, and because "always answer in English" holds
-  most of the time and then quietly doesn't, a deterministic guard
-  (`_is_latin` / `_to_latin`) re-translates any field that comes back in
-  Sinhala script before it is stored.
+  Doctors, the drug catalogue and the Neo4j graph are English-only.
+  `guards.is_latin` / `guards.to_latin` re-translate any field that comes
+  back in Sinhala script before it is stored.
 - **"I don't know" and "I have none" are different answers.** The first
-  leaves the section `UNKNOWN` so a doctor can see it was never
-  established; the second records `NONE`, a real clinical statement. An
-  LLM asked for that boolean on a negation-heavy sentence was observed
-  flipping between the two across consecutive calls, so a keyword veto
-  (`_decide`) settles it — the same second-guessing `manager_agent`
-  applies to its own `booking` route, for the same reason.
+  leaves the section `UNKNOWN`; the second records `NONE`, a real clinical
+  statement. An LLM asked for that boolean on a negation-heavy sentence
+  flipped between the two across calls, so `guards.said_dont_know` /
+  `said_no` settle it — same second-guessing `manager_agent` applies to
+  its own `booking` route.
 
 | Endpoint | Purpose |
 |---|---|

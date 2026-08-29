@@ -49,13 +49,13 @@ const nextId = () => `ayu-${Date.now()}-${seq++}`;
 
 export default function Ayu() {
     const { user } = useAuth();
-    const params = useLocalSearchParams<{ mode?: string; lang?: string }>();
+    const params = useLocalSearchParams<{ mode?: string; lang?: string; gen?: string }>();
     const mode: "INTAKE" | "CHECKIN" = params.mode === "CHECKIN" ? "CHECKIN" : "INTAKE";
     // The language is part of the thread id: switching it must open a fresh
     // conversation rather than resuming one whose language is already fixed
     // in its checkpoint. Absent (a deep link, a cold start) just falls back
     // to the language-less id.
-    const threadId = ayuThreadId(user?.id ?? "anon", mode, params.lang);
+    const threadId = ayuThreadId(user?.id ?? "anon", mode, params.lang, params.gen);
 
     const [items, setItems] = useState<Item[]>([]);
     const [pending, setPending] = useState<AyuInterrupt | null>(null);

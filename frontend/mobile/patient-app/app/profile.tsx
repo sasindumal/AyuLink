@@ -51,7 +51,7 @@ function Row({ label, value }: { label: string; value?: string | null }) {
 }
 
 export default function Profile() {
-    const { logout } = useAuth();
+    const { user, logout } = useAuth();
     const [profile, setProfile] = useState<FullProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [editing, setEditing] = useState(false);
@@ -253,7 +253,7 @@ export default function Profile() {
                                 onPress={async () => {
                                     const next = !ayu.enabled;
                                     setAyu({ ...ayu, enabled: next });
-                                    await ayuSetEnabled(next).catch(() => setAyu(ayu));
+                                    await ayuSetEnabled(next, user?.id).catch(() => setAyu(ayu));
                                 }}
                             >
                                 <Ionicons

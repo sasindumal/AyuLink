@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Try AyuLink</title>
+<meta name="description" content="Scan a QR with Expo Go to open the real AyuLink apps on your phone — no install.">
+<link rel="icon" href="../logo.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --ground:#F6F2EC; --surface:#FFFFFF; --surface-2:#FBF8F3;
+    --ink:#1B2E19; --ink-soft:#586A50;
+    --forest:#25671E; --lime:#48A111; --lime-soft:#EDF6E7;
+    --amber:#F2B50B; --amber-ink:#916800; --amber-soft:#FDF4DC;
+    --border:#E7DFD3; --hairline:#EFE9DF;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#121B0F; --surface:#1B2917; --surface-2:#22321D;
+      --ink:#E7F2E1; --ink-soft:#A4B59D;
+      --forest:#CBEBBE; --lime:#7CD24C; --lime-soft:#25361C;
+      --amber:#F4BE2C; --amber-ink:#EFD08C; --amber-soft:#2C2917;
+      --border:#33422C; --hairline:#28351F;
+    }
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--ink);
+    font-family:"Plus Jakarta Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:clamp(1.6rem,5vw,3.5rem) clamp(1rem,4vw,2.5rem) 5rem}
+  a{color:var(--forest)}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+
+  header h1{
+    font-size:clamp(1.9rem,6vw,2.9rem); line-height:1.1; letter-spacing:-.02em;
+    margin:.2rem 0 .6rem; color:var(--forest); font-weight:800; text-wrap:balance;
+  }
+  .kicker{
+    font-family:"IBM Plex Mono",monospace; font-size:.72rem; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--lime); margin:0;
+  }
+  :root:not([data-theme="light"]) .kicker{color:var(--lime)}
+  .lede{max-width:60ch; color:var(--ink-soft); font-size:1.05rem; margin:0 0 1.4rem}
+
+  .steps{
+    display:flex; flex-wrap:wrap; gap:.6rem; margin:0 0 2.2rem;
+    padding:0; list-style:none;
+    counter-reset:s;
+  }
+  .steps li{
+    flex:1 1 220px; background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:.9rem 1rem .95rem 2.6rem; position:relative;
+    font-size:.92rem;
+  }
+  .steps li::before{
+    counter-increment:s; content:counter(s);
+    position:absolute; left:.85rem; top:.85rem;
+    width:1.35rem; height:1.35rem; border-radius:50%;
+    background:var(--lime-soft); color:var(--forest);
+    font-family:"IBM Plex Mono",monospace; font-size:.78rem; font-weight:600;
+    display:grid; place-items:center;
+  }
+  .steps b{color:var(--ink)}
+
+  .mode{
+    display:inline-flex; align-items:center; gap:.5rem; margin:0 0 1.6rem;
+    font-size:.82rem; color:var(--ink-soft);
+  }
+  .mode button{
+    font:inherit; font-size:.82rem; cursor:pointer;
+    background:var(--surface); border:1px solid var(--border); color:var(--ink);
+    border-radius:999px; padding:.3rem .8rem;
+  }
+  .mode button[aria-pressed="true"]{background:var(--forest); color:#fff; border-color:var(--forest)}
+  #liveBadge{display:none; background:var(--lime-soft); color:var(--forest); border-radius:999px;
+    padding:.2rem .65rem; font-family:"IBM Plex Mono",monospace; font-size:.72rem}
+  #liveBadge.on{display:inline-block}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.15rem}
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:18px;
+    padding:1.25rem 1.25rem 1.35rem; display:flex; flex-direction:column; gap:.8rem;
+    box-shadow:0 1px 2px rgba(27,46,25,.04), 0 14px 34px -18px rgba(27,46,25,.18);
+  }
+  .card h2{margin:0; font-size:1.15rem; color:var(--forest); letter-spacing:-.01em}
+  .role{
+    font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--amber-ink);
+    background:var(--amber-soft); border-radius:6px; padding:.15rem .5rem; align-self:flex-start;
+  }
+  .blurb{font-size:.88rem; color:var(--ink-soft); margin:0}
+  .qrbox{
+    display:flex; gap:1rem; align-items:flex-start;
+    background:var(--surface-2); border:1px solid var(--hairline);
+    border-radius:14px; padding:.9rem;
+  }
+  .qrbox .primary{flex:none; width:150px}
+  .qrbox img, .qrbox canvas{width:100%; height:auto; display:block; border-radius:8px; background:#fff}
+  .qrbox .meta{font-size:.8rem; min-width:0}
+  .qrbox .meta .lbl{font-weight:700; color:var(--ink)}
+  .qrbox .meta .sub{color:var(--ink-soft)}
+  .qrbox .alt{margin-top:.6rem; display:flex; gap:.55rem; align-items:center}
+  .qrbox .alt img{width:52px; border:1px solid var(--hairline)}
+  .qrbox .alt span{font-size:.76rem; color:var(--ink-soft)}
+  .qrbox .alt a{font-size:.76rem}
+
+  .try{margin:.2rem 0 0; padding-left:1.1rem; font-size:.85rem; color:var(--ink-soft)}
+  .try li{margin:.2rem 0}
+  .login{
+    font-family:"IBM Plex Mono",monospace; font-size:.78rem;
+    background:var(--surface-2); border:1px solid var(--hairline);
+    border-radius:10px; padding:.55rem .7rem; color:var(--ink);
+  }
+  .login b{color:var(--forest)}
+
+  footer{margin-top:2.6rem; padding-top:1.4rem; border-top:1px solid var(--hairline);
+    font-size:.82rem; color:var(--ink-soft)}
+  footer code{background:var(--surface-2); border:1px solid var(--hairline);
+    border-radius:5px; padding:.05em .4em}
+  .err{background:#96302a12; border:1px solid #96302a55; color:#96302a;
+    border-radius:12px; padding:.8rem 1rem; font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <p class="kicker">AyuLink · hands-on demo</p>
+    <h1>Open the real apps on your phone</h1>
+    <p class="lede">
+      No install. Get <a href="https://expo.dev/go" target="_blank" rel="noopener">Expo&nbsp;Go</a>
+      (App&nbsp;Store / Play&nbsp;Store), then scan a code below — the actual app opens,
+      talking to the live backend and database.
+    </p>
+    <ol class="steps">
+      <li><b>Install Expo Go</b> on your phone.</li>
+      <li><b>Scan the big QR</b> on a card — Android: any camera; iPhone: the Camera app.</li>
+      <li><b>Sign in</b> with a sample login on the card. Password is the same everywhere.</li>
+    </ol>
+    <p class="mode">
+      <span>Mode</span>
+      <button id="mEas" aria-pressed="true">Expo Go (hosted)</button>
+      <button id="mLive" aria-pressed="false">Live dev tunnel</button>
+      <span id="liveBadge">tunnel connected</span>
+    </p>
+  </header>
+
+  <div id="cards" class="grid"></div>
+  <div id="msg"></div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script src="./vendor/qrcode.min.js"></script>
+<script>
+(function () {
+  var CARDS = document.getElementById("cards");
+  var MSG = document.getElementById("msg");
+  var FOOT = document.getElementById("foot");
+  var mEas = document.getElementById("mEas"), mLive = document.getElementById("mLive");
+  var badge = document.getElementById("liveBadge");
+  var CFG = null, LINKS = null, mode = "eas";
+
+  function el(tag, attrs, kids) {
+    var n = document.createElement(tag);
+    for (var k in (attrs || {})) {
+      if (k === "text") n.textContent = attrs[k];
+      else if (k === "html") n.innerHTML = attrs[k];
+      else n.setAttribute(k, attrs[k]);
+    }
+    (kids || []).forEach(function (c) { n.appendChild(c); });
+    return n;
+  }
+
+  // client-side QR -> canvas (used for live tunnel URLs)
+  function qrCanvas(text, px) {
+    var q = window.qrcode(0, "M");
+    q.addData(text); q.make();
+    var n = q.getModuleCount(), scale = Math.max(2, Math.floor(px / (n + 8)));
+    var pad = 4 * scale, size = n * scale + pad * 2;
+    var c = el("canvas", { width: size, height: size });
+    var g = c.getContext("2d");
+    g.fillStyle = "#fff"; g.fillRect(0, 0, size, size);
+    g.fillStyle = "#25671E";
+    for (var r = 0; r < n; r++) for (var col = 0; col < n; col++)
+      if (q.isDark(r, col)) g.fillRect(pad + col * scale, pad + r * scale, scale, scale);
+    return c;
+  }
+
+  function easLink(app) {
+    return "exp://u.expo.dev/" + app.easProjectId + "?channel-name=" + (CFG.updateChannel || "preview");
+  }
+
+  function render() {
+    CARDS.innerHTML = "";
+    var live = mode === "live" && LINKS;
+    badge.className = live ? "on" : "";
+    CFG.apps.forEach(function (app) {
+      var card = el("div", { class: "card" });
+      card.appendChild(el("span", { class: "role", text: app.role }));
+      card.appendChild(el("h2", { text: app.name }));
+      card.appendChild(el("p", { class: "blurb", text: app.blurb }));
+
+      // --- QR box ---
+      var box = el("div", { class: "qrbox" });
+      var primary = el("div", { class: "primary" });
+      var metaLbl, metaSub;
+      if (live) {
+        var url = LINKS[app.key];
+        if (url) {
+          primary.appendChild(qrCanvas(url, 150));
+          metaLbl = "Scan in Expo Go"; metaSub = url;
+        } else {
+          primary.appendChild(el("div", { class: "sub", text: "tunnel not running for this app" }));
+          metaLbl = "—"; metaSub = "start scripts/demo-tunnel.js";
+        }
+      } else {
+        primary.appendChild(el("img", { src: "./qr/eas-" + app.key + ".png", alt: app.name + " — Expo Go QR" }));
+        metaLbl = "Scan in Expo Go"; metaSub = easLink(app);
+      }
+      box.appendChild(primary);
+
+      var meta = el("div", { class: "meta" });
+      meta.appendChild(el("div", { class: "lbl", text: metaLbl }));
+      meta.appendChild(el("div", { class: "sub mono", text: metaSub }));
+      // Android APK fallback always shown
+      var alt = el("div", { class: "alt" });
+      alt.appendChild(el("img", { src: "./qr/apk-" + app.key + ".png", alt: "APK QR" }));
+      alt.appendChild(el("span", { html: "or install the <b>Android APK</b> — " }));
+      alt.appendChild(el("a", { href: app.apk, text: "download" }));
+      meta.appendChild(alt);
+      box.appendChild(meta);
+      card.appendChild(box);
+
+      // --- sample login ---
+      var s = CFG.credentials.samples[app.key];
+      if (s) card.appendChild(el("div", { class: "login",
+        html: "<b>Sign in:</b> " + s.login + " &nbsp;·&nbsp; password <b>" + CFG.credentials.password + "</b><br><span style='color:var(--ink-soft)'>" + s.who + "</span>" }));
+
+      // --- try this ---
+      if (app.try && app.try.length) {
+        var ul = el("ul", { class: "try" });
+        app.try.forEach(function (t) { ul.appendChild(el("li", { text: t })); });
+        card.appendChild(ul);
+      }
+      CARDS.appendChild(card);
+    });
+  }
+
+  function setMode(m) {
+    mode = m;
+    mEas.setAttribute("aria-pressed", String(m === "eas"));
+    mLive.setAttribute("aria-pressed", String(m === "live"));
+    render();
+  }
+  mEas.onclick = function () { setMode("eas"); };
+  mLive.onclick = function () {
+    if (!LINKS) { MSG.innerHTML = '<div class="err">No live tunnel detected. Run <code>node scripts/demo-tunnel.js</code> and reload.</div>'; return; }
+    MSG.innerHTML = ""; setMode("live");
+  };
+
+  fetch("./config.json").then(function (r) { return r.json(); }).then(function (c) {
+    CFG = c;
+    FOOT.innerHTML =
+      "Backend <code>" + c.backend + "</code> · database is shared Supabase. " +
+      "Refresh the hosted QRs after <code>scripts/publish-demo-updates.sh</code> with " +
+      "<code>node scripts/gen-demo-qr.js</code>. Full credential list: " +
+      "<code>backend/…/ingestion/demo_credentials.csv</code>.";
+    return fetch("./links.json").then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; });
+  }).then(function (links) {
+    LINKS = links;
+    if (LINKS) { mLive.textContent = "Live dev tunnel ✓"; }
+    render();
+  }).catch(function (e) {
+    MSG.innerHTML = '<div class="err">Could not load config.json — ' + e + '</div>';
+  });
+})();
+</script>
+</body>
+</html>
