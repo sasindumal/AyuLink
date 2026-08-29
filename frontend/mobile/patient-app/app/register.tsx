@@ -18,6 +18,7 @@ import { Link, router } from "expo-router";
 import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, FilterChips, Input } from "../src/components/ui";
+import { DobPicker } from "../src/components/DobPicker";
 
 const GENDER_OPTIONS = [
     { key: "MALE", label: "Male" },
@@ -136,13 +137,7 @@ export default function Register() {
                             onChangeText={set("mobileNumber")}
                             keyboardType="phone-pad"
                         />
-                        <Input
-                            label="Date of Birth"
-                            placeholder="YYYY-MM-DD"
-                            value={form.dob}
-                            onChangeText={set("dob")}
-                            autoCorrect={false}
-                        />
+                        <DobPicker value={form.dob} onChange={set("dob")} />
                         <Text style={styles.fieldLabel}>Gender</Text>
                         <FilterChips
                             value={form.gender}
