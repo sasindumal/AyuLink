@@ -162,12 +162,25 @@ export async function ayuSetEnabled(enabled: boolean): Promise<void> {
     await saveMyHealthProfile({ profile: { ayuEnabled: enabled } });
 }
 
-/** Change the language Ayu speaks. Persisted to
- *  PatientProfile.preferred_language; an interview already in progress
- *  keeps its language (it is fixed on that thread), so the change lands
- *  the next time Ayu opens — a fresh intake or the monthly check-in. */
+/** Change the language Ayu speaks.
+ *
+ *  Two things happen, and both are needed for the change to be visible:
+ *
+ *  1. `preferred_language` is persisted, so the next run opens in it.
+ *  2. `ayu_last_prompted_at` is CLEARED, bringing the next check-in
+ *     forward. The last nudge was in a language the patient has just told
+ *     us they don't want, so it should not still be holding the clock —
+ *     otherwise dismissing the bubble once would keep Ayu quiet for a
+ *     month after the switch. (Clearing only works from migration
+ *     20260919000000 onward; before it, the null was silently ignored.)
+ *
+ *  The thread id carries the language too (see `ayuThreadId`), so an
+ *  interview started in the old language is never resumed in the new one —
+ *  Ayu opens a fresh conversation and re-reads the health profile. */
 export async function ayuSetLanguage(language: "EN" | "SI"): Promise<void> {
-    await saveMyHealthProfile({ profile: { preferredLanguage: language } });
+    await saveMyHealthProfile({
+        profile: { preferredLanguage: language, ayuLastPromptedAt: null },
+    });
 }
 
 /** Records that the patient was nudged, so the next check-in is a month
@@ -194,8 +207,22 @@ export async function ayuHistory(threadId: string) {
 
 /** One stable thread per patient per purpose. Ayu is a single ongoing
  *  relationship, not a series of unrelated chats, so reopening it must
- *  land back in the same conversation. */
-export function ayuThreadId(patientId: string, mode: "INTAKE" | "CHECKIN"): string {
+ *  land back in the same conversation.
+ *
+ *  The language is part of the id. A thread's language is fixed in its
+ *  checkpoint the first time `start` runs, so resuming one after the
+ *  patient switched languages would carry on in the old one — the setting
+ *  would look like it had done nothing. Keying on it means a switch opens
+ *  a fresh conversation that re-reads the health profile and asks in the
+ *  new language, which is the whole point of changing it. */
+export function ayuThreadId(
+    patientId: string,
+    mode: "INTAKE" | "CHECKIN",
+    language?: string
+): string {
     const month = new Date().toISOString().slice(0, 7);
-    return mode === "INTAKE" ? `ayu:${patientId}:intake` : `ayu:${patientId}:checkin:${month}`;
+    const lang = language ? `:${language.toLowerCase()}` : "";
+    return mode === "INTAKE"
+        ? `ayu:${patientId}:intake${lang}`
+        : `ayu:${patientId}:checkin:${month}${lang}`;
 }

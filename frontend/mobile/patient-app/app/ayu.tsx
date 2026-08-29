@@ -49,9 +49,13 @@ const nextId = () => `ayu-${Date.now()}-${seq++}`;
 
 export default function Ayu() {
     const { user } = useAuth();
-    const params = useLocalSearchParams<{ mode?: string }>();
+    const params = useLocalSearchParams<{ mode?: string; lang?: string }>();
     const mode: "INTAKE" | "CHECKIN" = params.mode === "CHECKIN" ? "CHECKIN" : "INTAKE";
-    const threadId = ayuThreadId(user?.id ?? "anon", mode);
+    // The language is part of the thread id: switching it must open a fresh
+    // conversation rather than resuming one whose language is already fixed
+    // in its checkpoint. Absent (a deep link, a cold start) just falls back
+    // to the language-less id.
+    const threadId = ayuThreadId(user?.id ?? "anon", mode, params.lang);
 
     const [items, setItems] = useState<Item[]>([]);
     const [pending, setPending] = useState<AyuInterrupt | null>(null);
@@ -148,6 +152,16 @@ export default function Ayu() {
         (async () => {
             try {
                 const h = await ayuHistory(threadId);
+                // Started, nothing pending, nothing saved: an earlier run
+                // stopped before it asked anything — a restarted server, a
+                // dropped connection. Replaying that transcript leaves a
+                // greeting and a Done button with no way forward, and the
+                // CHECKIN thread id is month-scoped, so it would stay stuck
+                // until the month rolled over. Start it again instead.
+                if (h.started && !h.interrupt && !h.saved) {
+                    run((cb) => ayuStart(threadId, mode, cb));
+                    return;
+                }
                 if (h.started && (h.messages.length || h.interrupt)) {
                     setItems(
                         h.messages.map((m) => ({

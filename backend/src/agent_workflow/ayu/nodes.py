@@ -762,11 +762,19 @@ def apply_edit(state: AyuState) -> Command:
 
 async def save_profile(state: AyuState) -> dict:
     language = _lang(state)
+    from datetime import datetime, timezone
+
     payload = {
         "profile": {
             **(state.get("draft_profile") or {}),
             "preferredLanguage": language,
-            "ayuLastPromptedAt": None,
+            # Ayu has just been through the profile with them, so the next
+            # nudge is a month away. This used to pass null, which was a
+            # silent no-op while the RPC coalesced nulls away; now that a
+            # null genuinely clears the clock (migration 20260919000000) it
+            # has to say what it means, or finishing an interview would make
+            # the bubble start prompting again immediately.
+            "ayuLastPromptedAt": datetime.now(timezone.utc).isoformat(),
         },
         "allergies": state.get("draft_allergies") or [],
         "conditions": state.get("draft_conditions") or [],
@@ -776,8 +784,6 @@ async def save_profile(state: AyuState) -> dict:
     # Only a full intake completes anything — a gap-check that filled two
     # sections has not.
     if (state.get("mode") or "INTAKE") == "INTAKE":
-        from datetime import datetime, timezone
-
         payload["profile"]["profileCompletedAt"] = datetime.now(timezone.utc).isoformat()
 
     try:
