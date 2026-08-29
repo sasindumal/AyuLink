@@ -1,44 +1,51 @@
-"""Ayu's nodes: pick a language, run the interview, show the report, save.
+"""Ayu's nodes.
 
-The whole point of this agent is that the *conversation* can happen in
-Sinhala while every value that reaches the database is English. Doctors,
-the drug catalogue and the Neo4j graph are all English-only; a health
-profile half-filled with Sinhala free text would be unreadable to the
-clinician it exists for. So every extraction prompt says so explicitly,
-and the summary is rendered back in the patient's language from the
-English values that were stored.
+The interview is driven by the patient's own health profile: what is
+already on file decides what gets asked, the LLM writes every question,
+and a section is not finished until each of its required attributes is
+either filled or explicitly declined.
+
+One structural rule runs through all of this: **a node that interrupts
+does nothing non-deterministic before the interrupt.** A LangGraph node
+re-runs from the top on every resume, so an LLM call sitting above an
+`interrupt()` would be re-rolled on the way back — showing the patient one
+question and recording another. So questions are composed in `compose`,
+put to the patient in `ask` (which only reads state), and read back in
+`ingest`. Three small nodes instead of one big one, for that reason alone.
 """
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.types import Command, interrupt
 
-from src.agent_workflow.ayu.questions import QUESTIONS, pending_indexes, question_text
-from src.agent_workflow.ayu.state import (
-    AyuState,
-    EditInstruction,
-    ListAnswer,
-    ScalarAnswer,
+from src.agent_workflow.ayu import guards, llm_io
+from src.agent_workflow.ayu.schema import (
+    BY_KEY,
+    SECTIONS,
+    Attr,
+    Section,
+    applicable,
+    is_empty,
+    missing_required,
+    pending_sections,
+    status_payload_key,
 )
-from src.agent_workflow.retrevel.streaming import emit_thinking
+from src.agent_workflow.ayu.state import AyuState
 from src.agent_workflow.retrevel.tools.postgres_tools import RpcError, _call
-from utils.llm import text_llm
 
 GREETING = {
     "EN": "Hi! I'm **Ayu**, your personal health assistant.\n\n"
           "I'll ask a few questions about your health so any doctor you see "
-          "already knows your background. It takes a couple of minutes, and "
-          "\"I don't know\" is a perfectly good answer to any of them.",
+          "already knows your background. \"I don't know\" is a perfectly good "
+          "answer to any of them.",
     "SI": "ආයුබෝවන්! මම **ආයු**, ඔබේ පෞද්ගලික සෞඛ්‍ය සහායකයා.\n\n"
           "ඔබ හමුවන ඕනෑම වෛද්‍යවරයෙකුට ඔබේ සෞඛ්‍ය පසුබිම කලින්ම දැනගන්න පුළුවන් වෙන්න, "
-          "මම ප්‍රශ්න කිහිපයක් අහනවා. විනාඩි කිහිපයයි යන්නේ. \"මම දන්නේ නැහැ\" කියන එකත් "
-          "හොඳ පිළිතුරක්.",
+          "මම ප්‍රශ්න කිහිපයක් අහනවා. \"මම දන්නේ නැහැ\" කියන එකත් හොඳ පිළිතුරක්.",
 }
 
 CHECKIN_INTRO = {
     "EN": "Hi again! A few things are still missing from your health profile. "
-          "Shall we fill them in? It'll only take a minute.",
-    "SI": "ආයුබෝවන්! ඔබේ සෞඛ්‍ය තොරතුරු වලින් කිහිපයක් තවම හිස්ව තියෙනවා. "
-          "ඒවා පුරවමුද? විනාඩියක් විතරයි යන්නේ.",
+          "Shall we fill them in?",
+    "SI": "ආයුබෝවන්! ඔබේ සෞඛ්‍ය තොරතුරු වලින් කිහිපයක් තවම හිස්ව තියෙනවා. ඒවා පුරවමුද?",
 }
 
 ALL_DONE = {
@@ -55,51 +62,89 @@ SAVED = {
           "ඔබේ ප්‍රොෆයිල් එකෙන් ඕනෑම වෙලාවක වෙනස් කරන්න පුළුවන්.",
 }
 
-_EXTRACT_SYSTEM = (
-    "You are reading a patient's spoken answer to one health question and turning "
-    "it into structured data.\n\n"
-    "CRITICAL: the patient may answer in Sinhala or English. Every value you output "
-    "MUST be in LATIN SCRIPT — translate names of conditions, medicines, allergens "
-    "and relationships into their standard English terms, and TRANSLITERATE personal "
-    "names and place names rather than translating them (\u0db1\u0dd2\u0db8\u0dcf\u0dbd\u0dca -> 'Nimal'). "
-    "A doctor reading this profile may not read Sinhala script, so never leave "
-    "Sinhala characters in any field.\n\n"
-    "Do not invent anything. Only record what the patient actually said. If they "
-    "said they don't know or can't remember, set knows=false and return no items."
-)
 
-
-async def _save_profile(jwt: str, payload: dict) -> dict:
+async def _save(jwt: str, payload: dict) -> dict:
     return await _call(jwt, "app_save_my_health_profile", {"p_payload": payload})
 
 
-async def _load_profile(jwt: str) -> dict:
+async def _load(jwt: str) -> dict:
     return await _call(jwt, "app_get_my_health_profile", {})
 
 
-# --------------------------------------------------------------- nodes
+def _lang(state: AyuState) -> str:
+    return state.get("language") or "EN"
+
+
+def _section(state: AyuState) -> Section | None:
+    plan, cursor = state.get("plan") or [], state.get("cursor", 0)
+    return BY_KEY[plan[cursor]] if cursor < len(plan) else None
+
+
+def _summarise(existing: dict) -> str:
+    """What is already on file, as a few lines the planner can read."""
+    profile = (existing or {}).get("profile") or {}
+    lines: list[str] = []
+    for s in SECTIONS:
+        if s.shape == "LIST":
+            status = profile.get(s.status_key) or "UNKNOWN"
+            if status == "UNKNOWN":
+                continue
+            rows = _existing_rows(existing, s)
+            lines.append(
+                f"{s.title}: none" if status == "NONE" else f"{s.title}: {', '.join(rows) or 'listed'}"
+            )
+        else:
+            from src.agent_workflow.ayu.schema import COLUMN_OF
+
+            vals = {
+                f: profile.get(COLUMN_OF.get(f, f))
+                for f in s.profile_fields
+                if profile.get(COLUMN_OF.get(f, f)) not in (None, "", "UNKNOWN")
+            }
+            if vals:
+                lines.append(f"{s.title}: " + ", ".join(f"{k}={v}" for k, v in vals.items()))
+    return "\n".join(lines) or "(nothing recorded yet)"
+
+
+def _existing_rows(existing: dict, s: Section) -> list[str]:
+    if s.target == "allergies":
+        return [a.get("allergen", "") for a in existing.get("allergies") or []]
+    if s.target == "conditions":
+        return [c.get("condition", "") for c in existing.get("conditions") or []]
+    if s.target == "medications":
+        return [m.get("drug_name") or m.get("drugName") or "" for m in existing.get("medications") or []]
+    if s.target == "history":
+        return [
+            h.get("label", "")
+            for h in existing.get("history") or []
+            if h.get("kind") == s.history_kind
+            or (s.history_kind == "SURGERY" and h.get("kind") == "HOSPITALISATION")
+        ]
+    return []
+
+
+# ==================================================================== start
 
 
 async def start(state: AyuState) -> Command:
-    """Pick a language on the very first run, then greet.
+    """Load the profile, settle the language, then plan what to ask.
 
-    Language is asked before anything else and only once: everything after
-    it — the questions, the summary, the confirmation — is rendered in
-    whichever was chosen, so it has to be settled first.
+    The plan is the LLM's, but with a deterministic floor under it: any
+    section that is genuinely empty and that the planner left out is
+    appended anyway. The model chooses the ORDER and can pull in something
+    that looks wrong; it cannot silently drop a gap.
     """
     jwt = state["patient_jwt"]
     language = state.get("language")
 
     try:
-        existing = await _load_profile(jwt)
+        existing = await _load(jwt)
     except RpcError:
         existing = {"profile": {}}
     profile = existing.get("profile") or {}
     gender = (existing.get("gender") or "").upper()
 
     if not language and not state.get("language_asked"):
-        # NULL means never asked (see migration 20260917000000) — only a
-        # value the patient actually picked skips the question.
         stored = profile.get("preferred_language")
         if stored in ("EN", "SI", "TA"):
             language = stored
@@ -117,23 +162,18 @@ async def start(state: AyuState) -> Command:
             )
             language = choice if choice in ("EN", "SI") else "EN"
 
-    # Remember it, so the next session and the monthly check-in open in
-    # the same language without asking again.
     try:
-        await _save_profile(jwt, {"profile": {"preferredLanguage": language}})
+        await _save(jwt, {"profile": {"preferredLanguage": language}})
     except RpcError:
         pass
 
     mode = state.get("mode") or "INTAKE"
-    plan = pending_indexes(profile) if mode == "CHECKIN" else list(range(len(QUESTIONS)))
-    # The pregnancy question only applies to female patients; drop it (and
-    # any future female_only question) for everyone else. Gender is set at
-    # registration — a patient with none recorded is treated as not female,
-    # so the question is skipped rather than asked of the wrong person.
-    if gender != "FEMALE":
-        plan = [i for i in plan if not QUESTIONS[i].get("female_only")]
+    if mode == "CHECKIN":
+        candidates = [BY_KEY[k] for k in pending_sections(profile, gender)]
+    else:
+        candidates = [s for s in SECTIONS if applicable(s, gender)]
 
-    if mode == "CHECKIN" and not plan:
+    if not candidates:
         return Command(
             goto="__end__",
             update={
@@ -143,15 +183,28 @@ async def start(state: AyuState) -> Command:
             },
         )
 
+    ordered = llm_io.plan_sections(_summarise(existing), candidates)
+    # The floor: nothing empty gets dropped just because the planner
+    # forgot it.
+    for s in candidates:
+        if s.key not in ordered:
+            ordered.append(s.key)
+
     intro = CHECKIN_INTRO[language] if mode == "CHECKIN" else GREETING[language]
     return Command(
-        goto="ask_question",
+        goto="compose",
         update={
             "language": language,
             "language_asked": True,
-            "greeted": True,
-            "plan": plan,
+            "gender": gender,
+            "existing": existing,
+            "plan": ordered,
             "cursor": 0,
+            "phase": "OPEN",
+            "current_item": {},
+            "item_queue": [],
+            "chasing": [],
+            "attempted": [],
             "draft_profile": {},
             "draft_allergies": [],
             "draft_conditions": [],
@@ -162,238 +215,422 @@ async def start(state: AyuState) -> Command:
     )
 
 
-# Phrases that settle the knows/has_any question outright, in both
-# languages. Checked before trusting the model because a boolean drawn
-# from a negation-heavy sentence is not stable: the same Sinhala answer
-# ("no, I have never had surgery") was observed parsing as both
-# knows=True and knows=False across consecutive calls. The distinction
-# between "I have none" and "I don't know" is the entire point of this
-# agent, so it cannot rest on a coin flip.
-_DONT_KNOW = (
-    "don't know", "dont know", "do not know", "not sure", "no idea",
-    "can't remember", "cant remember", "don't remember", "dont remember",
-    "not certain", "unsure",
-    "දන්නේ නැහැ", "දන්නෙ නෑ", "මතක නෑ", "මතක නැහැ", "විශ්වාස නැහැ", "විශ්වාස නෑ",
-    "හරියට දන්නේ නෑ",
-)
-_NEGATION = (
-    "none", "nothing", "never", "no allergies", "no such", "not any",
-    "නෑ", "නැහැ", "නැත", "කිසිවක් නෑ", "කිසිම",
-)
+# ================================================================== compose
 
 
-def _decide(answer: str, parsed: ListAnswer) -> ListAnswer:
-    """Overrule the model on the two outcomes it is least reliable at.
-
-    Order matters: "I don't remember" contains a negation too, so the
-    don't-know check runs first — it is the more specific statement, and
-    mistaking it for "I have none" would put a clinical claim on record
-    that the patient never made.
-    """
-    text = answer.lower()
-
-    if any(k in text for k in _DONT_KNOW):
-        return ListAnswer(knows=False, has_any=False, items=[])
-
-    # Items on the page beat any keyword: someone who listed a medicine
-    # has plainly answered, whatever else the sentence contains.
-    if parsed.items:
-        return ListAnswer(knows=True, has_any=True, items=parsed.items)
-
-    if any(n in text for n in _NEGATION):
-        return ListAnswer(knows=True, has_any=False, items=[])
-
-    return parsed
-
-
-def _parse_list_answer(answer: str, hint: str) -> ListAnswer:
-    try:
-        emit_thinking("Noting that down...")
-        parsed = text_llm.with_structured_output(ListAnswer, method="json_schema").invoke(
-            [
-                {"role": "system", "content": f"{_EXTRACT_SYSTEM}\n\nFor THIS question: {hint}"},
-                {"role": "user", "content": answer},
-            ]
-        )
-        return _decide(answer, parsed)
-    except Exception:  # noqa: BLE001
-        # An extraction failure must never be recorded as "the patient has
-        # none" — that is a clinical claim nobody made. Fall back to
-        # "unknown", which leaves the section visibly unanswered.
-        return ListAnswer(knows=False, has_any=False, items=[])
-
-
-def _parse_scalar_answer(answer: str, hint: str) -> ScalarAnswer:
-    try:
-        emit_thinking("Noting that down...")
-        return text_llm.with_structured_output(ScalarAnswer, method="json_schema").invoke(
-            [
-                {"role": "system", "content": f"{_EXTRACT_SYSTEM}\n\nFor THIS question: {hint}"},
-                {"role": "user", "content": answer},
-            ]
-        )
-    except Exception:  # noqa: BLE001
-        return ScalarAnswer()
-
-
-async def ask_question(state: AyuState) -> Command:
-    """Ask the next planned question, read the answer, store it."""
-    plan = state.get("plan") or []
-    cursor = state.get("cursor", 0)
-    language = state.get("language") or "EN"
-
-    if cursor >= len(plan):
+def compose(state: AyuState) -> Command:
+    """Write the next question and hand it to `ask`."""
+    section = _section(state)
+    if section is None:
         return Command(goto="show_report")
 
-    qi = plan[cursor]
-    q = QUESTIONS[qi]
+    phase = state.get("phase") or "OPEN"
+    chasing = [a for a in section.attrs if a.name in (state.get("chasing") or [])]
+    known = ""
+    if phase == "OPEN":
+        rows = _existing_rows(state.get("existing") or {}, section)
+        known = ", ".join(r for r in rows if r)
+
+    question = llm_io.compose_question(
+        section,
+        _lang(state),
+        phase=phase,
+        chasing=chasing,
+        collected=state.get("current_item") or {},
+        known=known,
+    )
+    return Command(goto="ask", update={"pending_question": question})
+
+
+# ====================================================================== ask
+
+
+def ask(state: AyuState) -> Command:
+    """Put the composed question to the patient. Nothing else.
+
+    Deliberately trivial: this is the node that re-runs on every resume, so
+    it reads `pending_question` rather than deriving one.
+    """
+    question = state.get("pending_question") or "..."
+    section = _section(state)
+    plan = state.get("plan") or []
 
     answer = interrupt(
         {
             "type": "ayu_question",
-            "question": question_text(q, language),
-            "step": cursor + 1,
+            "question": question,
+            "step": min(state.get("cursor", 0) + 1, len(plan)),
             "total": len(plan),
-            "section": q.get("status_key") or q.get("target"),
+            "section": section.key if section else "",
         }
     )
     answer_text = str(answer).strip()
+    return Command(
+        goto="ingest",
+        update={
+            "messages": [
+                AIMessage(content=question),
+                HumanMessage(content=answer_text),
+            ]
+        },
+    )
 
-    update: dict = {
-        "cursor": cursor + 1,
-        "messages": [
-            AIMessage(content=question_text(q, language)),
-            HumanMessage(content=answer_text),
-        ],
-    }
-    profile = dict(state.get("draft_profile") or {})
 
-    if q["kind"] == "scalar":
-        parsed = _parse_scalar_answer(answer_text, q.get("item_hint", ""))
-        for field, value in parsed.model_dump(exclude_none=True).items():
-            profile[field] = _to_latin(value, "name") if isinstance(value, str) else value
-        update["draft_profile"] = profile
-        return Command(goto="ask_question", update=update)
+# =================================================================== ingest
 
-    parsed_list = _parse_list_answer(answer_text, q.get("item_hint", ""))
-    status_key = q["status_key"]
-    # The three-way outcome that the whole design turns on.
-    if not parsed_list.knows:
-        status = "UNKNOWN"
-    elif not parsed_list.has_any or not parsed_list.items:
-        status = "NONE"
-    else:
-        status = "LISTED"
-    profile[_status_field(status_key)] = status
+
+def _last_answer(state: AyuState) -> str:
+    for m in reversed(state.get("messages") or []):
+        if getattr(m, "type", "") == "human":
+            return str(getattr(m, "content", ""))
+    return ""
+
+
+def _clean(attr: Attr, value, answer: str = ""):
+    """Normalise one extracted value, or drop it."""
+    if value is None or guards.is_placeholder(value):
+        return None
+    if attr.name == "relationship":
+        # Only a relative the patient actually named survives — see
+        # guards.relationship_was_said.
+        return guards.relationship_was_said(
+            guards.clean_relationship(str(value)), answer
+        )
+    if isinstance(value, str):
+        text = value.strip()
+        if not text:
+            return None
+        # Closed vocabularies come back as-is; free text is forced into
+        # Latin script and given a consistent first letter.
+        return text if attr.choices else guards.label(text)
+    return value
+
+
+def _clean_item(section: Section, raw: dict, answer: str = "") -> dict:
+    out = {}
+    for attr in section.attrs:
+        v = _clean(attr, raw.get(attr.name), answer)
+        if v is not None:
+            out[attr.name] = v
+    return out
+
+
+def _rows_for(state: AyuState, section: Section, update: dict) -> list:
+    key = {
+        "allergies": "draft_allergies", "conditions": "draft_conditions",
+        "medications": "draft_medications", "history": "draft_history",
+    }.get(section.target or "")
+    if not key:
+        return []
+    rows = update.get(key) if key in update else (state.get(key) or [])
+    if section.target != "history":
+        return list(rows or [])
+    kinds = {section.history_kind}
+    if section.history_kind == "SURGERY":
+        kinds.add("HOSPITALISATION")
+    return [h for h in (rows or []) if h.get("kind") in kinds]
+
+
+def _reconcile_status(state: AyuState, section: Section, update: dict) -> dict:
+    """Make the section's status agree with what was actually captured.
+
+    "LISTED" with nothing under it tells a doctor there is something to
+    read when there isn't. If the patient said they have some but nothing
+    usable survived, that is UNKNOWN — still an open question, not a
+    claim that they have none.
+    """
+    profile = dict(update.get("draft_profile") or state.get("draft_profile") or {})
+    key = status_payload_key(section.status_key)
+    current = profile.get(key)
+    if current == "NONE":
+        return update
+    profile[key] = "LISTED" if _rows_for(state, section, update) else "UNKNOWN"
     update["draft_profile"] = profile
-
-    if status == "LISTED":
-        target = q["target"]
-        if target == "allergies":
-            update["draft_allergies"] = (state.get("draft_allergies") or []) + [
-                {
-                    "allergen": _label(it.label),
-                    "kind": "DRUG",
-                    "reaction": _to_latin(it.detail or "") or None,
-                    "severity": it.severity or "UNKNOWN",
-                }
-                for it in parsed_list.items
-            ]
-        elif target == "conditions":
-            update["draft_conditions"] = (state.get("draft_conditions") or []) + [
-                {"condition": _label(it.label), "status": "ACTIVE", "notes": _to_latin(it.detail or "") or None}
-                for it in parsed_list.items
-            ]
-        elif target == "medications":
-            update["draft_medications"] = (state.get("draft_medications") or []) + [
-                {"drugName": _label(it.label), "dosage": _to_latin(it.detail or "") or None, "ongoing": True}
-                for it in parsed_list.items
-            ]
-        elif target == "history":
-            update["draft_history"] = (state.get("draft_history") or []) + [
-                {
-                    "kind": q["history_kind"],
-                    "label": _label(it.label),
-                    "occurredYear": it.year,
-                    "relationship": _to_latin(it.relationship or "") or None,
-                    "notes": it.detail,
-                }
-                for it in parsed_list.items
-            ]
-
-    return Command(goto="ask_question", update=update)
+    return update
 
 
-def _is_latin(text: str) -> bool:
-    """Does this contain no Sinhala/Tamil script?
+def _advance(state: AyuState, update: dict) -> Command:
+    """Move to the next section, or to the report if there are none left."""
+    section = _section(state)
+    if section is not None and section.shape == "LIST":
+        update = _reconcile_status(state, section, update)
+    update = {
+        **update,
+        "cursor": state.get("cursor", 0) + 1,
+        "phase": "OPEN",
+        "current_item": {},
+        "item_queue": [],
+        "chasing": [],
+        "attempted": [],
+    }
+    return Command(goto="compose", update=update)
 
-    Checked on the way OUT of extraction rather than trusted from the
-    prompt: "always answer in English" holds most of the time and then
-    quietly doesn't, and a drug name stored in Sinhala script is
-    invisible to the doctor this profile exists for.
+
+def _primary(section: Section) -> str:
+    """The attribute an entry is nothing without — its name or label."""
+    req = [a.name for a in section.attrs if a.required]
+    return req[0] if req else section.attrs[0].name
+
+
+def _commit(state: AyuState, section: Section, item: dict, update: dict) -> dict:
+    """Fold one finished item into the draft payload.
+
+    An item missing its primary attribute is DROPPED, not stored: a
+    medication row with no drug name is not a partial record, it is an
+    unusable one — and "drug_name" is NOT NULL, so it would be silently
+    discarded at save time anyway, after the patient had been told it was
+    written down.
     """
-    return all(ord(c) < 0x0D00 for c in text or "")
+    if section.shape == "LIST" and not item.get(_primary(section)):
+        return update
+    if section.shape == "SCALAR":
+        profile = dict(state.get("draft_profile") or {})
+        profile.update({k: v for k, v in item.items() if v is not None})
+        update["draft_profile"] = {**update.get("draft_profile", {}), **profile}
+        return update
+
+    if section.target == "allergies":
+        update["draft_allergies"] = (
+            update.get("draft_allergies") or list(state.get("draft_allergies") or [])
+        ) + [
+            {
+                "allergen": item.get("allergen"),
+                # OTHER, never DRUG, when unclassified: unclassified is a
+                # gap, "DRUG" is a claim.
+                "kind": item.get("kind") or "OTHER",
+                "reaction": item.get("reaction"),
+                "severity": item.get("severity") or "UNKNOWN",
+            }
+        ]
+    elif section.target == "conditions":
+        update["draft_conditions"] = (
+            update.get("draft_conditions") or list(state.get("draft_conditions") or [])
+        ) + [{"condition": item.get("condition"), "status": "ACTIVE",
+              "notes": item.get("notes")}]
+    elif section.target == "medications":
+        update["draft_medications"] = (
+            update.get("draft_medications") or list(state.get("draft_medications") or [])
+        ) + [{"drugName": item.get("drugName"), "dosage": item.get("dosage"),
+              "frequency": item.get("frequency"), "notes": item.get("notes"),
+              "ongoing": True}]
+    elif section.target == "history":
+        kind = section.history_kind
+        # One section covers operations AND admissions, so the kind is per
+        # item, not per section.
+        if kind == "SURGERY" and item.get("admitted"):
+            kind = "HOSPITALISATION"
+        update["draft_history"] = (
+            update.get("draft_history") or list(state.get("draft_history") or [])
+        ) + [
+            {
+                "kind": kind,
+                "label": item.get("label"),
+                # Family history carries no year — nobody reliably knows
+                # when a parent's diabetes started, and `since`/year is a
+                # date a patient cannot give to that precision.
+                "occurredYear": item.get("year") if section.key != "family_history" else None,
+                "relationship": item.get("relationship"),
+                "notes": item.get("notes"),
+            }
+        ]
+    return update
 
 
-def _to_latin(text: str, kind: str = "medical term") -> str:
-    """Force one field into Latin script, translating or transliterating.
-
-    Only called when the check above fails, so the common path costs
-    nothing. If the retry also comes back in Sinhala the original is
-    kept — a value a Sinhala-reading clinician can still use beats an
-    empty field.
-    """
-    if _is_latin(text):
-        return text
-    try:
-        out = str(
-            text_llm.invoke(
-                [
-                    {
-                        "role": "system",
-                        "content": f"Convert this {kind} to Latin script. Translate it to its "
-                        "standard English name if it is a medical term; transliterate it if it "
-                        "is a person's name or a place. Reply with ONLY the converted text, "
-                        "nothing else.",
-                    },
-                    {"role": "user", "content": text},
-                ]
-            ).content
-        ).strip()
-        return out if out and _is_latin(out) else text
-    except Exception:  # noqa: BLE001
-        return text
+def _set_status(state: AyuState, section: Section, status: str, update: dict) -> dict:
+    if section.shape != "LIST":
+        return update
+    profile = dict(update.get("draft_profile") or state.get("draft_profile") or {})
+    profile[status_payload_key(section.status_key)] = status
+    update["draft_profile"] = profile
+    return update
 
 
-def _label(text: str) -> str:
-    """Capitalise the first letter, leaving the rest alone.
+def _next_item_or_more(state: AyuState, section: Section, update: dict) -> Command:
+    """Take the next item the opening answer named, or ask if there is one more."""
+    queue = list(update.get("item_queue", state.get("item_queue") or []))
+    if queue:
+        nxt = queue.pop(0)
+        missing = missing_required(section, nxt)
+        update.update({
+            "item_queue": queue, "current_item": nxt,
+            "attempted": [], "chasing": [a.name for a in missing],
+            "phase": "DETAIL" if missing else "MORE",
+        })
+        if not missing:
+            update = _commit(state, section, nxt, update)
+            update["current_item"] = nxt
+        return Command(goto="compose", update=update)
 
-    The model returns "penicillin" or "Penicillin" depending on the run,
-    and a doctor scanning an allergy list should not see the same drug
-    styled two ways. Only the first character is touched — upper-casing
-    the whole word would wreck "pH", "COVID-19" and "Vitamin D3".
-    """
-    t = _to_latin((text or "").strip())
-    return t[:1].upper() + t[1:] if t else t
+    update.update({"phase": "MORE", "chasing": [], "item_queue": []})
+    return Command(goto="compose", update=update)
 
 
-def _status_field(status_key: str) -> str:
-    """DB column -> save-payload key ('allergies_status' -> 'allergiesStatus')."""
-    parts = status_key.split("_")
-    return parts[0] + "".join(w.capitalize() for w in parts[1:])
+def ingest(state: AyuState) -> Command:
+    """Read the answer, and decide what still needs asking."""
+    section = _section(state)
+    if section is None:
+        return Command(goto="show_report")
+
+    answer = _last_answer(state)
+    phase = state.get("phase") or "OPEN"
+    update: dict = {}
+
+    # ---------------------------------------------------------- MORE
+    if phase == "MORE":
+        if not llm_io.wants_another(answer):
+            return _advance(state, update)
+        # "Yes, also prawns" answers the question AND names the next item.
+        # Read it here rather than asking them to repeat themselves.
+        seeded = _clean_item(
+            section, llm_io.extract_attrs(section, list(section.attrs), answer, {}), answer
+        )
+        missing = missing_required(section, seeded)
+        if not missing and seeded:
+            update = _commit(state, section, seeded, update)
+            update.update({"current_item": seeded, "attempted": [], "chasing": [],
+                           "phase": "MORE"})
+            return Command(goto="compose", update=update)
+        update.update({
+            "current_item": seeded, "attempted": [],
+            "chasing": [a.name for a in (missing or [a for a in section.attrs if a.required])],
+            "phase": "DETAIL",
+        })
+        return Command(goto="compose", update=update)
+
+    # ---------------------------------------------------------- OPEN
+    if phase == "OPEN":
+        if section.shape == "LIST":
+            knows, has_any, items = llm_io.extract_list_opening(section, answer)
+            if not knows:
+                # UNKNOWN, never NONE: recording "they have none" for a
+                # patient who said they don't know puts a clinical claim on
+                # file that nobody made.
+                return _advance(state, _set_status(state, section, "UNKNOWN", update))
+            if not has_any:
+                return _advance(state, _set_status(state, section, "NONE", update))
+            cleaned = [_clean_item(section, i, answer) for i in items]
+            cleaned = [c for c in cleaned if c]
+            if not cleaned:
+                # They said yes but named nothing — ask what, rather than
+                # recording the opposite of what they said.
+                update.update({
+                    "current_item": {}, "attempted": [],
+                    "chasing": [a.name for a in section.attrs if a.required],
+                    "phase": "DETAIL",
+                })
+                return Command(goto="compose", update=update)
+            update = _set_status(state, section, "LISTED", update)
+            update["item_queue"] = cleaned
+            return _next_item_or_more(state, section, update)
+
+        # SCALAR
+        got = _clean_item(
+            section, llm_io.extract_attrs(section, list(section.attrs), answer, {}), answer
+        )
+        if guards.said_dont_know(answer) and not got:
+            return _advance(state, update)
+        missing = missing_required(section, got)
+        if missing:
+            update.update({
+                "current_item": got, "attempted": [],
+                "chasing": [a.name for a in missing], "phase": "DETAIL",
+            })
+            return Command(goto="compose", update=update)
+        return _advance(state, _commit(state, section, got, update))
+
+    # -------------------------------------------------------- DETAIL
+    chasing = [a for a in section.attrs if a.name in (state.get("chasing") or [])]
+    item = dict(state.get("current_item") or {})
+    got = _clean_item(
+        section,
+        llm_io.extract_attrs(section, chasing or list(section.attrs), answer, item),
+        answer,
+    )
+    item.update(got)
+
+    attempted = list(state.get("attempted") or []) + [a.name for a in chasing]
+    missing = [a for a in missing_required(section, item) if a.name not in attempted]
+
+    if missing:
+        update.update({
+            "current_item": item, "attempted": attempted,
+            "chasing": [a.name for a in missing], "phase": "DETAIL",
+        })
+        return Command(goto="compose", update=update)
+
+    # Everything required is either filled or has been asked for once and
+    # genuinely isn't known. Take it as it stands.
+    if section.shape == "SCALAR":
+        return _advance(state, _commit(state, section, item, update))
+
+    update = _commit(state, section, item, update)
+    update["current_item"] = item
+    update["attempted"] = []
+    return _next_item_or_more(state, section, update)
+
+
+# ================================================================== report
+
+
+_VALUE_LABELS = {
+    "NEVER": ("Never", "කවදාවත් නැහැ"),
+    "FORMER": ("Gave up", "නවත්වා ඇත"),
+    "CURRENT": ("Yes", "ඔව්"),
+    "OCCASIONAL": ("Sometimes", "සමහර වෙලාවට"),
+    "REGULAR": ("Regularly", "නිතිපතා"),
+    "NOT_PREGNANT": ("Not pregnant", "ගර්භනී නොවේ"),
+    "PREGNANT": ("Pregnant", "ගර්භනීයි"),
+    "BREASTFEEDING": ("Breastfeeding", "කිරි දෙනවා"),
+}
+
+_FIELD_LABELS = {
+    "bloodGroup": ("Blood group", "රුධිර වර්ගය"),
+    "heightCm": ("Height", "උස"),
+    "weightKg": ("Weight", "බර"),
+    "smoking": ("Smoking", "දුම්පානය"),
+    "alcohol": ("Alcohol", "මත්පැන්"),
+    "betel": ("Betel", "බුලත්"),
+    "emergencyContactName": ("Name", "නම"),
+    "emergencyContactRelationship": ("Relationship", "සම්බන්ධය"),
+    "emergencyContactPhone": ("Phone", "දුරකථනය"),
+    "pregnancyStatus": ("Status", "තත්ත්වය"),
+}
+
+_TITLES_SI = {
+    "allergies": "අසාත්මිකතා",
+    "conditions": "දිගුකාලීන රෝග",
+    "medications": "නිතිපතා ගන්නා ඖෂධ",
+    "surgeries": "සැත්කම් සහ රෝහල් ගතවීම්",
+    "family_history": "පවුලේ රෝග ඉතිහාසය",
+    "immunisations": "එන්නත්",
+    "implants": "බද්ධ කළ උපකරණ",
+    "body": "ශරීරය සහ රුධිරය",
+    "pregnancy": "ගර්භණීභාවය",
+    "lifestyle": "ජීවන රටාව",
+    "emergency_contact": "හදිසි සම්බන්ධතාවය",
+}
+
+
+def _scalar_line(field: str, value, si: bool) -> str:
+    lbl = _FIELD_LABELS.get(field, (field, field))[1 if si else 0]
+    if isinstance(value, str) and value in _VALUE_LABELS:
+        shown = _VALUE_LABELS[value][1 if si else 0]
+    elif isinstance(value, float) and value.is_integer():
+        shown = str(int(value))  # 175.0 is a height nobody writes that way
+    else:
+        shown = str(value)
+    unit = {"heightCm": "cm", "weightKg": "kg"}.get(field)
+    return f"{lbl}: {shown} {unit}".strip() if unit else f"{lbl}: {shown}"
 
 
 def _render_report(state: AyuState) -> str:
-    language = state.get("language") or "EN"
-    si = language == "SI"
+    si = _lang(state) == "SI"
     profile = state.get("draft_profile") or {}
-    lines: list[str] = [
-        "**ඔබේ සෞඛ්‍ය තොරතුරු**" if si else "**Your health profile**",
-        "",
-    ]
+    lines = ["**ඔබේ සෞඛ්‍ය තොරතුරු**" if si else "**Your health profile**", ""]
+    asked = set(state.get("plan") or [])
 
-    def block(title_en: str, title_si: str, entries: list[str], status: str | None):
-        lines.append(f"**{title_si if si else title_en}**")
+    def block(section: Section, entries: list[str], status: str | None):
+        lines.append(f"**{_TITLES_SI[section.key] if si else section.title}**")
         if entries:
             lines.extend(f"- {e}" for e in entries)
         elif status == "NONE":
@@ -402,71 +639,66 @@ def _render_report(state: AyuState) -> str:
             lines.append("- " + ("තවම දන්නේ නැත" if si else "Not answered"))
         lines.append("")
 
-    block("Allergies", "අසාත්මිකතා",
-          [f"{a['allergen']}"
-           + (f" — {a['reaction']}" if a.get("reaction") else "")
-           + (f" ({a['severity']})" if a.get("severity") and a["severity"] != "UNKNOWN" else "")
-           for a in state.get("draft_allergies") or []],
-          profile.get("allergiesStatus"))
-    block("Long-term conditions", "දිගුකාලීන රෝග",
-          [c["condition"] for c in state.get("draft_conditions") or []],
-          profile.get("conditionsStatus"))
-    block("Regular medicines", "නිතිපතා ගන්නා ඖෂධ",
-          [m["drugName"] + (f" — {m['dosage']}" if m.get("dosage") else "")
-           for m in state.get("draft_medications") or []],
-          profile.get("medicationsStatus"))
+    for section in SECTIONS:
+        if section.key not in asked:
+            continue
+        if section.shape == "LIST":
+            status = profile.get(status_payload_key(section.status_key))
+            entries: list[str] = []
+            if section.target == "allergies":
+                entries = [
+                    str(a.get("allergen") or "?")
+                    + (f" — {a['reaction']}" if a.get("reaction") else "")
+                    + (f" ({a['severity']})" if a.get("severity") not in (None, "UNKNOWN") else "")
+                    + (f" [{a['kind']}]" if a.get("kind") else "")
+                    for a in state.get("draft_allergies") or []
+                ]
+            elif section.target == "conditions":
+                entries = [
+                    str(c.get("condition") or "?") for c in state.get("draft_conditions") or []
+                ]
+            elif section.target == "medications":
+                entries = [
+                    str(m.get("drugName") or "?")
+                    + (f" — {m['dosage']}" if m.get("dosage") else "")
+                    + (f", {m['frequency']}" if m.get("frequency") else "")
+                    for m in state.get("draft_medications") or []
+                ]
+            elif section.target == "history":
+                kinds = {section.history_kind}
+                if section.history_kind == "SURGERY":
+                    kinds.add("HOSPITALISATION")
+                entries = [
+                    str(h.get("label") or "?")
+                    + (f" ({h['relationship']})" if h.get("relationship") else "")
+                    + (f" — {h['occurredYear']}" if h.get("occurredYear") else "")
+                    for h in state.get("draft_history") or []
+                    if h["kind"] in kinds
+                ]
+            block(section, entries, status)
+        else:
+            vals = [
+                _scalar_line(f, profile[f], si)
+                for f in section.profile_fields
+                if profile.get(f) is not None
+            ]
+            block(section, vals, "LISTED" if vals else None)
 
-    history = state.get("draft_history") or []
-    for kind, en, si_t, status_key in [
-        ("SURGERY", "Surgeries & hospital stays", "සැත්කම් සහ රෝහල් ගතවීම්", "surgeriesStatus"),
-        ("FAMILY_HISTORY", "Family history", "පවුලේ රෝග ඉතිහාසය", "familyHistoryStatus"),
-        ("IMMUNISATION", "Vaccinations", "එන්නත්", "immunisationsStatus"),
-        ("IMPLANT", "Implants & devices", "බද්ධ කළ උපකරණ", "implantsStatus"),
-    ]:
-        block(en, si_t,
-              [h["label"]
-               + (f" ({h['relationship']})" if h.get("relationship") else "")
-               + (f" — {h['occurredYear']}" if h.get("occurredYear") else "")
-               for h in history if h["kind"] == kind],
-              profile.get(status_key))
-
-    body = [f"{k}: {profile[k]}" for k in ("bloodGroup", "heightCm", "weightKg") if profile.get(k)]
-    if body:
-        block("Body & blood", "ශරීරය සහ රුධිරය", body, "LISTED")
-    preg = profile.get("pregnancyStatus")
-    if preg:
-        preg_en = {"NOT_PREGNANT": "Not pregnant", "PREGNANT": "Pregnant",
-                   "BREASTFEEDING": "Breastfeeding"}
-        preg_si = {"NOT_PREGNANT": "ගර්භනී නොවේ", "PREGNANT": "ගර්භනීයි",
-                   "BREASTFEEDING": "කිරි දෙනවා"}
-        block("Pregnancy", "ගර්භණීභාවය",
-              [(preg_si if si else preg_en).get(preg, preg)], "LISTED")
-    life = [f"{k}: {profile[k]}" for k in ("smoking", "alcohol", "betel") if profile.get(k)]
-    if life:
-        block("Lifestyle", "ජීවන රටාව", life, "LISTED")
-    if profile.get("emergencyContactPhone"):
-        block("Emergency contact", "හදිසි සම්බන්ධතාවය",
-              [f"{profile.get('emergencyContactName', '')} "
-               f"({profile.get('emergencyContactRelationship', '')}) "
-               f"{profile['emergencyContactPhone']}".strip()],
-              "LISTED")
     return "\n".join(lines).strip()
 
 
 def show_report(state: AyuState) -> Command:
     """Show everything gathered and ask the patient to confirm or change it.
 
-    Nothing has been written to the database at this point. A health
-    profile is read by clinicians who will act on it, so the patient sees
-    exactly what will be stored, in their own language, before it is.
+    Nothing has reached the database at this point. A health profile is
+    read by clinicians who will act on it, so the patient sees exactly what
+    will be stored, in their own language, before it is.
     """
-    language = state.get("language") or "EN"
-    report = _render_report(state)
-
+    language = _lang(state)
     answer = interrupt(
         {
             "type": "ayu_report",
-            "report": report,
+            "report": _render_report(state),
             "message": (
                 "මේවා නිවැරදිද? නිවැරදි නම් තහවුරු කරන්න, නැත්නම් වෙනස් කරන්න ඕන දේ කියන්න."
                 if language == "SI"
@@ -474,48 +706,26 @@ def show_report(state: AyuState) -> Command:
             ),
         }
     )
-
     if isinstance(answer, dict) and answer.get("confirm"):
         return Command(goto="save_profile", update={"reported": True})
-
     instruction = (answer.get("edit") if isinstance(answer, dict) else str(answer)) or ""
-    return Command(goto="apply_edit", update={"reported": True, "messages": [HumanMessage(content=instruction)]})
+    return Command(
+        goto="apply_edit",
+        update={"reported": True, "messages": [HumanMessage(content=instruction)]},
+    )
 
 
 def apply_edit(state: AyuState) -> Command:
-    """Work out which section the patient wants to change, and re-ask it."""
-    language = state.get("language") or "EN"
-    instruction = ""
-    for m in reversed(state.get("messages") or []):
-        if getattr(m, "type", "") == "human":
-            instruction = str(getattr(m, "content", ""))
-            break
+    """Work out which section the patient wants changed, and re-open it."""
+    language = _lang(state)
+    instruction = _last_answer(state)
+    asked = [BY_KEY[k] for k in (state.get("plan") or []) if k in BY_KEY]
 
-    try:
-        emit_thinking("Finding that section...")
-        parsed: EditInstruction = text_llm.with_structured_output(
-            EditInstruction, method="json_schema"
-        ).invoke(
-            [
-                {
-                    "role": "system",
-                    "content": "The patient just reviewed their health profile and asked to "
-                    "change something. Which section do they mean? They may write in Sinhala.",
-                },
-                {"role": "user", "content": instruction},
-            ]
-        )
-    except Exception:  # noqa: BLE001
-        parsed = EditInstruction(section="unclear", understood=False)
-
-    section_to_index = {
-        "allergies": 0, "conditions": 1, "medications": 2, "surgeries": 3,
-        "family_history": 4, "immunisations": 5, "implants": 6,
-        "body": 7, "pregnancy": 8, "lifestyle": 9, "emergency_contact": 10,
-    }
-    idx = section_to_index.get(parsed.section)
-
-    if not parsed.understood or idx is None:
+    key = llm_io.plan_sections(
+        f"The patient reviewed their profile and said: {instruction}", asked
+    )
+    chosen = key[0] if key else None
+    if not chosen:
         msg = (
             "කුමන කොටසද වෙනස් කරන්න ඕන කියලා මට තේරුණේ නැහැ. නැවත කියන්න පුළුවන්ද?"
             if language == "SI"
@@ -523,29 +733,35 @@ def apply_edit(state: AyuState) -> Command:
         )
         return Command(goto="show_report", update={"messages": [AIMessage(content=msg)]})
 
-    # Re-ask just that one question, then return to the summary. Anything
-    # previously captured for that section is dropped first, so an edit
-    # replaces rather than appends.
-    return Command(goto="ask_question", update={"plan": [idx], "cursor": 0, **_clear_section(state, idx)})
-
-
-def _clear_section(state: AyuState, index: int) -> dict:
-    q = QUESTIONS[index]
-    target = q.get("target")
-    if target == "allergies":
-        return {"draft_allergies": []}
-    if target == "conditions":
-        return {"draft_conditions": []}
-    if target == "medications":
-        return {"draft_medications": []}
-    if target == "history":
-        kind = q["history_kind"]
-        return {"draft_history": [h for h in (state.get("draft_history") or []) if h["kind"] != kind]}
-    return {}
+    section = BY_KEY[chosen]
+    update: dict = {
+        "plan": [chosen],
+        "cursor": 0,
+        "phase": "OPEN",
+        "current_item": {},
+        "item_queue": [],
+        "chasing": [],
+        "attempted": [],
+    }
+    # An edit REPLACES that section rather than appending to it.
+    if section.target == "allergies":
+        update["draft_allergies"] = []
+    elif section.target == "conditions":
+        update["draft_conditions"] = []
+    elif section.target == "medications":
+        update["draft_medications"] = []
+    elif section.target == "history":
+        kinds = {section.history_kind}
+        if section.history_kind == "SURGERY":
+            kinds.add("HOSPITALISATION")
+        update["draft_history"] = [
+            h for h in (state.get("draft_history") or []) if h["kind"] not in kinds
+        ]
+    return Command(goto="compose", update=update)
 
 
 async def save_profile(state: AyuState) -> dict:
-    language = state.get("language") or "EN"
+    language = _lang(state)
     payload = {
         "profile": {
             **(state.get("draft_profile") or {}),
@@ -557,26 +773,22 @@ async def save_profile(state: AyuState) -> dict:
         "medications": state.get("draft_medications") or [],
         "history": state.get("draft_history") or [],
     }
-    # Only stamp completion on a full intake — a gap-check that filled two
-    # sections has not completed anything.
+    # Only a full intake completes anything — a gap-check that filled two
+    # sections has not.
     if (state.get("mode") or "INTAKE") == "INTAKE":
         from datetime import datetime, timezone
 
         payload["profile"]["profileCompletedAt"] = datetime.now(timezone.utc).isoformat()
 
     try:
-        await _save_profile(state["patient_jwt"], payload)
+        await _save(state["patient_jwt"], payload)
     except RpcError as exc:
         return {
             "messages": [
                 AIMessage(
-                    content=(
-                        f"මට එය සුරැකීමට නොහැකි විය: {exc}"
-                        if language == "SI"
-                        else f"I couldn't save that: {exc}"
-                    )
+                    content=(f"මට එය සුරැකීමට නොහැකි විය: {exc}" if language == "SI"
+                             else f"I couldn't save that: {exc}")
                 )
             ]
         }
-
     return {"saved": True, "messages": [AIMessage(content=SAVED[language])]}

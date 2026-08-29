@@ -22,6 +22,7 @@ import { useAuth } from "../src/lib/auth";
 import { rpc } from "../src/lib/api";
 import { colors, radius, spacing } from "../src/theme";
 import { Banner, Button, FilterChips, Input } from "../src/components/ui";
+import { DobPicker } from "../src/components/DobPicker";
 
 const MAX_SPECIALTIES = 5;
 
@@ -178,13 +179,7 @@ export default function Register() {
                             onChangeText={set("mobileNumber")}
                             keyboardType="phone-pad"
                         />
-                        <Input
-                            label="Date of Birth"
-                            placeholder="YYYY-MM-DD"
-                            value={form.dob}
-                            onChangeText={set("dob")}
-                            autoCorrect={false}
-                        />
+                        <DobPicker value={form.dob} onChange={set("dob")} />
                         <Text style={styles.inputLabel}>Gender</Text>
                         <FilterChips
                             value={form.gender}

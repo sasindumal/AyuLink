@@ -8,7 +8,15 @@ from langgraph.graph.state import CompiledStateGraph
 # Nodes that both persist their question into state["messages"] and send
 # it to the client as an "interrupt" event. Their message stream is
 # suppressed so the client renders the question once, from the interrupt.
-INTERRUPT_ECHO_NODES = {"ask_followup", "course_followup", "rate_doctor_node"}
+#
+# "ask" is Ayu's; the rest are the diagnosis agent's. Node names are unique
+# across both graphs, so one set serves both.
+INTERRUPT_ECHO_NODES = {
+    "ask_followup",
+    "course_followup",
+    "rate_doctor_node",
+    "ask",
+}
 
 
 def sse_event(event: str, data: dict) -> str:

@@ -11,6 +11,7 @@ import { AGENT_API_URL } from "./agentConfig";
 import { supabase } from "./supabase";
 import type { AgentEvent } from "./agentChat";
 import {
+    completeness,
     getMyHealthProfile,
     missingCount,
     saveMyHealthProfile,
@@ -128,6 +129,7 @@ export async function ayuStatus(): Promise<AyuStatus> {
 
 export function statusFrom(profile: HealthProfile): AyuStatus {
     const c = profile.profile ?? {};
+    const { total } = completeness(profile);
     const missing = missingCount(profile);
     const enabled = c.ayu_enabled !== false;
     const everCompleted = !!c.profile_completed_at;
@@ -149,13 +151,23 @@ export function statusFrom(profile: HealthProfile): AyuStatus {
         language: (c.preferred_language as AyuStatus["language"]) ?? "EN",
         everCompleted,
         missingCount: missing,
-        totalQuestions: 10,
+        // Derived, not fixed: the interview is planned per patient, and the
+        // female-only sections are not part of anyone else's total.
+        totalQuestions: total,
         dueForCheckin: due,
     };
 }
 
 export async function ayuSetEnabled(enabled: boolean): Promise<void> {
     await saveMyHealthProfile({ profile: { ayuEnabled: enabled } });
+}
+
+/** Change the language Ayu speaks. Persisted to
+ *  PatientProfile.preferred_language; an interview already in progress
+ *  keeps its language (it is fixed on that thread), so the change lands
+ *  the next time Ayu opens — a fresh intake or the monthly check-in. */
+export async function ayuSetLanguage(language: "EN" | "SI"): Promise<void> {
+    await saveMyHealthProfile({ profile: { preferredLanguage: language } });
 }
 
 /** Records that the patient was nudged, so the next check-in is a month

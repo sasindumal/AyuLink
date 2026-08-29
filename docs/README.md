@@ -186,7 +186,7 @@ separate authorization layer to keep in sync.
 
 | Table | Purpose |
 |---|---|
-| `User` | Every account, one row regardless of role (`PATIENT`/`DOCTOR`/`PHARMACIST`/`CHANNELING_CENTER`). Holds the Medical ID (`AYU-<NIC>`), `verified` flag (self-registered non-patients start unverified). |
+| `User` | Every account, one row regardless of role (`PATIENT`/`DOCTOR`/`PHARMACIST`/`CHANNELING_CENTER`). Holds the Medical ID (`AYU-<NIC>`), `verified` flag (self-registered non-patients start unverified), and `gender` (`MALE`/`FEMALE`, collected for patients and doctors — gates the pregnancy question and section). |
 | `DoctorProfile` | 1:1 with a doctor `User` — SLMC registration number, legacy free-text specialty, rating. |
 | `PharmacyProfile` | 1:1 with a pharmacist `User` — pharmacy name, license number, location (`point`). |
 | `ChannelingCenter` | 1:1 with a channeling-center `User` — name, address, contact number, location (`point`). |
@@ -348,9 +348,10 @@ event vocabulary, and the LLM-provider abstraction: **[`AGENTIC_SYSTEM.md`](AGEN
 
 A **second** LangGraph agent (`backend/src/agent_workflow/ayu/`), separate
 from the diagnosis one and reached on its own `/ayu/*` endpoints. It runs
-a fixed 10-question interview to fill the patient's health profile, picks
-English or Sinhala up front, and re-checks monthly for anything still
-unanswered.
+an interview it plans per patient — it reads what the health profile
+already holds, decides what to ask, and writes each question itself —
+picks English or Sinhala up front, and re-checks monthly for anything
+still unanswered.
 
 Kept as its own graph rather than another branch of the diagnosis agent
 because the two have nothing in common but the patient: one classifies
@@ -378,7 +379,7 @@ Two decisions carry the design:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /ayu/chat` | Open Ayu. `mode` is `INTAKE` (all 10 questions) or `CHECKIN` (only the ones still `UNKNOWN`). Ayu speaks first. |
+| `POST /ayu/chat` | Open Ayu. `mode` is `INTAKE` (every section that applies) or `CHECKIN` (only the ones still `UNKNOWN`). Ayu speaks first. |
 | `POST /ayu/resume` | Answer a language pick, a question, or the final confirm/edit. |
 | `GET /ayu/history` | Rehydrate an interview in progress. |
 | `GET /ayu/status` | Whether Ayu is on, the chosen language, how many gaps remain, and whether a monthly check-in is due. |

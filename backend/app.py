@@ -20,7 +20,7 @@ from src.api.checkpointer import close_checkpointer, init_checkpointer
 from src.agent_workflow.retrevel.agent import build_graph_builder
 from src.agent_workflow.ayu.graph import build_ayu_builder
 from src.agent_workflow.retrevel.care_events import build_event_messages, new_events
-from src.agent_workflow.ayu.questions import QUESTIONS, pending_indexes
+from src.agent_workflow.ayu.schema import SECTIONS, applicable, pending_sections
 from src.agent_workflow.retrevel.tools.postgres_tools import (
     _call as _call_rpc,
     RpcError,
@@ -352,7 +352,8 @@ async def ayu_status(auth=Depends(get_patient_auth)):
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     profile = (data or {}).get("profile") or {}
-    missing = pending_indexes(profile)
+    gender = (data or {}).get("gender") or ""
+    missing = pending_sections(profile, gender)
     enabled = profile.get("ayu_enabled")
     last = profile.get("ayu_last_prompted_at")
     completed = profile.get("profile_completed_at")
@@ -378,7 +379,9 @@ async def ayu_status(auth=Depends(get_patient_auth)):
         "language": profile.get("preferred_language") or "EN",
         "everCompleted": bool(completed),
         "missingCount": len(missing),
-        "totalQuestions": len(QUESTIONS),
+        # Sections that apply to THIS patient — the female-only ones are
+        # not part of anyone else's total.
+        "totalQuestions": len([s for s in SECTIONS if applicable(s, gender)]),
         "dueForCheckin": due,
     }
 

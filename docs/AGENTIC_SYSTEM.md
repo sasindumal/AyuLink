@@ -12,7 +12,7 @@ does outside these agents see [`FEATURES.md`](FEATURES.md).
 |---|---|---|
 | Surface | Patient app → Diagnosis tab | Patient app → floating bubble |
 | Job | Symptom triage → doctor search → booking → post-care follow-up | Fills the patient's health profile |
-| Shape | 22 nodes, 4 branches, LLM intent routing | 5 nodes, a fixed 10-question interview |
+| Shape | 22 nodes, 4 branches, LLM intent routing | 7 nodes; an interview planned per patient from what their profile is missing |
 | Endpoints | `/chat`, `/chat/resume`, `/chat/pdf`, `/chat/image`, `/chat/followup`, `/chat/sync`, `/chat/history` | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
 | Package | `src/agent_workflow/retrevel/` | `src/agent_workflow/ayu/` |
 
@@ -708,13 +708,17 @@ run `python3 seed_neo4j.py --reset-embeddings` to drop
 everything at the new provider's vector size.
 
 ---
-
 ## 13. Ayu — the health-profile assistant
 
 A second graph (`src/agent_workflow/ayu/`), reached on its own `/ayu/*`
 endpoints. It fills the patient's health profile by conversation — the
-Tier 1/2/3 background a doctor reads the moment they scan a Medical ID —
-in English or Sinhala, and re-checks monthly for anything still blank.
+background a doctor reads the moment they scan a Medical ID — in English
+or Sinhala, and re-checks monthly for anything still blank.
+
+It is **not** a fixed questionnaire. Every run begins by reading what is
+already on file; the LLM decides what to ask and in what order, writes
+each question itself, and a section is not finished until every attribute
+that makes the entry usable has been given or explicitly declined.
 
 ### 13.1 Graph topology
 
@@ -723,131 +727,171 @@ flowchart TB
     START([START]) --> ST[start]
     ST -->|"language unknown"| LANG{{"interrupt:<br/>ayu_language"}}
     LANG --> ST
-    ST -->|"CHECKIN, nothing missing"| E1([END])
-    ST -->|"Command"| AQ[ask_question]
-    AQ --> QI{{"interrupt:<br/>ayu_question"}}
-    QI --> AQ
-    AQ -->|"more in the plan, Command"| AQ
-    AQ -->|"plan exhausted, Command"| SR[show_report]
+    ST -->|"nothing missing"| E1([END])
+    ST -->|"plan, Command"| CO[compose]
+    CO -->|"Command"| AK[ask]
+    AK --> QI{{"interrupt:<br/>ayu_question"}}
+    QI --> AK
+    AK -->|"Command"| IN[ingest]
+    IN -->|"required attrs missing"| CO
+    IN -->|"item done, any more?"| CO
+    IN -->|"next section"| CO
+    IN -->|"plan exhausted"| SR[show_report]
     SR --> RI{{"interrupt:<br/>ayu_report"}}
     RI --> SR
     SR -->|"confirm, Command"| SP[save_profile]
     SR -->|"change something, Command"| AE[apply_edit]
-    AE -->|"section identified, Command"| AQ
+    AE -->|"section identified, Command"| CO
     AE -->|"unclear, Command"| SR
     SP --> E2([END])
 ```
 
-Five nodes. Only `start`, `ask_question` and `show_report` interrupt;
-everything else routes with `Command(goto=…)`. The interview is a cursor
-walking one list, so "what comes next" is a value in state, not a shape
-in the graph — which is why a monthly gap-check reuses the same nodes
-with a shorter `plan`.
+Seven nodes, of which the loop is three: **compose → ask → ingest**.
 
-### 13.2 The two distinctions that carry the design
+That split exists for one structural reason. A LangGraph node re-runs from
+the top on every resume, so a node that calls `interrupt()` must do
+nothing non-deterministic before it. `compose` makes the LLM call that
+writes the question; `ask` only *reads* `pending_question` and interrupts;
+`ingest` reads the answer back. Composing inside the asking node would
+re-roll the wording on resume — showing the patient one question and
+recording another.
 
-**UNKNOWN is not NONE.** Every list question resolves to one of three
-outcomes, and they are stored differently:
+### 13.2 The four rules that carry the design
 
-| The patient said | `knows` | `has_any` | Stored |
-|---|---|---|---|
-| "Penicillin, I get a rash" | true | true | `LISTED` + the entries |
-| "No, none" | true | false | `NONE` |
-| "I don't remember" | **false** | — | `UNKNOWN` |
+**UNKNOWN is not NONE.** Every list section stores a `*_status` of
+UNKNOWN / NONE / LISTED:
+
+| The patient said | Stored |
+|---|---|
+| "Penicillin, I get a rash" | `LISTED` + the entry |
+| "No, none" | `NONE` |
+| "I don't remember" | `UNKNOWN` |
 
 "No known drug allergies" is a clinical statement; "nobody asked" is the
-absence of one. A doctor reading an empty allergy list must be able to
-tell which they are looking at — and Ayu must know which sections are
-genuinely finished so it never re-asks one the patient already answered.
+absence of one, and a doctor reading an empty list must be able to tell
+which they are looking at. That boolean is **not left to the LLM alone** —
+`guards.said_dont_know` / `said_no` overrule it, because the same Sinhala
+sentence was observed parsing both ways on consecutive calls. Order
+matters: don't-know is checked first, since "I don't remember" contains a
+negation too.
 
-That boolean is **not left to the LLM alone**. Asked for `knows` on a
-negation-heavy sentence, the model was observed returning both answers on
-consecutive calls for the same Sinhala input. `_decide()` in `nodes.py`
-overrules it with a deterministic keyword pass — the same second-guessing
-`manager_agent` applies to its own `booking` route, for the same reason:
-the mistake is asymmetric, and recording "I have none" that nobody said
-puts a false clinical claim on the record. Order matters inside it —
-"I don't remember" contains a negation too, so the don't-know check runs
-first, and extracted items beat any keyword.
+**An entry is not usable until it is complete.** Each attribute in
+`schema.py` is marked `required` or not, and a required one that is still
+empty produces a follow-up asking *only* for what is missing — by name.
+"Diabetes" with no relative, a vaccination with no year, or an emergency
+contact that is a name and nothing else are all half-entries that look
+complete. Each attribute is chased **once**: enough to catch "I forgot to
+say", bounded so a patient who genuinely doesn't know is not asked
+forever.
 
-**Talk in Sinhala, store in English.** Doctors, the drug catalogue and
-the Neo4j graph are English-only; a profile half-filled with Sinhala free
-text is unreadable to the clinician it exists for. Every extraction
-prompt says so — and because "always answer in English" holds most of the
-time and then quietly doesn't, `_is_latin()` checks every field on the
-way out and `_to_latin()` re-translates the ones that came back in
-Sinhala script. Medical terms are translated (`මෙට්ෆෝමින්` → `Metformin`);
-personal and place names are transliterated (`නිමාල් ජයවර්ධන` →
-`Nimal Jayawardena`), never translated.
+**A guess is not an answer.** The extractor will fill a required field
+from the *question* rather than the answer if allowed to: asked "any
+conditions that run in your family?", "yes diabetes" came back as
+`relationship="Parent"` — and because a filled required field is what
+stops Ayu asking, that guess silently suppressed the "which relative?"
+follow-up. `guards.relationship_was_said` keeps a relative only if the
+patient actually named one. Inference is welcome elsewhere (prawns really
+are a `FOOD`); here it is exactly wrong, because *who* has it is the
+entire content of the answer.
 
-### 13.3 State (`AyuState`)
+**Talk in Sinhala, store in English.** Doctors, the drug catalogue and the
+Neo4j graph are English-only. Every extraction prompt says so — and
+because "always answer in English" holds most of the time and then quietly
+doesn't, `guards.is_latin` checks every value on the way out and
+`to_latin` re-translates the ones that came back in Sinhala script.
+Medical terms are translated (`මෙට්ෆෝමින්` → `Metformin`); personal and
+place names are transliterated, never translated. Verified end to end: a
+wholly Sinhala conversation stores `Metformin / 500mg / Twice a day`.
 
-- **`language`** / **`language_asked`** — `EN` or `SI`, settled before
-  anything else because every later string depends on it. Persisted to
-  `PatientProfile.preferred_language`, which is **nullable**: `NULL`
-  means never asked. It used to default to `'EN'`, which made "never
-  asked" indistinguishable from "chose English" — so the picker never
-  appeared for anyone whose profile row existed.
-- **`plan`** / **`cursor`** — the question indexes still to ask, and how
-  far through them. A full intake is every question; a `CHECKIN` is only
-  the ones `pending_indexes()` reports as still `UNKNOWN`.
-- **`draft_profile`** / **`draft_allergies`** / **`draft_conditions`** /
-  **`draft_medications`** / **`draft_history`** — answers accumulate in
-  the exact shape `app_save_my_health_profile` takes. **Nothing reaches
-  the database until the patient confirms the report.**
-- **`mode`** — `INTAKE` or `CHECKIN`. Only an `INTAKE` stamps
-  `profile_completed_at`; a gap-check that filled two sections has not
-  completed anything.
+### 13.3 The section schema
 
-### 13.4 The questions
+`schema.py` is the single source of truth. The planner reads it to see
+what is empty, the extractor builds its Pydantic model from it, the
+composer is told which attributes it is chasing, and the save step maps
+items back onto `app_save_my_health_profile`.
 
-Ten, in `questions.py`, hand-written in **both** languages rather than
-translated at runtime. Two reasons: a fixed script is predictable (the
-same patient gets the same wording every month, so "you already asked me
-this" is never a surprise), and it removes an LLM call per question — the
-model is used only for the part that needs judgement, which is reading
-the answer.
-
-| # | Section | Fills |
+| Section | Shape | Required attributes |
 |---|---|---|
-| 1 | Allergies | `PatientAllergy` + `allergies_status` |
-| 2 | Long-term conditions | `PatientCondition` + `conditions_status` |
-| 3 | Regular medicines | `PatientMedication` + `medications_status` |
-| 4 | Surgeries & hospital stays | `PatientHistoryEvent(SURGERY)` |
-| 5 | Family history | `PatientHistoryEvent(FAMILY_HISTORY)` |
-| 6 | Vaccinations | `PatientHistoryEvent(IMMUNISATION)` |
-| 7 | Implants & devices | `PatientHistoryEvent(IMPLANT)` |
-| 8 | Blood group, height, weight | `PatientProfile` scalars |
-| 9 | Smoking / alcohol / **betel** | `PatientProfile` scalars |
-| 10 | Emergency contact | `PatientProfile` scalars |
+| Allergies | LIST | allergen, kind (DRUG/FOOD/ENVIRONMENTAL/OTHER) |
+| Long-term conditions | LIST | condition |
+| Regular medicines | LIST | drugName, dosage, frequency |
+| Surgeries & hospital stays | LIST | label, admitted *(decides SURGERY vs HOSPITALISATION)* |
+| Family history | LIST | label, relationship |
+| Vaccinations | LIST | label, year |
+| Implants & devices | LIST | label |
+| Body & blood | SCALAR | — |
+| Pregnancy *(female only)* | SCALAR | pregnancyStatus |
+| Lifestyle | SCALAR | smoking, alcohol, betel |
+| Emergency contact | SCALAR | name, relationship, phone |
 
-Betel is asked explicitly rather than folded into an "other habits" box:
-it is a leading oral-cancer risk factor in Sri Lanka and a doctor here
-will ask. Its prompt also spells out that the three habits are
-independent — a "no" about smoking was otherwise carried over to alcohol
-in the same sentence.
+Eleven sections; ten for a patient who is not female. Two notes worth
+keeping: betel is asked explicitly because it is a leading oral-cancer
+risk factor in Sri Lanka, and the three lifestyle habits are independent —
+a "no" about smoking must not carry over to alcohol in the same sentence.
+Family history carries **no year**: nobody reliably knows when a parent's
+diabetes started, and `since` is a `date` column that cannot hold
+year-only precision (`'2015'::date` is a hard error, and `2015-01-01`
+would show a doctor "since 1 January" that nobody said).
 
-### 13.5 Extraction
+### 13.4 The three LLM roles
 
-One Pydantic shape for every list question (`ExtractedItem`) rather than
-one per section: allergies, conditions, medicines, surgeries and family
-history all reduce to "a labelled thing with optional detail", so a
-single well-tested prompt serves all five. Which field means what is
-supplied per question via `item_hint`. Scalar questions use
-`ScalarAnswer`, where a field the patient didn't mention is left unset
-rather than guessed.
+**PLAN** (`llm_io.plan_sections`) — given a summary of what is on file and
+the sections still unanswered, return them ordered by clinical importance.
+There is a deterministic floor under it: anything genuinely empty that the
+planner leaves out is appended anyway. The model chooses an *order* and
+can pull in something that looks wrong; it cannot silently drop a gap.
 
-An extraction failure falls back to `knows=False` — never to "the patient
-has none", which would be a clinical claim nobody made.
+**COMPOSE** (`llm_io.compose_question`) — write the next question, in the
+patient's language, for one of three phases: `OPEN` (do you have any?),
+`DETAIL` (chase these named attributes), `MORE` (anything else?). It is
+told what is already collected and instructed never to re-ask it.
+
+**EXTRACT** (`llm_io.extract_list_opening` / `extract_attrs`) — read the
+answer into that section's attributes. The models are built **per section**
+with `create_model`, so a section's model contains only its own fields. A
+single shared shape let the LLM fill a field belonging to another question
+— an implant came back carrying a severity, a frequency and a family
+relationship — and every consumer then had to remember to ignore what it
+had not asked for. A model that lacks the field cannot make that mistake.
+
+Every one of the three degrades to something usable when the call fails: a
+composed question falls back to a templated one, extraction falls back to
+"nothing was understood", and an extraction failure is recorded as
+UNKNOWN — never as "the patient has none", which would be a clinical claim
+nobody made. Ayu going quiet mid-interview is worse than Ayu asking a
+plainer question.
+
+### 13.5 The "anything else?" loop
+
+After each completed item a LIST section asks whether there is another.
+An answer that already names it — "yes, also prawns" — is read straight
+away rather than making the patient repeat themselves.
+
+Negation is checked **before** affirmation here, and that ordering is
+load-bearing: Sinhala `නෑ, තව නෑ` means "no, no more" but contains `තව`
+("more"), so an affirmation-first read turned a refusal into another round
+of questions.
+
+An item that reaches commit without its primary attribute — a medication
+with no drug name — is **dropped, not stored**: `drug_name` is NOT NULL, so
+it would be discarded at save time anyway, after the patient had been told
+it was written down. If a section ends with the patient having said "yes"
+but nothing usable captured, its status is reconciled back to UNKNOWN
+rather than left as LISTED-with-nothing-under-it.
 
 ### 13.6 Report, edit, save
 
 `show_report` renders everything gathered in the patient's own language,
-with English values inside it, and interrupts. Confirming saves; asking
-for a change routes to `apply_edit`, which classifies which section is
-meant, clears just that section's drafts, and re-asks that one question
-before returning to the summary. An unclear request re-asks rather than
-guessing.
+with the English values inside it, and interrupts. Nothing has reached the
+database at this point — a health profile is read by clinicians who will
+act on it, so the patient sees exactly what will be stored before it is.
+Confirming saves; asking for a change routes to `apply_edit`, which
+identifies the section, clears just that section's drafts and re-opens it.
+
+Values are rendered as labels, not internals: `Blood group: O+`,
+`Height: 175 cm`, `Smoking: Never` — the drafts carry the payload's own
+field names and the database's enum values, and both used to be printed
+raw at the patient.
 
 ### 13.7 Interrupt vocabulary
 
@@ -858,18 +902,23 @@ guessing.
 | `ayu_report` | The rendered summary + Confirm / Change | `{confirm: true}` or `{edit: "..."}` |
 
 "I don't know" is a first-class button, not something to type. It records
-`UNKNOWN` rather than a false `NONE`, and making it the easy path is what
+UNKNOWN rather than a false NONE, and making it the easy path is what
 stops people guessing.
+
+`ask` is listed in `INTERRUPT_ECHO_NODES` (`src/api/sse.py`): it both
+persists its question into `messages` and delivers it as an interrupt, so
+its message stream is suppressed. Without that the client renders every
+question twice — once from the interrupt, once from the resumed stream.
 
 ### 13.8 On/off, and the monthly check
 
 `PatientProfile.ayu_enabled`, `ayu_last_prompted_at` and
 `profile_completed_at` drive whether the bubble shows and whether a
-check-in is due (a month since the last nudge **and** something genuinely
-missing — a complete profile is never nagged).
+check-in is due. `dueForCheckin` is a month since the last nudge **and**
+something genuinely still missing, so a complete profile is never nagged.
 
-The client reads and writes all of that **through Supabase**, not through
-`/ayu/status`. Both compute the same answer, but routing it through the
+The patient app reads that state **from Supabase, not from `/ayu/status`**,
+even though the endpoint computes the same thing. Routing it through the
 agent made the controls depend on that service being awake: a sleeping
 free-tier backend returned an error, and both the bubble *and* the
 off-switch disappeared — leaving anyone who had turned Ayu off with no

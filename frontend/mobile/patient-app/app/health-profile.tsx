@@ -31,6 +31,7 @@ import {
     ALLERGY_KINDS,
     BLOOD_GROUPS,
     HISTORY_KIND_LABEL,
+    HISTORY_KIND_PLACEHOLDER,
     SEVERITIES,
     completeness,
     getMyHealthProfile,
@@ -117,9 +118,6 @@ export default function HealthProfileScreen() {
     const [newAllergy, setNewAllergy] = useState<Allergy>({ allergen: "", kind: "DRUG", severity: "UNKNOWN" });
     const [newCondition, setNewCondition] = useState("");
     const [newMed, setNewMed] = useState<Medication>({ drugName: "", dosage: "", frequency: "" });
-    const [newHistory, setNewHistory] = useState<{ kind: HistoryKind; label: string; year: string; relationship: string }>(
-        { kind: "SURGERY", label: "", year: "", relationship: "" }
-    );
 
     const load = useCallback(async () => {
         try {
@@ -363,8 +361,8 @@ export default function HealthProfileScreen() {
                                 detail={[HISTORY_KIND_LABEL[h.kind], h.occurredYear ?? h.occurred_year].filter(Boolean).join(" · ")}
                                 onRemove={() => setHistory((l) => l.filter((x) => x !== h))} />
                         ))}
-                        <AddHistory kinds={["SURGERY", "HOSPITALISATION"]} draft={newHistory}
-                            setDraft={setNewHistory} onAdd={(h) => setHistory((l) => [...l, h])} />
+                        <AddHistory kinds={["SURGERY", "HOSPITALISATION"]}
+                            onAdd={(h) => setHistory((l) => [...l, h])} />
                     </SectionShell>
 
                     <SectionShell icon="people" title="Family history"
@@ -374,8 +372,10 @@ export default function HealthProfileScreen() {
                             <EntryRow key={`${h.label}-${i}`} title={h.label} detail={h.relationship ?? undefined}
                                 onRemove={() => setHistory((l) => l.filter((x) => x !== h))} />
                         ))}
-                        <AddHistory kinds={["FAMILY_HISTORY"]} draft={newHistory} setDraft={setNewHistory}
-                            withRelationship onAdd={(h) => setHistory((l) => [...l, h])} />
+                        {/* No year: nobody reliably knows when a parent's
+                            diabetes started, and a doctor reads *who*, not when. */}
+                        <AddHistory kinds={["FAMILY_HISTORY"]} withRelationship withYear={false}
+                            onAdd={(h) => setHistory((l) => [...l, h])} />
                     </SectionShell>
 
                     <SectionShell icon="shield-checkmark" title="Vaccinations"
@@ -385,7 +385,7 @@ export default function HealthProfileScreen() {
                                 detail={String(h.occurredYear ?? h.occurred_year ?? "")}
                                 onRemove={() => setHistory((l) => l.filter((x) => x !== h))} />
                         ))}
-                        <AddHistory kinds={["IMMUNISATION"]} draft={newHistory} setDraft={setNewHistory}
+                        <AddHistory kinds={["IMMUNISATION"]}
                             onAdd={(h) => setHistory((l) => [...l, h])} />
                     </SectionShell>
 
@@ -396,7 +396,7 @@ export default function HealthProfileScreen() {
                             <EntryRow key={`${h.label}-${i}`} title={h.label}
                                 onRemove={() => setHistory((l) => l.filter((x) => x !== h))} />
                         ))}
-                        <AddHistory kinds={["IMPLANT"]} draft={newHistory} setDraft={setNewHistory}
+                        <AddHistory kinds={["IMPLANT"]} withYear={false}
                             onAdd={(h) => setHistory((l) => [...l, h])} />
                     </SectionShell>
 
@@ -451,38 +451,46 @@ export default function HealthProfileScreen() {
 }
 
 function AddHistory({
-    kinds, draft, setDraft, withRelationship = false, onAdd,
+    kinds, withRelationship = false, withYear = true, onAdd,
 }: {
     kinds: HistoryKind[];
-    draft: { kind: HistoryKind; label: string; year: string; relationship: string };
-    setDraft: (d: { kind: HistoryKind; label: string; year: string; relationship: string }) => void;
+    /** Family history: which relative it belongs to. */
     withRelationship?: boolean;
+    withYear?: boolean;
     onAdd: (h: HistoryEvent) => void;
 }) {
     const [local, setLocal] = useState({ label: "", year: "", relationship: "" });
+    // "Diabetes" with no relative attached is not a family history a doctor
+    // can use — the same reason Ayu asks "who has it?" before recording one.
+    const ready = !!local.label.trim() && (!withRelationship || !!local.relationship.trim());
     return (
         <>
-            <Input label={HISTORY_KIND_LABEL[kinds[0]]} placeholder="e.g. Appendectomy"
+            <Input label={HISTORY_KIND_LABEL[kinds[0]]}
+                placeholder={HISTORY_KIND_PLACEHOLDER[kinds[0]]}
                 value={local.label} onChangeText={(v) => setLocal((l) => ({ ...l, label: v }))} />
-            <View style={{ flexDirection: "row", gap: 10 }}>
-                {withRelationship && (
-                    <View style={{ flex: 1 }}>
-                        <Input label="Who" placeholder="Mother" value={local.relationship}
-                            onChangeText={(v) => setLocal((l) => ({ ...l, relationship: v }))} />
-                    </View>
-                )}
-                <View style={{ flex: 1 }}>
-                    <Input label="Year" placeholder="2015" keyboardType="numeric" value={local.year}
-                        onChangeText={(v) => setLocal((l) => ({ ...l, year: v }))} />
+            {(withRelationship || withYear) && (
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                    {withRelationship && (
+                        <View style={{ flex: 1 }}>
+                            <Input label="Who" placeholder="Mother" value={local.relationship}
+                                onChangeText={(v) => setLocal((l) => ({ ...l, relationship: v }))} />
+                        </View>
+                    )}
+                    {withYear && (
+                        <View style={{ flex: 1 }}>
+                            <Input label="Year" placeholder="2015" keyboardType="numeric" value={local.year}
+                                onChangeText={(v) => setLocal((l) => ({ ...l, year: v }))} />
+                        </View>
+                    )}
                 </View>
-            </View>
-            <Button title="Add" variant="secondary" icon="add" disabled={!local.label.trim()}
+            )}
+            <Button title="Add" variant="secondary" icon="add" disabled={!ready}
                 onPress={() => {
                     onAdd({
                         kind: kinds[0],
                         label: local.label.trim(),
-                        occurredYear: local.year ? Number(local.year) : null,
-                        relationship: local.relationship || null,
+                        occurredYear: withYear && local.year ? Number(local.year) : null,
+                        relationship: local.relationship.trim() || null,
                     });
                     setLocal({ label: "", year: "", relationship: "" });
                 }} />
