@@ -11,7 +11,7 @@
 #   eas update:configure                # confirms app.json updates.url (already set)
 #
 # After this runs, refresh the hub's QR codes:
-#   node scripts/gen-demo-qr.js --eas
+#   node scripts/gen-demo-qr.js
 set -euo pipefail
 
 MSG="${1:-demo $(date -u +%Y-%m-%dT%H:%MZ)}"
@@ -40,4 +40,4 @@ node -e '
     console.log(`  ${a.role.padEnd(18)} exp://u.expo.dev/${a.easProjectId}?channel-name='"$BRANCH"'`);
 '
 echo ""
-echo "Now: node scripts/gen-demo-qr.js --eas   &&   redeploy ayulink-web"
+echo "Now: node scripts/gen-demo-qr.js   &&   redeploy ayulink-web"
