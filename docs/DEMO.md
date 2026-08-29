@@ -15,7 +15,7 @@ scripts/
 ├── gen-demo-qr.js          regenerate qr/*.png from config.json
 ├── publish-demo-updates.sh publish all four as EAS Updates (the always-on path)
 └── demo-tunnel.js          live `expo start --tunnel` for a demo you're running now
-render.yaml                  Blueprint: ayulink-api (FastAPI) + ayulink-web (static + hub)
+render.yaml                  Blueprint: ayulink (FastAPI) + ayulink-web (static + hub)
 ```
 
 ---
@@ -27,20 +27,20 @@ Push the repo, then in Render: **New + → Blueprint → this repo**. It reads
 
 | Service | What | URL |
 |---|---|---|
-| `ayulink-api` | FastAPI + the two LangGraph agents | `https://ayulink-api.onrender.com` |
+| `ayulink` | FastAPI + the two LangGraph agents | `https://ayulink.onrender.com` |
 | `ayulink-web` | marketing site **+ `/demo/` hub** | `https://ayulink-web.onrender.com` |
 
 Create an env group **`ayulink-secrets`** (dashboard → Environment → Environment
-Groups) and attach it to `ayulink-api` — the keys are listed at the bottom of
+Groups) and attach it to `ayulink` — the keys are listed at the bottom of
 `render.yaml` (Supabase URL + keys, `AGENTS_CHECKPOINT_DATABASE_URL`, the LLM
 provider, Neo4j). `healthCheckPath` is `/health`.
 
 The four **mobile apps are not hosted on Render** — a phone can't run a Render
-process. They talk to `ayulink-api` over its public URL, so they must be
+process. They talk to `ayulink` over its public URL, so they must be
 built / served with:
 
 ```
-EXPO_PUBLIC_AGENT_API_URL=https://ayulink-api.onrender.com
+EXPO_PUBLIC_AGENT_API_URL=https://ayulink.onrender.com
 EXPO_PUBLIC_SUPABASE_URL=…
 EXPO_PUBLIC_SUPABASE_ANON_KEY=…
 ```
