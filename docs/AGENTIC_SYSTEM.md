@@ -833,6 +833,22 @@ diabetes started, and `since` is a `date` column that cannot hold
 year-only precision (`'2015'::date` is a hard error, and `2015-01-01`
 would show a doctor "since 1 January" that nobody said).
 
+### 13.4a What gets asked
+
+Both `INTAKE` and `CHECKIN` ask **only about what the profile is still
+missing** — a patient can fill part of it on the profile screen before
+ever opening Ayu, and an intake that then re-asked every section from the
+top ("it begins with first") was the complaint that drove this. A section
+is "missing" when: a LIST section's status is `UNKNOWN` (NONE counts as
+answered), a SCALAR section with required attributes has any of them
+unset (setting only *smoking* no longer marks the whole lifestyle section
+done), or the optional-only *body* section is completely blank. A
+partly-filled SCALAR section is re-opened for **just its gap** — Ayu is
+told the name it already has and asks only for the phone number.
+
+`INTAKE` differs from `CHECKIN` only in the greeting and in stamping
+`profile_completed_at` when it ends.
+
 ### 13.4 The three LLM roles
 
 **PLAN** (`llm_io.plan_sections`) — given a summary of what is on file and

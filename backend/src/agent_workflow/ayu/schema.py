@@ -310,23 +310,37 @@ def applicable(section: Section, gender: str) -> bool:
     return not section.female_only or (gender or "").upper() == "FEMALE"
 
 
-def is_empty(section: Section, profile: dict) -> bool:
-    """Has this section genuinely never been answered?
+def _has_value(profile: dict, field: str, answered_values: tuple[str, ...] = ()) -> bool:
+    v = profile.get(COLUMN_OF.get(field, field))
+    if answered_values:
+        return v in answered_values
+    return v not in (None, "", "UNKNOWN", "NOT_APPLICABLE")
 
-    NONE counts as answered — a patient who said "no allergies" has
-    answered, and re-asking every month would make Ayu feel like it never
-    listens.
+
+def is_empty(section: Section, profile: dict) -> bool:
+    """Is this section still worth asking about?
+
+    "Empty" is not "untouched" — it is "a doctor still can't rely on it".
+
+      * LIST  — UNKNOWN status. NONE counts as answered ("no allergies"
+        is a real statement), so re-asking would feel like Ayu never
+        listens.
+      * SCALAR with required attributes — any REQUIRED one still missing.
+        Setting only "smoking" on the profile screen used to mark the whole
+        lifestyle section done, so Ayu never asked about alcohol or betel.
+      * SCALAR with no required attributes (just "body") — only empty when
+        nothing at all is filled, so an optional height nobody knows is not
+        nagged every month.
     """
     if section.shape == "LIST":
         return (profile.get(section.status_key) or "UNKNOWN") == "UNKNOWN"
-    for f in section.profile_fields:
-        v = profile.get(COLUMN_OF.get(f, f))
-        if section.answered_values:
-            if v in section.answered_values:
-                return False
-        elif v not in (None, "", "UNKNOWN"):
-            return False
-    return True
+
+    required = [a.name for a in section.attrs if a.required]
+    if required:
+        return any(
+            not _has_value(profile, name, section.answered_values) for name in required
+        )
+    return not any(_has_value(profile, f) for f in section.profile_fields)
 
 
 def pending_sections(profile: dict, gender: str = "") -> list[str]:

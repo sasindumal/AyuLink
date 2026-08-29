@@ -379,7 +379,7 @@ Two decisions carry the design:
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /ayu/chat` | Open Ayu. `mode` is `INTAKE` (every section that applies) or `CHECKIN` (only the ones still `UNKNOWN`). Ayu speaks first. |
+| `POST /ayu/chat` | Open Ayu. Both `mode`s ask only about sections the profile is still missing (the patient may have filled part of it on the profile screen); `INTAKE` differs only in its greeting and in stamping `profile_completed_at` when it finishes. Ayu speaks first. |
 | `POST /ayu/resume` | Answer a language pick, a question, or the final confirm/edit. |
 | `GET /ayu/history` | Rehydrate an interview in progress. |
 | `GET /ayu/status` | Whether Ayu is on, the chosen language, how many gaps remain, and whether a monthly check-in is due. |

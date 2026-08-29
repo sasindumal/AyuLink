@@ -6,6 +6,7 @@ decides which stage comes next based on the location_asked /
 availability_annotated flags.
 """
 
+import asyncio
 from datetime import date, timedelta
 from typing import Literal
 
@@ -186,6 +187,14 @@ LOOKAHEAD_DAYS = 21
 # offer. A patient who asked for "Kandy, next Tuesday" and gets one card is
 # worse off than one who gets that card plus four honest near-misses.
 MIN_RESULTS = 5
+# Availability is one Supabase round trip PER doctor, and a bare specialty
+# with no city ("find me a GP") can pool hundreds. Fetching all of them
+# serially is what turned "evening, Tuesday" into a 30-second hang that
+# the SSE proxy eventually killed. Only the top slice by rating gets an
+# availability lookup, and those run concurrently — the pool is ranked by
+# the patient's date/time preference afterwards, on this bounded subset.
+AVAIL_FETCH_CAP = 18
+AVAIL_CALL_TIMEOUT_S = 8
 
 TIME_BANDS: dict[str, tuple[int, int]] = {
     "morning": (0, 12),
@@ -373,22 +382,41 @@ async def ask_location_time(state: GraphState) -> dict:
     }
 
 
+async def _availability_or_empty(jwt: str, doctor_id: str) -> list[dict]:
+    """One doctor's blocks, but never let a single slow RPC stall the batch."""
+    try:
+        return await asyncio.wait_for(
+            get_doctor_availability(jwt, doctor_id, lookahead_days=LOOKAHEAD_DAYS),
+            timeout=AVAIL_CALL_TIMEOUT_S,
+        )
+    except (asyncio.TimeoutError, RpcError):
+        return []
+
+
 async def availability_check(state: GraphState) -> dict:
-    """Attach every bookable block each pooled doctor holds, and pick the
-    one that best matches the patient's date/time preference as the card's
-    headline. Doctors with no availability at all are dropped — a card the
-    patient can't act on is noise."""
+    """Attach every bookable block each shortlisted doctor holds, and pick
+    the one that best matches the patient's date/time preference as the
+    card's headline. Doctors with no availability at all are dropped — a
+    card the patient can't act on is noise.
+
+    Only the top AVAIL_FETCH_CAP doctors by rating get an availability
+    lookup, and the lookups run concurrently: the pool for a common
+    specialty is national, and one serial RPC per doctor is what made this
+    step hang."""
     jwt = state["patient_jwt"]
     pool = state.get("doctor_pool", [])
     date_pref = state.get("date_pref")
     band = state.get("time_band")
-    annotated: list[DoctorCard] = []
 
-    for card in pool:
-        doctor_id = card.get("doctor_id")
-        if not doctor_id:
-            continue
-        slots = await get_doctor_availability(jwt, doctor_id, lookahead_days=LOOKAHEAD_DAYS)
+    ranked_pool = sorted(pool, key=lambda c: -(c.get("rating") or 0))
+    candidates = [c for c in ranked_pool if c.get("doctor_id")][:AVAIL_FETCH_CAP]
+
+    slot_lists = await asyncio.gather(
+        *(_availability_or_empty(jwt, c["doctor_id"]) for c in candidates)
+    )
+
+    annotated: list[DoctorCard] = []
+    for card, slots in zip(candidates, slot_lists):
         if not slots:
             continue
         # Best match, not merely soonest: with a date/band preference the

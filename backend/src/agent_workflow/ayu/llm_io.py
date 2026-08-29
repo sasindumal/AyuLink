@@ -164,13 +164,19 @@ def compose_question(
     lang = LANGUAGE_NAME.get(language, "English")
 
     if phase == "OPEN":
-        task = (
-            f"Ask whether the patient has anything for this section. Mention a "
-            f"couple of everyday examples so they know what counts. Make it easy "
-            f"to say no."
-            if section.shape == "LIST"
-            else f"Ask for: {', '.join(a.ask_hint for a in section.attrs)}."
-        )
+        if section.shape == "LIST":
+            task = (
+                "Ask whether the patient has anything for this section. Mention a "
+                "couple of everyday examples so they know what counts. Make it easy "
+                "to say no."
+            )
+        else:
+            # `chasing` is set only when part of the section is already on
+            # file — then ask for just the gap, never the whole set again.
+            wanted = chasing or list(section.attrs)
+            task = f"Ask for: {', '.join(a.ask_hint for a in wanted)}."
+            if chasing:
+                task += " Do NOT ask about anything already on file."
     elif phase == "MORE":
         have = ", ".join(str(v) for v in collected.values() if v) or "that"
         task = (
