@@ -2,13 +2,15 @@
 // AyuLink Patient - Date of Birth picker
 //
 // Three dropdowns (Day / Month / Year) instead of a free-text
-// YYYY-MM-DD box — no keyboard, no format mistakes. Emits a
-// zero-padded YYYY-MM-DD string once all three are set, or "" while
-// any is still blank (so the existing "please fill in all fields"
-// check still fires).
+// YYYY-MM-DD box — no keyboard, no format mistakes.
+//
+// It keeps its own partial state: the parent only ever holds a complete
+// YYYY-MM-DD string or "" (so the existing "please fill in all fields"
+// check still fires), while a half-made selection stays visible here
+// until all three parts are chosen.
 // ==============================================
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SelectField } from "./SelectField";
 import { colors, spacing } from "../theme";
@@ -25,6 +27,15 @@ function daysInMonth(year: number, month1: number): number {
     return new Date(year, month1, 0).getDate();
 }
 
+interface Parts { y: string; m: string; d: string }
+
+function parse(value: string): Parts {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+    return match
+        ? { y: match[1], m: String(Number(match[2])), d: String(Number(match[3])) }
+        : { y: "", m: "", d: "" };
+}
+
 export function DobPicker({
     value,
     onChange,
@@ -34,10 +45,16 @@ export function DobPicker({
     onChange: (value: string) => void;
     label?: string;
 }) {
-    const [y, m, d] = useMemo(() => {
-        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
-        if (!match) return ["", "", ""] as const;
-        return [match[1], String(Number(match[2])), String(Number(match[3]))] as const;
+    const [parts, setParts] = useState<Parts>(() => parse(value));
+
+    // Resync only when the parent hands us a *complete* date that differs
+    // (an edit-screen prefill). A "" from the parent is our own
+    // "incomplete" signal echoing back — ignore it, or it would wipe a
+    // selection in progress.
+    useEffect(() => {
+        const p = parse(value);
+        if (!p.y || !p.m || !p.d) return;
+        setParts((cur) => (cur.y === p.y && cur.m === p.m && cur.d === p.d ? cur : p));
     }, [value]);
 
     const thisYear = new Date().getFullYear();
@@ -48,18 +65,20 @@ export function DobPicker({
         [thisYear]
     );
     const days = useMemo(
-        () => Array.from({ length: daysInMonth(Number(y), Number(m)) }, (_, i) => String(i + 1)),
-        [y, m]
+        () => Array.from({ length: daysInMonth(Number(parts.y), Number(parts.m)) }, (_, i) => String(i + 1)),
+        [parts.y, parts.m]
     );
 
-    const emit = (ny: string, nm: string, nd: string) => {
-        if (!ny || !nm || !nd) {
-            onChange("");
-            return;
-        }
+    const update = (next: Parts) => {
         // A day left over from a longer month (31 → February) is clamped.
-        const day = Math.min(Number(nd), daysInMonth(Number(ny), Number(nm)));
-        onChange(`${ny}-${String(Number(nm)).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
+        const cap = daysInMonth(Number(next.y), Number(next.m));
+        if (next.d && Number(next.d) > cap) next = { ...next, d: String(cap) };
+        setParts(next);
+        onChange(
+            next.y && next.m && next.d
+                ? `${next.y}-${next.m.padStart(2, "0")}-${next.d.padStart(2, "0")}`
+                : ""
+        );
     };
 
     return (
@@ -69,25 +88,25 @@ export function DobPicker({
                 <View style={{ flex: 1.1 }}>
                     <SelectField
                         placeholder="Day"
-                        value={d}
+                        value={parts.d}
                         options={days}
-                        onChange={(nd) => emit(y, m, nd)}
+                        onChange={(d) => update({ ...parts, d })}
                     />
                 </View>
                 <View style={{ flex: 1.9 }}>
                     <SelectField
                         placeholder="Month"
-                        value={m ? MONTHS[Number(m) - 1] : ""}
+                        value={parts.m ? MONTHS[Number(parts.m) - 1] : ""}
                         options={MONTHS}
-                        onChange={(name) => emit(y, String(MONTHS.indexOf(name) + 1), d)}
+                        onChange={(name) => update({ ...parts, m: String(MONTHS.indexOf(name) + 1) })}
                     />
                 </View>
                 <View style={{ flex: 1.3 }}>
                     <SelectField
                         placeholder="Year"
-                        value={y}
+                        value={parts.y}
                         options={years}
-                        onChange={(ny) => emit(ny, m, d)}
+                        onChange={(y) => update({ ...parts, y })}
                     />
                 </View>
             </View>
