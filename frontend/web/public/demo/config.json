@@ -1,0 +1,87 @@
+{
+  "_comment": "Single source of truth for the demo hub. `node scripts/gen-demo-qr.js --eas` regenerates the QR PNGs. PRIMARY target = EAS Update opened in Expo Go (exp://u.expo.dev/<easProjectId>?channel-name=<updateChannel>); publish with scripts/publish-demo-updates.sh. APK (GitHub Releases) is the Android no-Expo-Go fallback.",
+  "backend": "https://ayulink.onrender.com",
+  "web": "https://ayulink-web.onrender.com",
+  "credentials": {
+    "password": "password123",
+    "note": "Every seeded account uses this password. Full list: backend/src/agent_workflow/ingestion/demo_credentials.csv (regenerate with seed_postgres_dataset.py).",
+    "samples": {
+      "patient": {
+        "login": "NIC 200012345678",
+        "who": "Kasun Jayawardena \u00b7 AYU-200012345678"
+      },
+      "doctor": {
+        "login": "the doctor's NIC (see CSV)",
+        "who": "any seeded doctor"
+      },
+      "pharmacy": {
+        "login": "NIC or licence no. (see CSV)",
+        "who": "any seeded pharmacy"
+      },
+      "center": {
+        "login": "the centre's NIC (see CSV)",
+        "who": "any seeded channeling centre"
+      }
+    }
+  },
+  "apps": [
+    {
+      "key": "patient",
+      "name": "AyuLink",
+      "role": "Patient",
+      "blurb": "Medical ID QR, the Ayu health-profile assistant, AI symptom triage, find & book a doctor, prescriptions, care timeline, dose reminders.",
+      "apk": "https://github.com/sasindumal/AyuLink/releases/latest/download/patient-app.apk",
+      "easProjectId": "180f87ff-2fd6-4f23-b891-8fe51253bad7",
+      "scheme": "ayulink-patient",
+      "try": [
+        "Register with a fresh 12-digit NIC, or sign in as NIC 200012345678.",
+        "Open the Ayu bubble \u2014 it plans questions from what your profile is missing.",
+        "Diagnosis tab: describe symptoms in Sinhala or English, then book the doctor it finds."
+      ]
+    },
+    {
+      "key": "doctor",
+      "name": "AyuLink Doctor",
+      "role": "Doctor",
+      "blurb": "Scan a patient's Medical ID, read the full clinical history, issue a structured digital prescription with a follow-up plan.",
+      "apk": "https://github.com/sasindumal/AyuLink/releases/latest/download/doctor-app.apk",
+      "easProjectId": "d86d6aef-9e7a-40f6-b7c5-7a7601a06d83",
+      "scheme": "ayulink-doctor",
+      "try": [
+        "Sign in as any seeded doctor (NIC from the CSV, password password123).",
+        "Scan & Prescribe: type AYU-200012345678, tap Clinical History.",
+        "Pick that patient's booked appointment, then issue a prescription."
+      ]
+    },
+    {
+      "key": "pharmacy",
+      "name": "AyuLink Pharmacy",
+      "role": "Pharmacy",
+      "blurb": "Scan the Medical ID or a single-prescription QR, see allergies + current medicines only, dispense item by item with a 15-minute undo.",
+      "apk": "https://github.com/sasindumal/AyuLink/releases/latest/download/pharmacy-app.apk",
+      "easProjectId": "f43526e2-8543-4133-a0e2-629246c13be1",
+      "scheme": "ayulink-pharmacy",
+      "try": [
+        "Sign in as any seeded pharmacy (NIC or licence no. from the CSV).",
+        "Scan AYU-200012345678 to see that patient's active prescriptions.",
+        "Dispense an item, then use the 15-minute undo."
+      ]
+    },
+    {
+      "key": "center",
+      "name": "AyuLink Channeling Center",
+      "role": "Channeling Center",
+      "blurb": "Every appointment booked at this centre \u2014 confirm, reschedule, cancel, mark complete \u2014 independent of which app booked it.",
+      "apk": "https://github.com/sasindumal/AyuLink/releases/latest/download/channeling-center-app.apk",
+      "easProjectId": "fd9f5c62-d5ae-4719-a3d7-ebac88d03ee3",
+      "scheme": "ayulink-channeling-center",
+      "try": [
+        "Sign in as any seeded channeling centre (NIC from the CSV).",
+        "Open today's appointments and confirm one the patient just booked.",
+        "Mark a past visit complete."
+      ]
+    }
+  ],
+  "updateChannel": "preview",
+  "expoGo": "https://expo.dev/go"
+}
