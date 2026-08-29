@@ -20,11 +20,10 @@ from langgraph.types import Command, interrupt
 from src.agent_workflow.ayu import guards, llm_io
 from src.agent_workflow.ayu.schema import (
     BY_KEY,
+    COLUMN_OF,
     SECTIONS,
     Attr,
     Section,
-    applicable,
-    is_empty,
     missing_required,
     pending_sections,
     status_payload_key,
@@ -73,6 +72,22 @@ async def _load(jwt: str) -> dict:
 
 def _lang(state: AyuState) -> str:
     return state.get("language") or "EN"
+
+
+def _scalar_prefill(existing: dict, section: Section) -> dict:
+    """Attributes of a SCALAR section already sitting in the profile.
+
+    The patient may have filled part of a section on the profile screen —
+    smoking but not alcohol, a name but no phone number. Ayu should chase
+    only the rest, not re-ask what it can already see.
+    """
+    profile = (existing or {}).get("profile") or {}
+    out: dict = {}
+    for a in section.attrs:
+        v = profile.get(COLUMN_OF.get(a.name, a.name))
+        if v not in (None, "", "UNKNOWN", "NOT_APPLICABLE"):
+            out[a.name] = v
+    return out
 
 
 def _section(state: AyuState) -> Section | None:
@@ -168,20 +183,32 @@ async def start(state: AyuState) -> Command:
         pass
 
     mode = state.get("mode") or "INTAKE"
-    if mode == "CHECKIN":
-        candidates = [BY_KEY[k] for k in pending_sections(profile, gender)]
-    else:
-        candidates = [s for s in SECTIONS if applicable(s, gender)]
+    # BOTH modes ask only about what the profile is still missing. The
+    # patient may have filled part of it on the profile screen before ever
+    # opening Ayu — an INTAKE that then re-asks every section from the top
+    # ("it begins with first") is exactly the complaint this fixes. The
+    # only thing that separates the two modes now is the greeting and
+    # whether finishing stamps profile_completed_at.
+    candidates = [BY_KEY[k] for k in pending_sections(profile, gender)]
 
     if not candidates:
-        return Command(
-            goto="__end__",
-            update={
-                "language": language,
-                "language_asked": True,
-                "messages": [AIMessage(content=ALL_DONE[language])],
-            },
-        )
+        done_update = {
+            "language": language,
+            "language_asked": True,
+            "messages": [AIMessage(content=ALL_DONE[language])],
+        }
+        # A first run with nothing left to ask still counts as completed,
+        # so the home-screen bubble stops prompting for it.
+        if mode == "INTAKE":
+            from datetime import datetime, timezone
+
+            now = datetime.now(timezone.utc).isoformat()
+            try:
+                await _save(jwt, {"profile": {"profileCompletedAt": now,
+                                              "ayuLastPromptedAt": now}})
+            except RpcError:
+                pass
+        return Command(goto="__end__", update=done_update)
 
     ordered = llm_io.plan_sections(_summarise(existing), candidates)
     # The floor: nothing empty gets dropped just because the planner
@@ -228,8 +255,17 @@ def compose(state: AyuState) -> Command:
     chasing = [a for a in section.attrs if a.name in (state.get("chasing") or [])]
     known = ""
     if phase == "OPEN":
-        rows = _existing_rows(state.get("existing") or {}, section)
-        known = ", ".join(r for r in rows if r)
+        if section.shape == "LIST":
+            rows = _existing_rows(state.get("existing") or {}, section)
+            known = ", ".join(r for r in rows if r)
+        else:
+            # Partially filled on the profile screen: ask only for the gap,
+            # and tell the composer what is already known so it does not
+            # re-ask it.
+            prefill = _scalar_prefill(state.get("existing") or {}, section)
+            if prefill and len(prefill) < len(section.attrs):
+                chasing = [a for a in section.attrs if a.name not in prefill]
+                known = ", ".join(f"{k} = {v}" for k, v in prefill.items())
 
     question = llm_io.compose_question(
         section,
@@ -524,11 +560,15 @@ def ingest(state: AyuState) -> Command:
             return _next_item_or_more(state, section, update)
 
         # SCALAR
+        prefill = _scalar_prefill(state.get("existing") or {}, section)
         got = _clean_item(
-            section, llm_io.extract_attrs(section, list(section.attrs), answer, {}), answer
+            section, llm_io.extract_attrs(section, list(section.attrs), answer, prefill), answer
         )
         if guards.said_dont_know(answer) and not got:
             return _advance(state, update)
+        # Judge completeness against the whole picture — what is on file
+        # plus what they just said — not this one answer in isolation.
+        got = {**prefill, **got}
         missing = missing_required(section, got)
         if missing:
             update.update({
