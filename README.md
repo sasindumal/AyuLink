@@ -32,7 +32,7 @@ AyuLink/
 │   └── channeling-center-app/  AyuLink Channeling Center
 ├── frontend/web/            Marketing website (not an app) — see frontend/web/README.md
 ├── backend/                 LangGraph + FastAPI agent service — see backend/README.md
-├── supabase/                Database schema (30 migrations), seed data, reset script
+├── supabase/                Database schema (32 migrations), seed data, reset script
 └── docs/                    Full project documentation (this is the index)
 ```
 

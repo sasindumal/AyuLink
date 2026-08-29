@@ -11,7 +11,7 @@ Four React Native (Expo) apps that talk **directly to Supabase** — no Next.js 
 
 ## How it works
 
-- **Auth**: Supabase Auth. The NIC maps to a synthetic email (`<nic>@nic.ayulink.app`) behind the scenes — users only ever see NIC (or pharmacy license) + password. Sessions persist across app restarts.
+- **Auth**: Supabase Auth. The NIC maps to a synthetic email (`<nic>@nic.ayulink.app`) behind the scenes — users only ever see NIC (or pharmacy license) + password. Sessions persist across app restarts. Patient and doctor registration also collect **gender** (Male / Female — gates the pregnancy question/section) and take **date of birth from Day / Month / Year dropdowns** rather than a typed date.
 - **Data**: every read/write calls a role-checked database function (`app_*`) via `supabase.rpc()`. All tables are locked with RLS, so the anon key shipped in the app can't touch data directly — permissions are enforced inside Postgres.
 - **Push notifications** (patient app + channeling-center app): a Postgres trigger on `Appointment` calls Expo's push API directly whenever a booking is created, rescheduled, or cancelled — there's no notification server to run. Real on-device delivery needs an EAS project (`eas init`) per app and a custom dev-client build; Expo Go has not supported remote push since SDK 53.
 - The Next.js web app is optional and shares the same database and accounts.
