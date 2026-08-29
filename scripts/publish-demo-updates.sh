@@ -29,7 +29,15 @@ for app in "${APPS[@]}"; do
     echo "  expo-updates missing — run: (cd $dir && npx expo install expo-updates)"
     exit 1
   fi
-  ( cd "$dir" && eas update --branch "$BRANCH" --message "$MSG" --non-interactive )
+  (
+    cd "$dir"
+    eas update --branch "$BRANCH" --message "$MSG" --non-interactive
+    # The exp://u.expo.dev/<id>?channel-name=preview deep link resolves
+    # through a CHANNEL, and `eas update` does not create one. Create it
+    # (auto-points at the same-named branch); harmless if it already exists.
+    eas channel:create "$BRANCH" 2>/dev/null || true
+    eas channel:edit "$BRANCH" --branch "$BRANCH" --non-interactive 2>/dev/null || true
+  )
 done
 
 echo ""
