@@ -7,6 +7,7 @@
 // ==============================================
 
 import { fetch } from "expo/fetch";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AGENT_API_URL } from "./agentConfig";
 import { supabase } from "./supabase";
 import type { AgentEvent } from "./agentChat";
@@ -158,8 +159,51 @@ export function statusFrom(profile: HealthProfile): AyuStatus {
     };
 }
 
-export async function ayuSetEnabled(enabled: boolean): Promise<void> {
-    await saveMyHealthProfile({ profile: { ayuEnabled: enabled } });
+// A per-device "generation" tag that is part of the Ayu thread id. Turning
+// Ayu OFF and back ON bumps it, which changes every thread id — so the
+// next time Ayu opens it is a brand-new conversation, not the old one
+// resumed with its history replayed. Stored locally because the toggle
+// deliberately does not depend on the agent backend being awake; the
+// backend just sees a thread it has never seen and starts fresh.
+const AYU_GEN_KEY = (patientId: string) => `ayu:gen:${patientId}`;
+
+export async function ayuGeneration(patientId: string): Promise<string> {
+    if (!patientId) return "";
+    try {
+        return (await AsyncStorage.getItem(AYU_GEN_KEY(patientId))) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+async function bumpAyuGeneration(patientId: string): Promise<void> {
+    if (!patientId) return;
+    try {
+        await AsyncStorage.setItem(
+            AYU_GEN_KEY(patientId),
+            Date.now().toString(36)
+        );
+    } catch {
+        /* a failed write just means the next open reuses the old thread */
+    }
+}
+
+export async function ayuSetEnabled(
+    enabled: boolean,
+    patientId?: string
+): Promise<void> {
+    await saveMyHealthProfile({
+        profile: {
+            ayuEnabled: enabled,
+            // Re-enabling should let Ayu prompt again, and it should not
+            // pick up a month-old snooze.
+            ...(enabled ? { ayuLastPromptedAt: null } : {}),
+        },
+    });
+    if (enabled && patientId) {
+        // Fresh conversation on the next open — no replayed history.
+        await bumpAyuGeneration(patientId);
+    }
 }
 
 /** Change the language Ayu speaks.
@@ -218,11 +262,13 @@ export async function ayuHistory(threadId: string) {
 export function ayuThreadId(
     patientId: string,
     mode: "INTAKE" | "CHECKIN",
-    language?: string
+    language?: string,
+    generation?: string
 ): string {
     const month = new Date().toISOString().slice(0, 7);
     const lang = language ? `:${language.toLowerCase()}` : "";
+    const gen = generation ? `:g${generation}` : "";
     return mode === "INTAKE"
-        ? `ayu:${patientId}:intake${lang}`
-        : `ayu:${patientId}:checkin:${month}${lang}`;
+        ? `ayu:${patientId}:intake${lang}${gen}`
+        : `ayu:${patientId}:checkin:${month}${lang}${gen}`;
 }

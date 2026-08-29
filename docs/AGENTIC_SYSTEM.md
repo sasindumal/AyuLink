@@ -940,3 +940,12 @@ free-tier backend returned an error, and both the bubble *and* the
 off-switch disappeared — leaving anyone who had turned Ayu off with no
 way to turn it back on. A toggle must not depend on the thing it toggles
 being reachable. The endpoints remain for server-side callers.
+
+**Turning Ayu off and back on starts a fresh conversation.** The thread id
+carries a per-device "generation" tag (`src/lib/ayu.ts`); re-enabling
+bumps it, so the next open is a brand-new thread rather than the old one
+resumed with its history replayed. It is stored locally, not on the
+server, because the toggle must work while the agent backend is asleep —
+the backend simply sees a thread id it has never seen and runs `start`
+from scratch. The abandoned thread's checkpoint rows are left in place
+(harmless; a few KB each).
