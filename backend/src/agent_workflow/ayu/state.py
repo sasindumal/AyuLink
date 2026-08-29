@@ -61,6 +61,7 @@ class ScalarAnswer(BaseModel):
     bloodGroup: Optional[Literal["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]] = None
     heightCm: Optional[float] = None
     weightKg: Optional[float] = None
+    pregnancyStatus: Optional[Literal["NOT_PREGNANT", "PREGNANT", "BREASTFEEDING"]] = None
     smoking: Optional[Literal["NEVER", "FORMER", "CURRENT"]] = None
     alcohol: Optional[Literal["NEVER", "OCCASIONAL", "REGULAR"]] = None
     betel: Optional[Literal["NEVER", "OCCASIONAL", "REGULAR"]] = None
@@ -74,8 +75,8 @@ class EditInstruction(BaseModel):
 
     section: Literal[
         "allergies", "conditions", "medications", "surgeries",
-        "family_history", "immunisations", "implants", "body", "lifestyle",
-        "emergency_contact", "unclear",
+        "family_history", "immunisations", "implants", "body", "pregnancy",
+        "lifestyle", "emergency_contact", "unclear",
     ] = Field(..., description="Which part of the report they want to change.")
     understood: bool = Field(
         ..., description="False if the request is too vague to act on."

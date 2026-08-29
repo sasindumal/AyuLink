@@ -95,6 +95,7 @@ async def start(state: AyuState) -> Command:
     except RpcError:
         existing = {"profile": {}}
     profile = existing.get("profile") or {}
+    gender = (existing.get("gender") or "").upper()
 
     if not language and not state.get("language_asked"):
         # NULL means never asked (see migration 20260917000000) — only a
@@ -125,6 +126,12 @@ async def start(state: AyuState) -> Command:
 
     mode = state.get("mode") or "INTAKE"
     plan = pending_indexes(profile) if mode == "CHECKIN" else list(range(len(QUESTIONS)))
+    # The pregnancy question only applies to female patients; drop it (and
+    # any future female_only question) for everyone else. Gender is set at
+    # registration — a patient with none recorded is treated as not female,
+    # so the question is skipped rather than asked of the wrong person.
+    if gender != "FEMALE":
+        plan = [i for i in plan if not QUESTIONS[i].get("female_only")]
 
     if mode == "CHECKIN" and not plan:
         return Command(
@@ -426,6 +433,14 @@ def _render_report(state: AyuState) -> str:
     body = [f"{k}: {profile[k]}" for k in ("bloodGroup", "heightCm", "weightKg") if profile.get(k)]
     if body:
         block("Body & blood", "ශරීරය සහ රුධිරය", body, "LISTED")
+    preg = profile.get("pregnancyStatus")
+    if preg:
+        preg_en = {"NOT_PREGNANT": "Not pregnant", "PREGNANT": "Pregnant",
+                   "BREASTFEEDING": "Breastfeeding"}
+        preg_si = {"NOT_PREGNANT": "ගර්භනී නොවේ", "PREGNANT": "ගර්භනීයි",
+                   "BREASTFEEDING": "කිරි දෙනවා"}
+        block("Pregnancy", "ගර්භණීභාවය",
+              [(preg_si if si else preg_en).get(preg, preg)], "LISTED")
     life = [f"{k}: {profile[k]}" for k in ("smoking", "alcohol", "betel") if profile.get(k)]
     if life:
         block("Lifestyle", "ජීවන රටාව", life, "LISTED")
@@ -496,7 +511,7 @@ def apply_edit(state: AyuState) -> Command:
     section_to_index = {
         "allergies": 0, "conditions": 1, "medications": 2, "surgeries": 3,
         "family_history": 4, "immunisations": 5, "implants": 6,
-        "body": 7, "lifestyle": 8, "emergency_contact": 9,
+        "body": 7, "pregnancy": 8, "lifestyle": 9, "emergency_contact": 10,
     }
     idx = section_to_index.get(parsed.section)
 

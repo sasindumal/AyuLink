@@ -21,9 +21,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../src/lib/auth";
 import { rpc } from "../src/lib/api";
 import { colors, radius, spacing } from "../src/theme";
-import { Banner, Button, Input } from "../src/components/ui";
+import { Banner, Button, FilterChips, Input } from "../src/components/ui";
 
 const MAX_SPECIALTIES = 5;
+
+const GENDER_OPTIONS = [
+    { key: "MALE", label: "Male" },
+    { key: "FEMALE", label: "Female" },
+];
 
 interface Specialty {
     id: string;
@@ -38,6 +43,7 @@ export default function Register() {
         lastName: "",
         mobileNumber: "",
         dob: "",
+        gender: "",
         slmcRegNo: "",
         password: "",
         confirm: "",
@@ -74,6 +80,10 @@ export default function Register() {
             setError("Please fill in all fields");
             return;
         }
+        if (!form.gender) {
+            setError("Please select a gender");
+            return;
+        }
         if (specialtyIds.length === 0) {
             setError("Please select at least one specialty");
             return;
@@ -96,6 +106,7 @@ export default function Register() {
                     lastName: form.lastName.trim(),
                     mobileNumber: form.mobileNumber.trim(),
                     dob: form.dob.trim(),
+                    gender: form.gender,
                     role: "DOCTOR",
                     slmcRegNo: form.slmcRegNo.trim(),
                     specialtyIds,
@@ -173,6 +184,12 @@ export default function Register() {
                             value={form.dob}
                             onChangeText={set("dob")}
                             autoCorrect={false}
+                        />
+                        <Text style={styles.inputLabel}>Gender</Text>
+                        <FilterChips
+                            value={form.gender}
+                            onChange={set("gender")}
+                            options={GENDER_OPTIONS}
                         />
 
                         <Text style={styles.section}>Professional details</Text>

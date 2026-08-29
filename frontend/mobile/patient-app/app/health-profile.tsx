@@ -144,6 +144,9 @@ export default function HealthProfileScreen() {
     const setStatus = (k: string) => (v: SectionStatus) => setCore((c) => ({ ...c, [k]: v }));
     const setField = (k: string) => (v: any) => setCore((c) => ({ ...c, [k]: v }));
 
+    // Pregnancy only applies to female patients — same gate Ayu uses.
+    const isFemale = data?.gender === "FEMALE";
+
     const progress = useMemo(
         () => (data ? completeness({ ...data, profile: core as any }) : { answered: 0, total: 9 }),
         [data, core]
@@ -158,7 +161,7 @@ export default function HealthProfileScreen() {
                     bloodGroup: core.blood_group || undefined,
                     heightCm: core.height_cm ?? undefined,
                     weightKg: core.weight_kg ?? undefined,
-                    pregnancyStatus: core.pregnancy_status || undefined,
+                    pregnancyStatus: isFemale ? core.pregnancy_status || undefined : undefined,
                     smoking: core.smoking || undefined,
                     alcohol: core.alcohol || undefined,
                     betel: core.betel || undefined,
@@ -336,15 +339,18 @@ export default function HealthProfileScreen() {
                                     onChangeText={(v) => setField("weight_kg")(v ? Number(v) : null)} />
                             </View>
                         </View>
-                        <Text style={styles.fieldLabel}>Pregnancy</Text>
-                        <FilterChips<string> value={core.pregnancy_status ?? "NOT_APPLICABLE"}
-                            onChange={setField("pregnancy_status")}
-                            options={[
-                                { key: "NOT_APPLICABLE", label: "N/A" },
-                                { key: "NOT_PREGNANT", label: "No" },
-                                { key: "PREGNANT", label: "Pregnant" },
-                                { key: "BREASTFEEDING", label: "Breastfeeding" },
-                            ]} />
+                        {isFemale && (
+                            <>
+                                <Text style={styles.fieldLabel}>Pregnancy</Text>
+                                <FilterChips<string> value={core.pregnancy_status ?? ""}
+                                    onChange={setField("pregnancy_status")}
+                                    options={[
+                                        { key: "NOT_PREGNANT", label: "No" },
+                                        { key: "PREGNANT", label: "Pregnant" },
+                                        { key: "BREASTFEEDING", label: "Breastfeeding" },
+                                    ]} />
+                            </>
+                        )}
                     </View>
 
                     {/* ---------------- Tier 2 ---------------- */}

@@ -17,7 +17,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, router } from "expo-router";
 import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
-import { Banner, Button, Input } from "../src/components/ui";
+import { Banner, Button, FilterChips, Input } from "../src/components/ui";
+
+const GENDER_OPTIONS = [
+    { key: "MALE", label: "Male" },
+    { key: "FEMALE", label: "Female" },
+];
 
 export default function Register() {
     const { register } = useAuth();
@@ -27,6 +32,7 @@ export default function Register() {
         lastName: "",
         mobileNumber: "",
         dob: "",
+        gender: "",
         password: "",
         confirm: "",
     });
@@ -37,10 +43,14 @@ export default function Register() {
         setForm((f) => ({ ...f, [key]: value }));
 
     const submit = async () => {
-        const { nicNumber, firstName, lastName, mobileNumber, dob, password, confirm } =
+        const { nicNumber, firstName, lastName, mobileNumber, dob, gender, password, confirm } =
             form;
         if (!nicNumber || !firstName || !lastName || !mobileNumber || !dob || !password) {
             setError("Please fill in all fields");
+            return;
+        }
+        if (!gender) {
+            setError("Please select your gender");
             return;
         }
         if (password.length < 8) {
@@ -62,6 +72,7 @@ export default function Register() {
                     lastName: lastName.trim(),
                     mobileNumber: mobileNumber.trim(),
                     dob: dob.trim(),
+                    gender,
                     role: "PATIENT",
                 },
                 password
@@ -132,6 +143,13 @@ export default function Register() {
                             onChangeText={set("dob")}
                             autoCorrect={false}
                         />
+                        <Text style={styles.fieldLabel}>Gender</Text>
+                        <FilterChips
+                            value={form.gender}
+                            onChange={set("gender")}
+                            options={GENDER_OPTIONS}
+                        />
+                        <View style={{ height: spacing.sm }} />
                         <Input
                             label="Password"
                             placeholder="At least 8 characters"
@@ -191,6 +209,12 @@ const styles = StyleSheet.create({
         padding: spacing.lg,
     },
     row: { flexDirection: "row", gap: 12 },
+    fieldLabel: {
+        fontSize: 13,
+        fontWeight: "600",
+        color: colors.text,
+        marginBottom: 8,
+    },
     footer: {
         flexDirection: "row",
         justifyContent: "center",

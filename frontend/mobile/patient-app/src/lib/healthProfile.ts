@@ -97,6 +97,8 @@ export interface HealthProfileCore {
 
 export interface HealthProfile {
     patientId: string;
+    /** From "User". Drives whether the pregnancy section applies. */
+    gender?: "MALE" | "FEMALE" | null;
     profile: HealthProfileCore;
     allergies: Allergy[];
     conditions: Condition[];
@@ -188,9 +190,15 @@ function scalarAnswered(c: HealthProfileCore, fields: (keyof HealthProfileCore)[
     });
 }
 
+// Real pregnancy answers. NOT_APPLICABLE is the column default and does
+// not count — a female patient who never answered still has it pending,
+// mirroring `answered_values` on the Ayu question.
+const PREGNANCY_ANSWERED = ["NOT_PREGNANT", "PREGNANT", "BREASTFEEDING"];
+
 /** How much of the profile is filled in. A section explicitly marked
  *  NONE counts as answered; UNKNOWN does not — that distinction is the
- *  whole point of the *_status columns. */
+ *  whole point of the *_status columns. The pregnancy question is only
+ *  counted for female patients, matching Ayu's gender-gated interview. */
 export function completeness(p: HealthProfile): { answered: number; total: number } {
     const c = p.profile ?? {};
     const lists = LIST_SECTIONS.filter((k) => {
@@ -198,9 +206,12 @@ export function completeness(p: HealthProfile): { answered: number; total: numbe
         return v === "NONE" || v === "LISTED";
     }).length;
     const scalars = SCALAR_GROUPS.filter((g) => scalarAnswered(c, g)).length;
+    const pregnancyApplies = p.gender === "FEMALE";
+    const pregnancyAnswered =
+        pregnancyApplies && PREGNANCY_ANSWERED.includes(String(c.pregnancy_status ?? ""));
     return {
-        answered: lists + scalars,
-        total: LIST_SECTIONS.length + SCALAR_GROUPS.length,
+        answered: lists + scalars + (pregnancyAnswered ? 1 : 0),
+        total: LIST_SECTIONS.length + SCALAR_GROUPS.length + (pregnancyApplies ? 1 : 0),
     };
 }
 
