@@ -277,7 +277,10 @@ export default function Home() {
                 onPress={() =>
                     router.push({
                         pathname: "/ayu",
-                        params: { mode: ayu?.everCompleted ? "CHECKIN" : "INTAKE" },
+                        params: {
+                            mode: ayu?.everCompleted ? "CHECKIN" : "INTAKE",
+                            lang: ayu?.language ?? "EN",
+                        },
                     })
                 }
                 onDismiss={() => {
