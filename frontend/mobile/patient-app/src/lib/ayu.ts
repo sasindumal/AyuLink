@@ -158,6 +158,14 @@ export async function ayuSetEnabled(enabled: boolean): Promise<void> {
     await saveMyHealthProfile({ profile: { ayuEnabled: enabled } });
 }
 
+/** Change the language Ayu speaks. Persisted to
+ *  PatientProfile.preferred_language; an interview already in progress
+ *  keeps its language (it is fixed on that thread), so the change lands
+ *  the next time Ayu opens — a fresh intake or the monthly check-in. */
+export async function ayuSetLanguage(language: "EN" | "SI"): Promise<void> {
+    await saveMyHealthProfile({ profile: { preferredLanguage: language } });
+}
+
 /** Records that the patient was nudged, so the next check-in is a month
  *  away instead of on every launch. */
 export async function ayuSnooze(): Promise<void> {

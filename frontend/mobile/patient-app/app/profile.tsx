@@ -17,11 +17,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { rpc } from "../src/lib/api";
 import { useAuth } from "../src/lib/auth";
 import { colors, radius, spacing } from "../src/theme";
-import { Banner, Button, Input, formatDate } from "../src/components/ui";
+import { Banner, Button, FilterChips, Input, formatDate } from "../src/components/ui";
 import { ConfirmModal } from "../src/components/ConfirmModal";
 import { completeness, getMyHealthProfile } from "../src/lib/healthProfile";
 import { exportPrescriptionsCsv } from "../src/lib/exportCsv";
-import { ayuSetEnabled, statusFrom, type AyuStatus } from "../src/lib/ayu";
+import { ayuSetEnabled, ayuSetLanguage, statusFrom, type AyuStatus } from "../src/lib/ayu";
 
 interface FullProfile {
     id: string;
@@ -30,6 +30,7 @@ interface FullProfile {
     lastName: string;
     mobileNumber?: string;
     dob?: string;
+    gender?: "MALE" | "FEMALE" | null;
     role: string;
     medicalId: string;
     verified: boolean;
@@ -117,6 +118,20 @@ export default function Profile() {
         }
     };
 
+    const changeLang = async (lang: string) => {
+        if (!ayu || lang === ayu.language) return;
+        const prev = ayu.language;
+        setAyu({ ...ayu, language: lang as AyuStatus["language"] });
+        setError(null);
+        try {
+            await ayuSetLanguage(lang as "EN" | "SI");
+            setNotice("Ayu's language updated.");
+        } catch {
+            setAyu({ ...ayu, language: prev });
+            setError("Couldn't change Ayu's language");
+        }
+    };
+
     const downloadCsv = async () => {
         setExporting(true);
         setError(null);
@@ -198,6 +213,10 @@ export default function Profile() {
                             <>
                                 <Row label="Mobile" value={profile?.mobileNumber} />
                                 <Row label="Date of birth" value={profile?.dob ? formatDate(profile.dob) : null} />
+                                <Row label="Gender" value={
+                                    profile?.gender === "MALE" ? "Male"
+                                        : profile?.gender === "FEMALE" ? "Female" : null
+                                } />
                                 {/* NIC and Medical ID are read-only on purpose: the
                                     Medical ID every QR encodes is derived from the NIC,
                                     so letting it drift would break codes already in
@@ -257,6 +276,25 @@ export default function Profile() {
                                 </View>
                             </Pressable>
                         )}
+
+                        {ayu && (
+                            <View style={styles.langBlock}>
+                                <Text style={styles.linkText}>Ayu's language</Text>
+                                <Text style={styles.linkHint}>
+                                    Switch any time — Ayu uses it from your next conversation
+                                </Text>
+                                <View style={{ marginTop: 10 }}>
+                                    <FilterChips
+                                        value={ayu.language === "SI" ? "SI" : "EN"}
+                                        onChange={changeLang}
+                                        options={[
+                                            { key: "EN", label: "English" },
+                                            { key: "SI", label: "සිංහල" },
+                                        ]}
+                                    />
+                                </View>
+                            </View>
+                        )}
                     </View>
 
                     <Text style={styles.sectionTitle}>Your records</Text>
@@ -313,6 +351,7 @@ const styles = StyleSheet.create({
     rowLabel: { fontSize: 13, color: colors.textMuted },
     rowValue: { fontSize: 14, fontWeight: "600", color: colors.text, flexShrink: 1, textAlign: "right" },
     toggleRow: { borderTopWidth: 1, borderTopColor: colors.border },
+    langBlock: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: 13, marginTop: 2 },
     switch: {
         width: 42, height: 24, borderRadius: 12,
         backgroundColor: colors.border, padding: 3, justifyContent: "center",

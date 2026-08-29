@@ -27,6 +27,7 @@ interface FullProfile {
     lastName: string;
     mobileNumber?: string;
     dob?: string;
+    gender?: "MALE" | "FEMALE" | null;
     role: string;
     medicalId: string;
     verified: boolean;
@@ -162,6 +163,10 @@ export default function Profile() {
                             <>
                                 <Row label="Mobile" value={profile?.mobileNumber} />
                                 <Row label="Date of birth" value={profile?.dob ? formatDate(profile.dob) : null} />
+                                <Row label="Gender" value={
+                                    profile?.gender === "MALE" ? "Male"
+                                        : profile?.gender === "FEMALE" ? "Female" : null
+                                } />
                                 {/* NIC and Medical ID are read-only on purpose: the
                                     Medical ID every QR encodes is derived from the NIC,
                                     so letting it drift would break codes already in

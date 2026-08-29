@@ -12,7 +12,7 @@ does outside these agents see [`FEATURES.md`](FEATURES.md).
 |---|---|---|
 | Surface | Patient app → Diagnosis tab | Patient app → floating bubble |
 | Job | Symptom triage → doctor search → booking → post-care follow-up | Fills the patient's health profile |
-| Shape | 22 nodes, 4 branches, LLM intent routing | 5 nodes, a fixed 10-question interview |
+| Shape | 22 nodes, 4 branches, LLM intent routing | 5 nodes, a fixed interview — 10 questions, +1 (pregnancy) for female patients |
 | Endpoints | `/chat`, `/chat/resume`, `/chat/pdf`, `/chat/image`, `/chat/followup`, `/chat/sync`, `/chat/history` | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
 | Package | `src/agent_workflow/retrevel/` | `src/agent_workflow/ayu/` |
 
@@ -787,10 +787,18 @@ personal and place names are transliterated (`නිමාල් ජයවර්
   `PatientProfile.preferred_language`, which is **nullable**: `NULL`
   means never asked. It used to default to `'EN'`, which made "never
   asked" indistinguishable from "chose English" — so the picker never
-  appeared for anyone whose profile row existed.
+  appeared for anyone whose profile row existed. The patient can also
+  change it any time from **Profile → Ayu's language**; a running thread
+  keeps its own language (it is fixed once `language_asked` is set), so
+  the change takes effect on the next thread — the monthly check-in, or a
+  fresh intake.
 - **`plan`** / **`cursor`** — the question indexes still to ask, and how
   far through them. A full intake is every question; a `CHECKIN` is only
-  the ones `pending_indexes()` reports as still `UNKNOWN`.
+  the ones `pending_indexes()` reports as still `UNKNOWN`. `start` then
+  drops any `female_only` question (currently just pregnancy) unless the
+  patient's `gender` — read from `health_profile_json` — is `FEMALE`; a
+  patient with no gender recorded is treated as not female, so the
+  question is skipped rather than asked of the wrong person.
 - **`draft_profile`** / **`draft_allergies`** / **`draft_conditions`** /
   **`draft_medications`** / **`draft_history`** — answers accumulate in
   the exact shape `app_save_my_health_profile` takes. **Nothing reaches
@@ -801,12 +809,13 @@ personal and place names are transliterated (`නිමාල් ජයවර්
 
 ### 13.4 The questions
 
-Ten, in `questions.py`, hand-written in **both** languages rather than
-translated at runtime. Two reasons: a fixed script is predictable (the
-same patient gets the same wording every month, so "you already asked me
-this" is never a surprise), and it removes an LLM call per question — the
-model is used only for the part that needs judgement, which is reading
-the answer.
+Ten for every patient, plus one — the pregnancy question — asked only of
+female patients. Hand-written in `questions.py` in **both** languages
+rather than translated at runtime. Two reasons: a fixed script is
+predictable (the same patient gets the same wording every month, so "you
+already asked me this" is never a surprise), and it removes an LLM call
+per question — the model is used only for the part that needs judgement,
+which is reading the answer.
 
 | # | Section | Fills |
 |---|---|---|
@@ -818,8 +827,17 @@ the answer.
 | 6 | Vaccinations | `PatientHistoryEvent(IMMUNISATION)` |
 | 7 | Implants & devices | `PatientHistoryEvent(IMPLANT)` |
 | 8 | Blood group, height, weight | `PatientProfile` scalars |
-| 9 | Smoking / alcohol / **betel** | `PatientProfile` scalars |
-| 10 | Emergency contact | `PatientProfile` scalars |
+| 9 | **Pregnancy / breastfeeding** — *female patients only* | `PatientProfile.pregnancy_status` |
+| 10 | Smoking / alcohol / **betel** | `PatientProfile` scalars |
+| 11 | Emergency contact | `PatientProfile` scalars |
+
+The pregnancy question sits with the Tier-1 vitals rather than at the
+end, because it changes what a doctor can safely prescribe. It carries an
+explicit `answered_values` set (`NOT_PREGNANT` / `PREGNANT` /
+`BREASTFEEDING`): its column defaults to `NOT_APPLICABLE`, which is
+neither a real answer nor `UNKNOWN`, so without that set the monthly
+gap-check would think it had been answered. "I don't know" leaves it
+empty, same as every other question.
 
 Betel is asked explicitly rather than folded into an "other habits" box:
 it is a leading oral-cancer risk factor in Sri Lanka and a doctor here
