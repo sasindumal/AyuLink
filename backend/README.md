@@ -1,14 +1,24 @@
 # AyuLink Backend
 
-LangGraph + FastAPI agent service backing the patient app's *Assistant* tab:
-general Q&A, symptom triage against a Neo4j knowledge graph (hybrid
-semantic + graph retrieval), doctor search, and booking — talking to
-Supabase Postgres (via RPCs) and Neo4j Aura, with an LLM provider you
-choose (local LM Studio or Google AI Studio).
+LangGraph + FastAPI service running **two** agents for the patient app,
+talking to Supabase Postgres (via the same `app_*` RPCs the apps use) and
+Neo4j Aura, with an LLM provider you choose (local LM Studio, Google AI
+Studio, or OpenRouter).
+
+| Agent | Job | Endpoints |
+|---|---|---|
+| **Diagnosis** | Symptom triage against the Neo4j knowledge graph, doctor search, booking, and the end-of-course follow-up. 22 nodes, 4 branches. | `/chat`, `/chat/resume`, `/chat/pdf`, `/chat/image`, `/chat/followup`, `/chat/sync`, `/chat/history` |
+| **Ayu** | Fills the patient's health profile through a fixed 10-question interview, in English or Sinhala. 5 nodes. | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
+
+They are separate graphs on purpose — one classifies free-form intent and
+routes, the other runs a script to completion. Merging them would make
+the diagnosis agent's `manager_agent` responsible for telling "I have a
+headache" from an answer to question 4 of an interview. They share the
+process, the checkpointer and the LLM layer; not the graph.
 
 ```
 backend/
-├── app.py                          FastAPI entrypoint (/chat, /health, ...)
+├── app.py                          FastAPI entrypoint (/chat*, /ayu/*, /health)
 ├── requirements.txt
 ├── .env                            not committed — copy from .env.example
 ├── utils/
@@ -17,8 +27,9 @@ backend/
 ├── src/
 │   ├── api/                        auth, SSE streaming, LangGraph checkpointer
 │   └── agent_workflow/
-│       ├── retrevel/               agent.py (graph), state, schemas, tools, subagents
-│       └── ingestion/               Neo4j knowledge-graph seeder (separate requirements.txt)
+│       ├── retrevel/               DIAGNOSIS agent — agent.py (graph), state, schemas, tools, subagents
+│       ├── ayu/                     AYU agent — graph.py, nodes.py, questions.py, state.py
+│       └── ingestion/               Neo4j + Postgres dataset seeders (separate requirements.txt)
 └── tests/
     └── test_pipeline.py            live end-to-end script (not pytest)
 ```

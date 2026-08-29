@@ -20,6 +20,7 @@ export interface User {
     nicNumber: string;
     firstName: string;
     lastName: string;
+    gender?: "MALE" | "FEMALE" | null;
     role: Role;
     medicalId: string;
     verified?: boolean;

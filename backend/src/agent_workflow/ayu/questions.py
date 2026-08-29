@@ -33,6 +33,14 @@ class Question(TypedDict, total=False):
     item_hint: str
     # Scalar questions only: the profile fields this answer may fill.
     fields: list[str]
+    # Only ask this of female patients (see nodes.start). The pregnancy
+    # question is the only one so far.
+    female_only: bool
+    # Scalar questions only: the values that count as "answered" for the
+    # gap-check. Unset means "anything other than None/''/UNKNOWN". The
+    # pregnancy field defaults to NOT_APPLICABLE, which is neither a real
+    # answer nor UNKNOWN, so it has to name its answered set explicitly.
+    answered_values: list[str]
 
 
 QUESTIONS: list[Question] = [
@@ -122,6 +130,21 @@ QUESTIONS: list[Question] = [
                      "weightKg as numbers (convert feet/inches or pounds if needed).",
     },
     {
+        # Female patients only — nodes.start drops this from the plan for
+        # everyone else. It changes what a doctor can safely prescribe, so
+        # it sits here with the other Tier-1 vitals rather than at the end.
+        "target": "profile",
+        "kind": "scalar",
+        "female_only": True,
+        "fields": ["pregnancyStatus"],
+        "answered_values": ["NOT_PREGNANT", "PREGNANT", "BREASTFEEDING"],
+        "en": "Are you pregnant or breastfeeding at the moment?",
+        "si": "ඔබ දැනට ගර්භනීද, නැත්නම් කිරි දෙනවාද?",
+        "item_hint": "pregnancyStatus one of NOT_PREGNANT / PREGNANT / BREASTFEEDING. "
+                     "If she says no / neither, use NOT_PREGNANT. Omit the field "
+                     "entirely if she did not answer or said she doesn't know.",
+    },
+    {
         "target": "profile",
         "kind": "scalar",
         "fields": ["smoking", "alcohol", "betel"],
@@ -171,6 +194,7 @@ def pending_indexes(profile: dict) -> list[int]:
             "bloodGroup": "blood_group",
             "heightCm": "height_cm",
             "weightKg": "weight_kg",
+            "pregnancyStatus": "pregnancy_status",
             "smoking": "smoking",
             "alcohol": "alcohol",
             "betel": "betel",
@@ -178,10 +202,15 @@ def pending_indexes(profile: dict) -> list[int]:
             "emergencyContactRelationship": "emergency_contact_relationship",
             "emergencyContactPhone": "emergency_contact_phone",
         }
+        answered_values = q.get("answered_values")
         filled = False
         for f in q.get("fields", []):
             v = profile.get(snake.get(f, f))
-            if v not in (None, "", "UNKNOWN"):
+            if answered_values is not None:
+                if v in answered_values:
+                    filled = True
+                    break
+            elif v not in (None, "", "UNKNOWN"):
                 filled = True
                 break
         if not filled:

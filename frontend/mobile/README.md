@@ -4,8 +4,8 @@ Four React Native (Expo) apps that talk **directly to Supabase** — no Next.js 
 
 | App | Directory | For | Highlights |
 |-----|-----------|-----|-----------|
-| **AyuLink** | `patient-app/` | Patients | Digital Medical ID QR, prescription history, find & book appointments (by specialty/city/rating/soonest, by doctor, or by channeling center), and an AI **Assistant** tab for symptom triage, doctor search, and booking via chat |
-| **AyuLink Doctor** | `doctor-app/` | Doctors | QR patient scanning, prescription builder |
+| **AyuLink** | `patient-app/` | Patients | Digital Medical ID QR, health profile, prescription history + CSV export, find & book appointments, care timeline, dose & appointment reminders, an AI **Diagnosis** chat, and **Ayu** the health-profile assistant |
+| **AyuLink Doctor** | `doctor-app/` | Doctors | QR patient scanning, **Clinical History** on scan, prescription builder with follow-up plan |
 | **AyuLink Pharmacy** | `pharmacy-app/` | Pharmacies | QR scanning, per-item dispensing with 15-min undo |
 | **AyuLink Channeling Center** | `channeling-center-app/` | Channeling centers | Manage appointments booked at the center — confirm, reschedule, cancel, mark complete |
 
@@ -19,13 +19,14 @@ Four React Native (Expo) apps that talk **directly to Supabase** — no Next.js 
 ## One-time Supabase setup
 
 1. Create a project at [supabase.com](https://supabase.com) (free tier is fine).
-2. Run the three migrations, **in order**, in the **SQL Editor** (or `supabase db push`):
-   [`20260719000000_init.sql`](../supabase/migrations/20260719000000_init.sql) →
-   [`20260822000000_appointments.sql`](../supabase/migrations/20260822000000_appointments.sql) →
-   [`20260822010000_city_and_browse.sql`](../supabase/migrations/20260822010000_city_and_browse.sql)
+2. Run **every** migration in [`supabase/migrations/`](../../supabase/migrations)
+   in filename order, via `supabase db push` or pasted into the SQL Editor
+   one at a time. There are 30, from `20260719000000_init.sql` through
+   `20260917000000_language_never_chosen.sql`, and later ones re-publish
+   functions the earlier ones defined — so the order is not optional.
    - **Already ran an older AyuLink schema?** Reset first: paste
-     [`supabase/reset.sql`](../supabase/reset.sql) into the SQL Editor and run it
-     (⚠️ deletes all AyuLink data and logins), then run all three migrations.
+     [`supabase/reset.sql`](../../supabase/reset.sql) into the SQL Editor and run it
+     (⚠️ deletes all AyuLink data and logins), then run every migration again.
 3. **Disable email confirmation**: Dashboard → **Authentication → Sign In / Up → Email** → turn off **"Confirm email"**. (The synthetic NIC emails can't receive mail; sign-ups fail without this.)
 4. From **Project Settings → API**, copy the **Project URL** and **anon public key**.
 5. Seed demo data — see [Demo accounts](#demo-accounts) below.
@@ -72,7 +73,7 @@ python3 backend/src/agent_workflow/ingestion/seed_postgres_dataset.py
 supabase db query --linked -f backend/src/agent_workflow/ingestion/seed_postgres_dataset.sql
 ```
 
-(No Supabase CLI? Paste each `.sql` file into the Supabase **SQL Editor** instead — same effect.) Full details, including how to wipe and start over: [docs/README.md § Database Management](../docs/README.md#8-database-management).
+(No Supabase CLI? Paste each `.sql` file into the Supabase **SQL Editor** instead — same effect.) Full details, including how to wipe and start over: [docs/README.md § Database Management](../../docs/README.md#8-database-management).
 
 | App | Login | Credential | Password |
 |-----|-------|-----------|----------|
@@ -85,13 +86,45 @@ Demo patient Medical ID (for manual lookup without a printed QR): `AYU-200012345
 
 Ran the bulk import? Every doctor and channeling center from `Dataset_ref/`, plus 30 mock pharmacies, become loginable with `password123` (synthetic NICs; pharmacies also have `PL-2024-1xx` licenses). The full list — role, name, NIC/license, Medical ID — is written to `backend/src/agent_workflow/ingestion/demo_credentials.csv` (gitignored; regenerate by re-running the seeder). You can also look one up via the Supabase Table Editor (`DoctorProfile` / `ChannelingCenter` / `PharmacyProfile` → linked `User.nicNumber`).
 
+## What's in the patient app
+
+Beyond the four discovery modes and prescription history:
+
+- **Health Profile** (`app/health-profile.tsx`) — allergies, conditions,
+  regular medicines, surgeries, family history, implants, vaccinations,
+  lifestyle, emergency contact. Every list section is a three-state
+  control: *Not answered* / *I have none* / entries.
+- **Profile & settings** (`app/profile.tsx`) — reached from the top-right
+  avatar on Home, in **all four apps**. Registration details, the Ayu
+  on/off switch (patient app), sign-out, and CSV export.
+- **Ayu** (`app/ayu.tsx` + `src/components/AyuBubble.tsx`) — the
+  health-profile assistant. Floating bubble on Home; long-press it to
+  turn Ayu off.
+- **Reminders** (`src/lib/reminders.ts`) — per-dose local notifications
+  and a 3-hours-before appointment nudge. `app/_layout.tsx` routes a
+  tapped notification to the right screen, including cold starts.
+
+> The patient app additionally depends on **`expo-file-system`** and
+> **`expo-sharing`** for the CSV export. Both ship inside Expo Go, so no
+> custom dev-client build is needed — but if you cloned before they were
+> added, run `npx expo install expo-file-system expo-sharing`.
+
 ## Assistant backend (patient app only)
 
-The patient app's *Assistant* tab is a chat front-door (general Q&A, symptom
-triage against a Neo4j knowledge graph, doctor search, and booking) backed by
-a LangGraph + FastAPI server at [`backend/`](../../backend), using either a
-local [LM Studio](https://lmstudio.ai) model or Google AI Studio (Gemini) —
-not Supabase directly.
+The patient app talks to a LangGraph + FastAPI server at
+[`backend/`](../../backend) for two things — the *Diagnosis* chat (symptom
+triage against a Neo4j knowledge graph, doctor search, booking, post-care
+follow-up) and *Ayu* (the health-profile interview). Everything else in
+every app goes straight to Supabase.
+
+Set `EXPO_PUBLIC_AGENT_API_URL` in `patient-app/.env` to this machine's
+LAN IP (`ipconfig getifaddr en0`), not `localhost` — a phone or simulator
+cannot reach a server bound to your loopback.
+
+**If that URL is wrong or the server is down**, the Diagnosis and Ayu
+*chats* fail with an error in-screen — but the Ayu on/off switch and the
+bubble still work, because they read `PatientProfile` from Supabase
+directly rather than asking the agent.
 
 Full setup, running, seeding, and troubleshooting: **[backend/README.md](../../backend/README.md)**.
 
@@ -176,7 +209,7 @@ and still becomes the new "latest" — no commit or tag needed on your end.
 
 Three places, in order of convenience:
 
-1. **[`CHANGELOG.md`](../../CHANGELOG.md)** at the repo root — one
+1. **the GitHub Releases page** at the repo root — one
    short entry per version, sitting next to the code. Fastest to read.
 2. **`git tag -n99`** — lists every annotated tag with its full message,
    locally, no GitHub round-trip:

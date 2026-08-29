@@ -5,8 +5,11 @@ just getting something running, use the shorter per-package guides
 ([`frontend/mobile/README.md`](../frontend/mobile/README.md),
 [`backend/README.md`](../backend/README.md)) — come back here for how
 everything fits together, the full database schema, and cross-app flows.
-For the AI assistant's multi-agent system specifically, see
-[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md).
+Companion documents:
+[`FEATURES.md`](FEATURES.md) — every feature in every app and the website,
+the full technology stack, and the end-to-end workflows.
+[`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) — the two AI agents in depth.
+[`WORKFLOW.md`](WORKFLOW.md) — system diagrams, plus an editable draw.io file.
 
 ## Contents
 
@@ -17,6 +20,7 @@ For the AI assistant's multi-agent system specifically, see
 5. [Database Schema](#5-database-schema)
 6. [Key Data Flows](#6-key-data-flows)
 7. [AI Assistant (Agentic System)](#7-ai-assistant-agentic-system)
+7b. [Ayu — the health-profile assistant](#7b-ayu--the-health-profile-assistant)
 8. [Database Management](#8-database-management)
 9. [Known Gaps / Notes](#9-known-gaps--notes)
 
@@ -28,12 +32,16 @@ AyuLink digitizes the patient-doctor-pharmacy-channeling-center loop for a
 Sri Lankan healthcare context:
 
 - A **patient** carries one QR code (their Medical ID) instead of a paper
-  record, can find and book a doctor's appointment several ways, and can
-  talk to an AI assistant that triages symptoms against a real medical
-  knowledge graph and can search for and book a doctor on their behalf.
-- A **doctor** scans that QR (or types the Medical ID), sees the patient's
-  history, and issues a structured digital prescription — no handwriting,
-  no paper.
+  record, keeps a **health profile** (allergies, chronic conditions,
+  regular medicines, surgeries, family history) that any doctor reads on
+  scan, can find and book a doctor's appointment several ways, and can
+  talk to two AI assistants — one that triages symptoms against a real
+  medical knowledge graph and books on their behalf, and **Ayu**, which
+  fills the health profile by interview in English or Sinhala.
+- A **doctor** scans that QR (or types the Medical ID), opens the
+  patient's **Clinical History** (allergies first, severity-ordered, each
+  entry badged self-reported or clinician-confirmed), and issues a
+  structured digital prescription — no handwriting, no paper.
 - A **pharmacy** scans either the patient's Medical ID (sees every active
   prescription) or a *specific prescription's own* QR (patients can show
   just one, so the pharmacy never sees the others) and dispenses
@@ -106,7 +114,7 @@ consistency is maintained by convention, not by code sharing.
 | Database | Supabase Postgres — Row Level Security (deny-all), `SECURITY DEFINER` PL/pgSQL functions (`app_*`) as the only access path |
 | Auth | Supabase Auth (email/password) — NIC/license number mapped to a synthetic email under the hood |
 | AI backend framework | FastAPI (Python), Server-Sent Events for streaming |
-| Agent orchestration | LangGraph (`StateGraph`, `interrupt()`/`Command(resume=...)` for human-in-the-loop, Postgres-backed checkpointing) |
+| Agent orchestration | LangGraph — **two** separate `StateGraph`s (diagnosis + Ayu), `interrupt()`/`Command(resume=...)` for human-in-the-loop, one shared Postgres-backed checkpointer |
 | LLM abstraction | LangChain (`BaseChatModel`, `Embeddings`) — provider-agnostic call sites |
 | LLM providers (choose one) | Local [LM Studio](https://lmstudio.ai) (fully offline), Google AI Studio (Gemini), or OpenRouter |
 | Knowledge graph | Neo4j Aura — `Specialty`→`Disease`→`Symptom` graph + a vector index for embedding-based symptom search |
@@ -129,11 +137,16 @@ See [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) for the AI backend in depth.
 - **Prescriptions** tab — always sorted by most recent; an **Active** section (not/partially dispensed) and a **Dispensed** archive section below it (fully dispensed or expired); searching looks across every status at once. Each prescription can show a QR unique to itself (not the patient's Medical ID) so a pharmacy scanning it sees *only that one prescription*.
 - **Treatments** tab — the patient's AI-diagnosis history; a treatment's displayed name is the AI's own working diagnosis until a doctor who saw them for that booked appointment issues a prescription, at which point the prescription's diagnosis text becomes the permanent, confirmed name.
 - **Diagnosis (Assistant)** — a chat screen backed by `backend/`: symptom triage, doctor search, and booking, all through one conversation. Renders full Markdown (bold, lists, headings, code, links). Voice UI is present but currently stubbed ("coming soon") — see §9.
+- **Health Profile** — the Tier 1/2/3 background a doctor reads on scan. Every list section is a **three-state** control ("Not answered" / "I have none" / entries), because an empty allergy list nobody filled in is not the same as "no known allergies".
+- **Profile & settings** — top-right avatar on Home. Registration details (name, phone, DOB editable; NIC and Medical ID deliberately not, since the QR derives from the NIC), the Ayu on/off switch, and **Download prescription history (CSV)** — one row per medication, RFC-4180 escaped, BOM + CRLF so Excel handles Sinhala correctly.
+- **Ayu** — a floating bubble. Asks language once, then interviews the patient to fill the health profile; re-checks monthly for anything still unanswered. Long-press to turn off; the permanent switch is in Profile.
+- **Reminders** — per-dose local notifications while a course runs, and an appointment nudge 3 hours before, rebuilt on every Appointments refresh so a reschedule anywhere corrects it.
 - **Notifications** — persisted history of appointment events (booked/rescheduled/cancelled/completed).
 
 ### AyuLink Doctor
 
 - **Home**: greeting, notification bell, "Scan & Prescribe" shortcut, recent prescriptions.
+- **Clinical History**: a button under the patient card after a scan — allergies (severity-ordered), long-term conditions, current medicines, surgeries, family history, implants, vaccinations, lifestyle and emergency contact. Everything is badged **Self-reported** unless a clinician confirmed it, and "Not answered" is shown as loudly as an entry.
 - **Scan & Prescribe**: scan a patient's Medical ID QR (or type it), then build a prescription — diagnosis, optional age/weight, and one or more medications (drug name; dosage as a separate manually-typed amount + a unit **dropdown** that also accepts a typed custom unit; frequency and duration as free text with one-tap common presets, e.g. `1-0-1`, `7 days`); set an expiry duration (7/14/30/60/90 days, or *Never*, default 30). Submitting shows a full-detail confirmation modal before returning to the patient lookup screen.
 - **Issued** tab: every prescription this doctor has issued, always sorted by most recent; search by patient/medical ID/diagnosis; filter by exact issue date; "look up by patient" (scan or type a Medical ID) narrows the list to one patient. A prescription can be **edited or deleted only within 1 day of issuing, and only while nothing on it has been dispensed or it hasn't expired** — enforced both in the UI and in the database RPC.
 - Registration collects up to 5 specialties (multi-select from the canonical DB list) — a doctor is then searchable under any one of them.
@@ -142,6 +155,7 @@ See [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) for the AI backend in depth.
 
 - **Home**: pharmacy identity card, stats (prescriptions seen / items dispensed / patients served), notification bell.
 - **Dispense**: scan a QR. If it's a patient's Medical ID, shows every active (not fully dispensed, not expired) prescription for that patient. If it's a *specific prescription's* own QR, shows **only that one prescription** — the patient's other pending prescriptions are never revealed this way. Dispensing is per medication item, with a 15-minute undo window; a fully dispensed or expired prescription refuses further dispensing at the database level, not just in the UI.
+- **Clinical History (narrowed)**: `app_get_patient_health_profile` returns `scope: DISPENSING` to a pharmacist — allergies and current medicines only. Enough to catch a dangerous dispense, and nothing more; a pharmacy has no reason to read someone's family history to hand over tablets.
 - **Records**: everything this pharmacy has ever dispensed.
 
 ### AyuLink Channeling Center
@@ -187,6 +201,47 @@ separate authorization layer to keep in sync.
 | `DeviceToken` | Expo push tokens, per user. |
 | `MobileOtp` | (Reserved) OTP support. |
 
+### Health profile tables
+
+Added in `20260915000000_patient_health_profile.sql`. Owned and
+maintained by the patient; read by clinicians on scan.
+
+| Table | Purpose |
+|---|---|
+| `PatientProfile` | 1:1 with a patient `User` — blood group, height/weight, pregnancy status, lifestyle (smoking / alcohol / **betel**, listed explicitly because it is a leading oral-cancer risk factor in Sri Lanka), emergency contact, preferred language, plus Ayu's own bookkeeping (`ayu_enabled`, `ayu_last_prompted_at`, `profile_completed_at`). |
+| `PatientAllergy` | Allergen, kind (`DRUG`/`FOOD`/`ENVIRONMENTAL`/`OTHER`), reaction, severity (`MILD`…`ANAPHYLAXIS`), `source`, who confirmed it. |
+| `PatientCondition` | Long-term conditions, since-date, `ACTIVE`/`RESOLVED`. |
+| `PatientMedication` | What the patient reports taking regularly — distinct from `PrescriptionItem`, which is what a doctor in *this* system issued. Most people's regular tablets predate the app entirely. |
+| `PatientHistoryEvent` | Surgeries, hospitalisations, immunisations, family history and implants in one table — they are all "a labelled thing that happened, optionally with a year and a note". Five near-identical tables would buy nothing but five sets of RPCs to keep in sync. |
+
+### UNKNOWN is not NONE
+
+Every list-shaped section carries its own `*_status` of
+`UNKNOWN` / `NONE` / `LISTED` on `PatientProfile`, rather than being
+inferred from an empty array.
+
+"No known drug allergies" is a clinical statement. "Nobody has asked" is
+the absence of one. Collapsing them would let a doctor read silence as
+reassurance — the exact failure this data exists to prevent. It is also
+what makes Ayu's monthly gap-check possible: a section answered `NONE`
+is finished and never re-asked, while `UNKNOWN` is still open.
+
+The same principle applies to `PatientProfile.preferred_language`, which
+is **nullable**: `NULL` means "never asked", so Ayu knows to show the
+language picker. It previously defaulted to `'EN'`, which made a patient
+who had never been asked indistinguishable from one who chose English —
+so the picker never appeared for anyone.
+
+### Patient-entered is not doctor-verified
+
+Every clinical row records `source` (`PATIENT` | `DOCTOR`) plus who
+confirmed it and when — the same pattern `Treatment` already uses for
+`disease_name` vs `confirmed_diagnosis`. The patient's own words are
+kept; a clinician's confirmation is added alongside, never over the top.
+The doctor app surfaces that distinction as a badge on every entry,
+because acting on an unverified allergy list *as if* it were verified is
+the failure mode here.
+
 ### The `EXPIRED` status is derived, not stored
 
 `Prescription.status` in the database only ever holds
@@ -219,6 +274,8 @@ in the JSON the RPC returns) is used for `Treatment.disease_name`.
 - **Treatments (AI diagnoses)**: `app_create_treatment`, `app_link_treatment_appointment`, `app_unlink_treatment_appointment`, `app_delete_treatment`, `app_list_my_treatments`, `app_treatment_by_thread`, `app_treatment_timeline` (care-journey events + `followupPlan` + `courseEndsAt`), `app_complete_treatment` (patient marks a diagnosis done — the only path to `COMPLETED`), `app_treatment_doctors_to_rate` / `app_rate_doctor` (post-course per-doctor 1–5 rating, feeding `DoctorProfile.rating` via trigger)
 - **Notifications**: `app_list_notifications`, `app_mark_notification_read`, `app_mark_all_notifications_read`, `app_unread_notification_count`
 - **Role profiles**: `app_get_pharmacy_profile`, `app_get_my_channeling_center_profile`
+- **Health profile**: `app_get_my_health_profile` (patient's own), `app_save_my_health_profile` (whole-object atomic save — both editors that write it, the patient's form and Ayu, hold the complete picture and save once), `app_get_patient_health_profile` (clinician read; `scope: FULL` for a doctor, `scope: DISPENSING` — allergies + medicines only — for a pharmacist)
+- **Account & export**: `app_update_my_account` (the editable half of registration, all roles; NIC and Medical ID excluded on purpose), `app_export_my_prescriptions` (flat one-row-per-medication export behind "Download as CSV")
 
 ## 6. Key Data Flows
 
@@ -364,24 +421,35 @@ the AI assistant): see [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md#12-knowledge-grap
 
 ## 9. Known Gaps / Notes
 
-- **Voice mode** in the patient app's Diagnosis chat is UI-only right now
-  (a "coming soon" placeholder for speech-to-text) — Expo Go cannot load
-  third-party native modules, and the feature was deliberately descoped
-  to keep the app runnable without a custom native build. Text-to-speech
+- **Voice mode** in the patient app's Diagnosis chat is UI-only (a
+  "coming soon" placeholder for speech-to-text) — Expo Go cannot load
+  third-party native modules, and the feature was descoped to keep the
+  app runnable without a custom native build. Text-to-speech
   (`expo-speech`, an official Expo module) does work.
-- **Doctor schedule management has no screen yet.** The RPCs to create/edit/
-  delete a doctor's recurring weekly availability template
+- **Doctor schedule management has no screen yet.** The RPCs to
+  create/edit/delete a doctor's recurring weekly availability
   (`app_get_my_schedule`, `app_upsert_schedule_slot`,
   `app_delete_schedule_slot`) exist and work, but no doctor-app screen
-  calls them — today, `DoctorSchedule` rows only come from seed data / the
-  bulk `Dataset_ref/` import.
-- **Push notifications** need an EAS project + custom dev-client build per
-  app for real on-device delivery — Expo Go has not supported remote push
-  since SDK 53. In-app notification history (the `Notification` table)
-  works regardless.
-- **Self-registered doctors/pharmacies/channeling centers start unverified**
-  (`verified = false` on their `User` row) and a "still being verified"
-  banner shows on their home screen, but — per current product decision —
-  this no longer blocks anything: issuing prescriptions, managing a
-  doctor's schedule, and dispensing all work the same either way. The
-  `verified` flag still exists and could gate something again later.
+  calls them — today `DoctorSchedule` rows come only from seed data and
+  the bulk `Dataset_ref/` import.
+- **Medication adherence tracking is not built.** Dose reminders fire,
+  but there is no "mark this dose taken" record, no Today checklist, and
+  no escalation when a dose is missed. That needs a `DoseLog` table and
+  its own RPCs.
+- **Chat-cancelled appointments leave no timeline entry.** `booking_agent`
+  unlinks the `Treatment` when it cancels, so `appointment_id` is already
+  null and neither `APPOINTMENT_BOOKED` nor `APPOINTMENT_CANCELLED`
+  resolves. UI-initiated cancellations keep the link and do show both.
+- **Push notifications** need an EAS project + custom dev-client build
+  per app for real on-device delivery — Expo Go has not supported remote
+  push since SDK 53. In-app notification history (the `Notification`
+  table) works regardless.
+- **Self-registered doctors/pharmacies/channeling centers start
+  unverified** (`verified = false`) and see a banner, but — per current
+  product decision — this no longer blocks anything. The flag still
+  exists and could gate something again later.
+- **Registration no longer collects map coordinates.** The `location`
+  columns remain `not null`; a registrant who supplies none gets a
+  Colombo-centre default (`20260917…` / `20260912…`). Nearest-first
+  sorting still reads those columns, so a centre that never sets a real
+  point will sort as if it were in Colombo.

@@ -57,3 +57,11 @@ __pycache__/
 # generated demo login list (NIC/license + shared password for every
 # seeded account) — regenerate with seed_postgres_dataset.py
 /backend/src/agent_workflow/ingestion/demo_credentials.csv
+docs/assets/ayulink-workflow.drawio
+docs/FEATURES.md
+/docs/presentation
+docs/README.md
+docs/README.md
+docs/WORKFLOW.md
+backend/src/agent_workflow/ayu/Ayu_StateGraph.drawio
+backend/src/agent_workflow/retrevel/AyuLink_StateGraph_Updated.drawio

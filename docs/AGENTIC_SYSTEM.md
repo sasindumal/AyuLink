@@ -1,12 +1,30 @@
 # AyuLink Agentic System
 
-The patient app's **Diagnosis** (Assistant) tab is backed by a LangGraph
-multi-agent system in [`backend/`](../backend) — the one part of AyuLink
-that isn't a plain Supabase CRUD call. This document is the architecture
-reference: what each node does, how state flows, how a Neo4j knowledge
-graph grounds the AI's answers, and how the server streams all of it to
-the client. For setup/running instructions, see
-[`backend/README.md`](../backend/README.md).
+[`backend/`](../backend) runs **two** LangGraph agents — the one part of
+AyuLink that isn't a plain Supabase CRUD call. This document is the
+architecture reference: what each node does, how state flows, how a Neo4j
+knowledge graph grounds the answers, and how the server streams all of it
+to the client. For setup/running instructions see
+[`backend/README.md`](../backend/README.md); for everything the platform
+does outside these agents see [`FEATURES.md`](FEATURES.md).
+
+| | **Diagnosis assistant** | **Ayu** |
+|---|---|---|
+| Surface | Patient app → Diagnosis tab | Patient app → floating bubble |
+| Job | Symptom triage → doctor search → booking → post-care follow-up | Fills the patient's health profile |
+| Shape | 22 nodes, 4 branches, LLM intent routing | 5 nodes, a fixed 10-question interview |
+| Endpoints | `/chat`, `/chat/resume`, `/chat/pdf`, `/chat/image`, `/chat/followup`, `/chat/sync`, `/chat/history` | `/ayu/chat`, `/ayu/resume`, `/ayu/history`, `/ayu/status`, `/ayu/enabled`, `/ayu/snooze` |
+| Package | `src/agent_workflow/retrevel/` | `src/agent_workflow/ayu/` |
+
+**Sections 1–12 below describe the diagnosis agent.** Ayu has its own
+section, [13](#13-ayu--the-health-profile-assistant).
+
+They are separate graphs on purpose. One classifies free-form intent and
+routes; the other runs a script to completion. Merging them would make
+`manager_agent` responsible for telling "I have a headache" apart from an
+answer to question 4 of an interview — a classification problem neither
+agent needs to have. They share the FastAPI process, the Postgres
+checkpointer and the LLM provider layer; not the graph.
 
 ## Contents
 
@@ -22,6 +40,7 @@ the client. For setup/running instructions, see
 10. [Persistence (checkpointing)](#10-persistence-checkpointing)
 11. [API surface](#11-api-surface)
 12. [Knowledge graph & ingestion](#12-knowledge-graph--ingestion)
+13. [**Ayu** — the health-profile assistant](#13-ayu--the-health-profile-assistant)
 
 ---
 
@@ -687,3 +706,172 @@ embedding model's vectors aren't dimension-compatible with the old ones —
 run `python3 seed_neo4j.py --reset-embeddings` to drop
 `symptom_embedding_idx`, clear every `Symptom.embedding`, and re-embed
 everything at the new provider's vector size.
+
+---
+
+## 13. Ayu — the health-profile assistant
+
+A second graph (`src/agent_workflow/ayu/`), reached on its own `/ayu/*`
+endpoints. It fills the patient's health profile by conversation — the
+Tier 1/2/3 background a doctor reads the moment they scan a Medical ID —
+in English or Sinhala, and re-checks monthly for anything still blank.
+
+### 13.1 Graph topology
+
+```mermaid
+flowchart TB
+    START([START]) --> ST[start]
+    ST -->|"language unknown"| LANG{{"interrupt:<br/>ayu_language"}}
+    LANG --> ST
+    ST -->|"CHECKIN, nothing missing"| E1([END])
+    ST -->|"Command"| AQ[ask_question]
+    AQ --> QI{{"interrupt:<br/>ayu_question"}}
+    QI --> AQ
+    AQ -->|"more in the plan, Command"| AQ
+    AQ -->|"plan exhausted, Command"| SR[show_report]
+    SR --> RI{{"interrupt:<br/>ayu_report"}}
+    RI --> SR
+    SR -->|"confirm, Command"| SP[save_profile]
+    SR -->|"change something, Command"| AE[apply_edit]
+    AE -->|"section identified, Command"| AQ
+    AE -->|"unclear, Command"| SR
+    SP --> E2([END])
+```
+
+Five nodes. Only `start`, `ask_question` and `show_report` interrupt;
+everything else routes with `Command(goto=…)`. The interview is a cursor
+walking one list, so "what comes next" is a value in state, not a shape
+in the graph — which is why a monthly gap-check reuses the same nodes
+with a shorter `plan`.
+
+### 13.2 The two distinctions that carry the design
+
+**UNKNOWN is not NONE.** Every list question resolves to one of three
+outcomes, and they are stored differently:
+
+| The patient said | `knows` | `has_any` | Stored |
+|---|---|---|---|
+| "Penicillin, I get a rash" | true | true | `LISTED` + the entries |
+| "No, none" | true | false | `NONE` |
+| "I don't remember" | **false** | — | `UNKNOWN` |
+
+"No known drug allergies" is a clinical statement; "nobody asked" is the
+absence of one. A doctor reading an empty allergy list must be able to
+tell which they are looking at — and Ayu must know which sections are
+genuinely finished so it never re-asks one the patient already answered.
+
+That boolean is **not left to the LLM alone**. Asked for `knows` on a
+negation-heavy sentence, the model was observed returning both answers on
+consecutive calls for the same Sinhala input. `_decide()` in `nodes.py`
+overrules it with a deterministic keyword pass — the same second-guessing
+`manager_agent` applies to its own `booking` route, for the same reason:
+the mistake is asymmetric, and recording "I have none" that nobody said
+puts a false clinical claim on the record. Order matters inside it —
+"I don't remember" contains a negation too, so the don't-know check runs
+first, and extracted items beat any keyword.
+
+**Talk in Sinhala, store in English.** Doctors, the drug catalogue and
+the Neo4j graph are English-only; a profile half-filled with Sinhala free
+text is unreadable to the clinician it exists for. Every extraction
+prompt says so — and because "always answer in English" holds most of the
+time and then quietly doesn't, `_is_latin()` checks every field on the
+way out and `_to_latin()` re-translates the ones that came back in
+Sinhala script. Medical terms are translated (`මෙට්ෆෝමින්` → `Metformin`);
+personal and place names are transliterated (`නිමාල් ජයවර්ධන` →
+`Nimal Jayawardena`), never translated.
+
+### 13.3 State (`AyuState`)
+
+- **`language`** / **`language_asked`** — `EN` or `SI`, settled before
+  anything else because every later string depends on it. Persisted to
+  `PatientProfile.preferred_language`, which is **nullable**: `NULL`
+  means never asked. It used to default to `'EN'`, which made "never
+  asked" indistinguishable from "chose English" — so the picker never
+  appeared for anyone whose profile row existed.
+- **`plan`** / **`cursor`** — the question indexes still to ask, and how
+  far through them. A full intake is every question; a `CHECKIN` is only
+  the ones `pending_indexes()` reports as still `UNKNOWN`.
+- **`draft_profile`** / **`draft_allergies`** / **`draft_conditions`** /
+  **`draft_medications`** / **`draft_history`** — answers accumulate in
+  the exact shape `app_save_my_health_profile` takes. **Nothing reaches
+  the database until the patient confirms the report.**
+- **`mode`** — `INTAKE` or `CHECKIN`. Only an `INTAKE` stamps
+  `profile_completed_at`; a gap-check that filled two sections has not
+  completed anything.
+
+### 13.4 The questions
+
+Ten, in `questions.py`, hand-written in **both** languages rather than
+translated at runtime. Two reasons: a fixed script is predictable (the
+same patient gets the same wording every month, so "you already asked me
+this" is never a surprise), and it removes an LLM call per question — the
+model is used only for the part that needs judgement, which is reading
+the answer.
+
+| # | Section | Fills |
+|---|---|---|
+| 1 | Allergies | `PatientAllergy` + `allergies_status` |
+| 2 | Long-term conditions | `PatientCondition` + `conditions_status` |
+| 3 | Regular medicines | `PatientMedication` + `medications_status` |
+| 4 | Surgeries & hospital stays | `PatientHistoryEvent(SURGERY)` |
+| 5 | Family history | `PatientHistoryEvent(FAMILY_HISTORY)` |
+| 6 | Vaccinations | `PatientHistoryEvent(IMMUNISATION)` |
+| 7 | Implants & devices | `PatientHistoryEvent(IMPLANT)` |
+| 8 | Blood group, height, weight | `PatientProfile` scalars |
+| 9 | Smoking / alcohol / **betel** | `PatientProfile` scalars |
+| 10 | Emergency contact | `PatientProfile` scalars |
+
+Betel is asked explicitly rather than folded into an "other habits" box:
+it is a leading oral-cancer risk factor in Sri Lanka and a doctor here
+will ask. Its prompt also spells out that the three habits are
+independent — a "no" about smoking was otherwise carried over to alcohol
+in the same sentence.
+
+### 13.5 Extraction
+
+One Pydantic shape for every list question (`ExtractedItem`) rather than
+one per section: allergies, conditions, medicines, surgeries and family
+history all reduce to "a labelled thing with optional detail", so a
+single well-tested prompt serves all five. Which field means what is
+supplied per question via `item_hint`. Scalar questions use
+`ScalarAnswer`, where a field the patient didn't mention is left unset
+rather than guessed.
+
+An extraction failure falls back to `knows=False` — never to "the patient
+has none", which would be a clinical claim nobody made.
+
+### 13.6 Report, edit, save
+
+`show_report` renders everything gathered in the patient's own language,
+with English values inside it, and interrupts. Confirming saves; asking
+for a change routes to `apply_edit`, which classifies which section is
+meant, clears just that section's drafts, and re-asks that one question
+before returning to the summary. An unclear request re-asks rather than
+guessing.
+
+### 13.7 Interrupt vocabulary
+
+| Type | Client renders | Resume value |
+|---|---|---|
+| `ayu_language` | Two buttons | `"EN"` / `"SI"` |
+| `ayu_question` | Question + text box + an **"I don't know"** button | the answer text |
+| `ayu_report` | The rendered summary + Confirm / Change | `{confirm: true}` or `{edit: "..."}` |
+
+"I don't know" is a first-class button, not something to type. It records
+`UNKNOWN` rather than a false `NONE`, and making it the easy path is what
+stops people guessing.
+
+### 13.8 On/off, and the monthly check
+
+`PatientProfile.ayu_enabled`, `ayu_last_prompted_at` and
+`profile_completed_at` drive whether the bubble shows and whether a
+check-in is due (a month since the last nudge **and** something genuinely
+missing — a complete profile is never nagged).
+
+The client reads and writes all of that **through Supabase**, not through
+`/ayu/status`. Both compute the same answer, but routing it through the
+agent made the controls depend on that service being awake: a sleeping
+free-tier backend returned an error, and both the bubble *and* the
+off-switch disappeared — leaving anyone who had turned Ayu off with no
+way to turn it back on. A toggle must not depend on the thing it toggles
+being reachable. The endpoints remain for server-side callers.
