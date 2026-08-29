@@ -40,10 +40,12 @@ AyuLink/
 
 | I want to... | Read |
 |---|---|
+| **Run the whole system locally, end to end** | [**`docs/RUN_LOCALLY.md`**](docs/RUN_LOCALLY.md) |
 | Understand the whole platform, its architecture, and the database schema | [`docs/README.md`](docs/README.md) |
 | See every feature, the full tech stack, and end-to-end workflows | [`docs/FEATURES.md`](docs/FEATURES.md) |
 | See how the pieces fit together as a diagram | [`docs/WORKFLOW.md`](docs/WORKFLOW.md) |
 | Understand the AI assistants in depth | [`docs/AGENTIC_SYSTEM.md`](docs/AGENTIC_SYSTEM.md) |
+| Get all four apps onto a phone for a demo (no build) | [`docs/DEMO.md`](docs/DEMO.md) |
 | Run the mobile apps | [`frontend/mobile/README.md`](frontend/mobile/README.md) |
 | Run the agent backend | [`backend/README.md`](backend/README.md) |
 | Run the marketing website | [`frontend/web/README.md`](frontend/web/README.md) |
@@ -51,13 +53,22 @@ AyuLink/
 
 ## Quick start
 
-1. Create a free [Supabase](https://supabase.com) project and run the
-   migrations in [`supabase/migrations/`](supabase/migrations) in
-   filename order — details in [`docs/README.md`](docs/README.md#8-database-management).
+Full walkthrough — database, knowledge graph, backend, all four apps,
+website, and a verification loop — is in
+[**`docs/RUN_LOCALLY.md`**](docs/RUN_LOCALLY.md). The short version:
+
+1. Create a free [Supabase](https://supabase.com) project, run every
+   migration in [`supabase/migrations/`](supabase/migrations) in filename
+   order, turn off email confirmation, and seed demo data — details in
+   [`docs/RUN_LOCALLY.md § 1`](docs/RUN_LOCALLY.md#1-database--supabase-postgres).
 2. `cd frontend/mobile/patient-app && npm install --legacy-peer-deps && npm start`
-   (repeat for the other three apps) — details in
-   [`frontend/mobile/README.md`](frontend/mobile/README.md).
-3. Set up [`backend/`](backend) — details in [`backend/README.md`](backend/README.md).
+   (repeat for the other three apps), pasting your Supabase URL + anon key
+   into each app's `src/lib/config.ts`.
+3. For the patient app's AI chats only: set up Neo4j + an LLM provider and
+   run [`backend/`](backend) — details in
+   [`docs/RUN_LOCALLY.md § 2–3`](docs/RUN_LOCALLY.md#2-knowledge-graph--llm-provider-ai-features-only--skip-for-the-minimal-path).
+
+The other three apps and every non-AI feature need only step 1.
 
 ## What's in it
 

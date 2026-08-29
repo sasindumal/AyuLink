@@ -6,10 +6,14 @@ just getting something running, use the shorter per-package guides
 [`backend/README.md`](../backend/README.md)) — come back here for how
 everything fits together, the full database schema, and cross-app flows.
 Companion documents:
+[`RUN_LOCALLY.md`](RUN_LOCALLY.md) — bring the whole system up on one
+machine (database, knowledge graph, backend, all four apps, website) and
+verify it with a full end-to-end loop.
 [`FEATURES.md`](FEATURES.md) — every feature in every app and the website,
 the full technology stack, and the end-to-end workflows.
 [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) — the two AI agents in depth.
 [`WORKFLOW.md`](WORKFLOW.md) — system diagrams, plus an editable draw.io file.
+[`DEMO.md`](DEMO.md) — get all four apps onto a phone with no build.
 
 ## Contents
 
