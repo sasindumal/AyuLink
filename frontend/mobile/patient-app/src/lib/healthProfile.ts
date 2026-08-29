@@ -120,6 +120,16 @@ export const HISTORY_KIND_LABEL: Record<HistoryKind, string> = {
     IMPLANT: "Implant / device",
 };
 
+/** Per-kind example text. One shared "e.g. Appendectomy" was being shown
+ *  under Vaccinations and Family history too, where it is nonsense. */
+export const HISTORY_KIND_PLACEHOLDER: Record<HistoryKind, string> = {
+    SURGERY: "e.g. Appendectomy",
+    HOSPITALISATION: "e.g. Dengue",
+    IMMUNISATION: "e.g. Tetanus",
+    FAMILY_HISTORY: "e.g. Diabetes",
+    IMPLANT: "e.g. Pacemaker",
+};
+
 export async function getMyHealthProfile(): Promise<HealthProfile> {
     return rpc<HealthProfile>("app_get_my_health_profile");
 }

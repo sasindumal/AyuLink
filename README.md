@@ -85,7 +85,7 @@ separate graphs, because they do genuinely different jobs.
 | | **Diagnosis assistant** | **Ayu** |
 |---|---|---|
 | Job | Symptom triage → doctor search → booking → post-care follow-up | Fills the patient's health profile |
-| Shape | 22 nodes, 4 branches, free-form intent routing | 5 nodes, a fixed 10-question interview |
+| Shape | 22 nodes, 4 branches, free-form intent routing | 7 nodes; the interview is planned per patient from what their profile is missing |
 | Endpoints | `/chat*` | `/ayu/*` |
 | Grounding | Neo4j `Specialty→Disease→Symptom` graph, hybrid keyword + vector retrieval | Structured extraction into `PatientProfile` |
 | Languages | Any (answers in the patient's language) | English / Sinhala, **stores English only** |
