@@ -4,7 +4,7 @@
 <title>AyuLink Introduction</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+Sinhala:wght@500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
 
 <style>
 /* ============================================================
@@ -591,6 +591,32 @@ h2 { font-size: 4.1em; }
   white-space: nowrap;
 }
 
+/* Sinhala sample line. Neither Jakarta nor Plex Mono carries Sinhala
+   glyphs, so it names Noto Sans Sinhala explicitly rather than falling back
+   to whatever system face the projector laptop happens to have. */
+.si-quote {
+  margin: 0.2em 0 0;
+  padding: 0.9em 1.1em;
+  border-left: 2px solid var(--amber);
+  background: rgba(242,181,11,0.06);
+  border-radius: 0 0.6em 0.6em 0;
+  font-family: "Noto Sans Sinhala", var(--body);
+  font-size: 1.15em;
+  font-weight: 500;
+  line-height: 1.6;
+  color: var(--fg);
+  max-width: 34em;
+}
+.si-quote span {
+  display: block;
+  margin-top: 0.35em;
+  font-family: var(--body);
+  font-size: 0.74em;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--fg-mute);
+}
+
 /* the phone: a device that looks switched on and waiting, not a grey box */
 .phone {
   position: relative;
@@ -1165,10 +1191,35 @@ html:not(.deck) .hint { display: none; }
     </div>
   </section>
 
-  <!-- ==================================================== 6 — demo: prescribe -->
-  <section class="slide demo" aria-label="Demo: the doctor prescribes" data-video="prescribe">
+  <!-- ==================================================== 7 — demo: Sinhala chat -->
+  <section class="slide demo" aria-label="Demo: the assistant in Sinhala" data-video="sinhala">
     <div class="demo-copy">
       <p class="eyebrow rise" style="--i:0">Demo · 03</p>
+      <h2 class="rise" style="--i:1">The same care, in Sinhala</h2>
+      <p class="body-copy rise" style="--i:2">
+        A patient who is more comfortable in Sinhala never has to switch
+        language. They describe the problem in their own words, and the
+        assistant asks, explains and books in Sinhala too.
+      </p>
+      <p class="si-quote rise" style="--i:3" lang="si">
+        මට දවස් දෙකක ඉඳන් උණයි, ඇඟ රිදෙනවා
+        <span lang="en">"I've had a fever for two days, and my body aches"</span>
+      </p>
+      <ul class="beats">
+        <li class="rise" style="--i:4">Sinhala in, Sinhala out — typed or spoken</li>
+        <li class="rise" style="--i:5">Follow-up questions and the explanation arrive in Sinhala</li>
+        <li class="rise" style="--i:6">Same knowledge graph, same doctors, same booking flow</li>
+      </ul>
+    </div>
+    <div class="phone rise" style="--i:3">
+      <div class="phone-screen"><div class="notch"></div></div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 8 — demo: prescribe -->
+  <section class="slide demo" aria-label="Demo: the doctor prescribes" data-video="prescribe">
+    <div class="demo-copy">
+      <p class="eyebrow rise" style="--i:0">Demo · 04</p>
       <h2 class="rise" style="--i:1">Scan, read, prescribe</h2>
       <p class="body-copy rise" style="--i:2">
         The doctor scans the patient's Medical ID and the clinical history opens
@@ -1187,10 +1238,10 @@ html:not(.deck) .hint { display: none; }
     </div>
   </section>
 
-  <!-- ==================================================== 7 — demo: dispense -->
+  <!-- ==================================================== 9 — demo: dispense -->
   <section class="slide demo" aria-label="Demo: the pharmacy dispenses" data-video="dispense">
     <div class="demo-copy">
-      <p class="eyebrow rise" style="--i:0">Demo · 04</p>
+      <p class="eyebrow rise" style="--i:0">Demo · 05</p>
       <h2 class="rise" style="--i:1">Verify, then dispense</h2>
       <p class="body-copy rise" style="--i:2">
         The pharmacist scans the same Medical ID — or a single prescription's own
@@ -1242,6 +1293,7 @@ html:not(.deck) .hint { display: none; }
 
        docs/videos/ayu.mov        docs/videos/prescribe.mov
        docs/videos/diagnosis.mov  docs/videos/dispense.mov
+       docs/videos/sinhala.mov
 
      .mov, .mp4, .webm and .m4v are all tried in turn, and whichever
      exists wins. A slide with no matching file keeps its placeholder.
@@ -1251,6 +1303,7 @@ html:not(.deck) .hint { display: none; }
   var VIDEOS = {
     ayu:       "",   // e.g. "videos/ayu-final-cut.mp4"
     diagnosis: "",
+    sinhala:   "",
     prescribe: "",
     dispense:  ""
   };
@@ -1264,6 +1317,7 @@ html:not(.deck) .hint { display: none; }
   var LABEL = {
     ayu:       "Ayu · health history",
     diagnosis: "Symptoms · channelling",
+    sinhala:   "Sinhala · chat",
     prescribe: "Doctor · prescribe",
     dispense:  "Pharmacy · dispense"
   };
