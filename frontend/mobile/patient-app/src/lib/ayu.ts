@@ -167,12 +167,23 @@ export function statusFrom(profile: HealthProfile): AyuStatus {
 // backend just sees a thread it has never seen and starts fresh.
 const AYU_GEN_KEY = (patientId: string) => `ayu:gen:${patientId}`;
 
+// A per-launch tag, held only in memory — it is assigned once when this
+// module first evaluates, which happens exactly on a cold start or a JS
+// reload, and never again until the next one. Folded into every
+// generation below, it means a reload always opens Ayu in a fresh
+// conversation (re-plan, re-ask), while reopening Ayu later in the SAME
+// running app still resumes mid-interview as before. Without it, the
+// stored per-patient tag alone made the thread id stable across a
+// reload too, so a reload kept replaying old, sometimes stale, history.
+const SESSION_GEN = Date.now().toString(36);
+
 export async function ayuGeneration(patientId: string): Promise<string> {
-    if (!patientId) return "";
+    if (!patientId) return SESSION_GEN;
     try {
-        return (await AsyncStorage.getItem(AYU_GEN_KEY(patientId))) ?? "";
+        const stored = (await AsyncStorage.getItem(AYU_GEN_KEY(patientId))) ?? "";
+        return `${stored}${SESSION_GEN}`;
     } catch {
-        return "";
+        return SESSION_GEN;
     }
 }
 

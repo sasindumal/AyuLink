@@ -9,12 +9,21 @@ from langgraph.graph.state import CompiledStateGraph
 # it to the client as an "interrupt" event. Their message stream is
 # suppressed so the client renders the question once, from the interrupt.
 #
-# "ask" is Ayu's; the rest are the diagnosis agent's. Node names are unique
-# across both graphs, so one set serves both.
+# "compose"/"ask" are Ayu's; the rest are the diagnosis agent's. Node names
+# are unique across both graphs, so one set serves both.
+#
+# Ayu writes the question and puts it to the patient in two separate nodes
+# (see ayu/nodes.py): "compose" calls the LLM to phrase it, "ask" reads
+# that phrasing back out of state and interrupts with it. Both must be
+# listed — "compose"'s LLM call streams via stream_mode="messages" same as
+# any other node's, and without the skip the client rendered the composed
+# question as a plain chat bubble AND, a moment later, as the interrupt's
+# question card: the same text twice.
 INTERRUPT_ECHO_NODES = {
     "ask_followup",
     "course_followup",
     "rate_doctor_node",
+    "compose",
     "ask",
 }
 

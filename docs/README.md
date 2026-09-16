@@ -14,6 +14,10 @@ the full technology stack, and the end-to-end workflows.
 [`AGENTIC_SYSTEM.md`](AGENTIC_SYSTEM.md) — the two AI agents in depth.
 [`WORKFLOW.md`](WORKFLOW.md) — system diagrams, plus an editable draw.io file.
 [`DEMO.md`](DEMO.md) — get all four apps onto a phone with no build.
+[`ayulink-introduction.html`](ayulink-introduction.html) — an animated
+introduction deck (open it in a browser; `F` for fullscreen). Drop vertical
+demo clips into `docs/videos/` and list them in the `VIDEOS` block at the
+top of its script to fill the four phone placeholders.
 
 ## Contents
 
