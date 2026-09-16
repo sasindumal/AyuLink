@@ -465,8 +465,8 @@ h2 { font-size: 4.1em; }
 /* ---------------------------------------------------- 3. capability groups */
 .groups {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2.6em 3.4em;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2.6em 2.4em;
   margin-top: 2.6em;
   align-items: start;
 }
@@ -716,6 +716,23 @@ h2 { font-size: 4.1em; }
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.vid-speed {
+  flex: none;
+  min-width: 3.1em;
+  padding: 0.3em 0.55em;
+  border: 1px solid rgba(244,239,234,0.28);
+  border-radius: 999px;
+  background: rgba(244,239,234,0.08);
+  color: var(--fg);
+  font-family: var(--mono);
+  font-size: 0.66em;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.2s var(--ease), border-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.vid-speed:hover { background: rgba(244,239,234,0.16); }
+/* Lit whenever the clip is not at normal speed, so it is obvious at a glance. */
+.vid-speed.is-changed { border-color: var(--lime-lift); color: var(--lime-lift); }
 
 .notch {
   position: absolute; top: 0.85em; left: 50%;
@@ -1045,56 +1062,75 @@ html:not(.deck) .hint { display: none; }
 
     <div class="groups">
       <div class="group rise" style="--i:2">
-        <h3 class="group-title">For patients</h3>
+        <h3 class="group-title">Patient app</h3>
         <ul>
           <li>
-            <b>A personal health assistant</b>
-            <span><em>Ayu</em> lives on the home screen and keeps the health record current.</span>
-          </li>
-          <li>
-            <b>AI symptom analysis &amp; doctor channelling</b>
-            <span>By voice or chat, in Sinhala or English — ending in a booked appointment.</span>
+            <b>QR-based digital prescription management</b>
+            <span>One QR Medical ID carries the prescription end to end — no paper slip, nothing to lose.</span>
           </li>
           <li>
             <b>Past health history in natural language</b>
             <span>Ayu asks in the patient's own words; the structured profile fills itself.</span>
           </li>
           <li>
+            <b>AI symptom analysis &amp; doctor channelling</b>
+            <span>By voice or chat, in Sinhala or English — ending in a booked appointment.</span>
+          </li>
+          <li>
             <b>Course tracking &amp; reminders</b>
             <span>Every dose, on schedule, until the full course is complete.</span>
+          </li>
+          <li>
+            <b>Feedback collected during the course</b>
+            <span>When recovery stalls, used to point the patient to <em>another suitable speciality</em>.</span>
+          </li>
+          <li>
+            <b>Doctor rating &amp; ranking</b>
+            <span>From real patients, after real treatment — and it feeds the search that finds them.</span>
           </li>
         </ul>
       </div>
 
       <div class="group rise" style="--i:3">
-        <h3 class="group-title">In the consulting room</h3>
+        <h3 class="group-title">Doctor app</h3>
         <ul>
           <li>
-            <b>QR-based digital prescription management</b>
-            <span>Scan the Medical ID, read the history, issue the prescription — no paper slip.</span>
+            <b>Doctor prescribes by QR, with the full history in view</b>
+            <span>Scan the Medical ID and allergies, conditions and current medicines are on screen
+            before a word is prescribed.</span>
           </li>
           <li>
-            <b>Feedback collected during the course</b>
-            <span>Returned to the prescribing doctor — and, when recovery stalls, used to point the
-            patient to a <em>better-suited speciality</em>.</span>
+            <b>Doctors manage their own availability</b>
+            <span>Open slots, blocked days and session times — set once, reflected everywhere patients search.</span>
           </li>
         </ul>
       </div>
 
       <div class="group rise" style="--i:4">
-        <h3 class="group-title">Across the network</h3>
+        <h3 class="group-title">Pharmacy app</h3>
         <ul>
           <li>
-            <b>Doctor rating &amp; ranking</b>
-            <span>From real patients, after real treatment — and it feeds the search that finds them.</span>
+            <b>Pharmacy dispenses through QR</b>
+            <span>The same code, verified against what the doctor actually wrote, then dispensed item
+            by item.</span>
           </li>
           <li>
-            <b>AI-powered pharmacy drug management</b>
-            <span>Verify against what the doctor actually wrote, then dispense item by item.</span>
+            <b>Drug &amp; inventory management</b>
+            <span>Stock levels tracked alongside every dispense, so a pharmacy always knows what it has.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="group rise" style="--i:5">
+        <h3 class="group-title">Channelling-centre app</h3>
+        <ul>
+          <li>
+            <b>Appointments management</b>
+            <span>Sessions, confirmations, reschedules and completions in one place.</span>
           </li>
           <li>
-            <b>AI-powered channelling-centre appointments</b>
-            <span>Sessions, availability, confirmations and completions in one place.</span>
+            <b>Availability management</b>
+            <span>Session slots across every doctor at the centre — set once, reflected everywhere patients search.</span>
           </li>
         </ul>
       </div>
@@ -1422,7 +1458,25 @@ html:not(.deck) .hint { display: none; }
     time.className = "vid-time";
     time.textContent = "0:00 / 0:00";
 
-    bar.appendChild(btn); bar.appendChild(seek); bar.appendChild(time);
+    var speed = document.createElement("button");
+    speed.type = "button";
+    speed.className = "vid-speed";
+    var RATES = [0.5, 1, 1.25, 1.5, 2];
+    var rateIdx = 1;
+    function setRate(i) {
+      rateIdx = i;
+      var r = RATES[i];
+      /* defaultPlaybackRate too: a source reload resets playbackRate to it */
+      v.defaultPlaybackRate = r;
+      v.playbackRate = r;
+      speed.textContent = r + "×";
+      speed.setAttribute("aria-label", "Playback speed " + r + "x");
+      speed.classList.toggle("is-changed", r !== 1);
+    }
+    setRate(rateIdx);
+    speed.addEventListener("click", function () { setRate((rateIdx + 1) % RATES.length); });
+
+    bar.appendChild(btn); bar.appendChild(seek); bar.appendChild(time); bar.appendChild(speed);
 
     function toggle() {
       if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
