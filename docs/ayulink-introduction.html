@@ -1,0 +1,1538 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>document.documentElement.classList.add("deck");</script>
+<title>AyuLink Introduction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&family=IBM+Plex+Mono:wght@400;500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+/* ============================================================
+   AyuLink — Introduction deck
+   Brand palette is fixed by the project (see frontend/web
+   globals.css and each app's src/theme.ts). This deck is
+   deliberately single-theme: a presentation should look the
+   same in every room, so every colour is painted explicitly
+   rather than inherited from the host.
+   ============================================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* ground — the brand forest pushed almost to black, never neutral */
+  --ink:          #08130A;
+  --ink-2:        #0C1A0D;
+  --panel:        rgba(244, 239, 234, 0.045);
+  --panel-line:   rgba(244, 239, 234, 0.13);
+  --panel-line-2: rgba(244, 239, 234, 0.07);
+
+  /* brand */
+  --forest:       #25671E;
+  --lime:         #48A111;
+  --lime-lift:    #6FD121;   /* derived: lime lifted for luminance on dark */
+  --amber:        #F2B50B;
+  --amber-ink:    #916800;
+  --shell:        #F4EFEA;
+  --danger:       #96302A;
+  /* secondary ink for text on the glass ID card. #5A616D measured ~2.2:1
+     once the card became translucent over the dark ground; this is the
+     brand green desaturated, and clears AA on the glass at both stops. */
+  --card-mute:    #47513F;
+
+  /* type colours */
+  --fg:           #F4EFEA;
+  --fg-dim:       #C9D2C4;
+  --fg-mute:      #8E9C88;   /* shell desaturated toward green, not grey */
+
+  --display: "Bricolage Grotesque", "Plus Jakarta Sans", system-ui, sans-serif;
+  --body:    "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --mono:    "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease: cubic-bezier(0.22, 0.72, 0.24, 1);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ink);
+  color: var(--fg);
+  font-family: var(--body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Without JS the deck degrades to a readable scrolling document. */
+html.deck body { overflow: hidden; height: 100dvh; }
+
+/* ---------------------------------------------------- ambience */
+.orbs {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden; pointer-events: none;
+}
+.orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(90px); opacity: 0.5;
+  will-change: transform;
+}
+.orb-a {
+  width: 58vmax; height: 58vmax; left: -20vmax; top: -22vmax;
+  background: radial-gradient(circle, rgba(37,103,30,0.85) 0%, rgba(37,103,30,0) 68%);
+  animation: driftA 34s var(--ease) infinite alternate;
+}
+.orb-b {
+  width: 42vmax; height: 42vmax; right: -14vmax; bottom: -18vmax;
+  background: radial-gradient(circle, rgba(242,181,11,0.42) 0%, rgba(242,181,11,0) 68%);
+  animation: driftB 27s var(--ease) infinite alternate;
+}
+.orb-c {
+  width: 34vmax; height: 34vmax; left: 52%; top: 8%;
+  background: radial-gradient(circle, rgba(72,161,17,0.38) 0%, rgba(72,161,17,0) 70%);
+  animation: driftC 41s var(--ease) infinite alternate;
+}
+@keyframes driftA { to { transform: translate3d(9vmax, 7vmax, 0) scale(1.14); } }
+@keyframes driftB { to { transform: translate3d(-8vmax, -6vmax, 0) scale(1.2); } }
+@keyframes driftC { to { transform: translate3d(-11vmax, 9vmax, 0) scale(0.86); } }
+
+/* a fine grain so the frosted panels have texture to sample */
+.grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  opacity: 0.4; mix-blend-mode: overlay;
+  background-image: radial-gradient(rgba(244,239,234,0.5) 0.5px, transparent 0.5px);
+  background-size: 3px 3px;
+}
+
+/* ---------------------------------------------------- stage */
+.stage {
+  position: relative; z-index: 2;
+  font-size: clamp(0.66rem, min(1.02vw, 1.72vh), 1.22rem);
+}
+html.deck .stage { height: 100dvh; }
+
+.slide {
+  display: grid;
+  align-content: center;
+  padding: 5.5em 5em 5.5em 8.5em;
+  min-height: 100dvh;
+}
+html.deck .slide {
+  position: absolute; inset: 0;
+  min-height: 0;
+  opacity: 0; visibility: hidden;
+  transform: translate3d(0, 2.2em, 0);
+  transition: opacity 0.62s var(--ease), transform 0.62s var(--ease), visibility 0s linear 0.62s;
+}
+html.deck .slide.is-on {
+  opacity: 1; visibility: visible;
+  transform: none;
+  transition: opacity 0.62s var(--ease), transform 0.62s var(--ease), visibility 0s;
+}
+html.deck .slide.is-past { transform: translate3d(0, -2.2em, 0); }
+
+/* staggered entrance — children carry their own index */
+.rise { animation: rise 0.7s var(--ease) both; animation-delay: calc(var(--i, 0) * 85ms + 120ms); }
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 1.4em, 0); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ---------------------------------------------------- shared type */
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 0 0 1.6em;
+  display: flex; align-items: center; gap: 0.9em;
+}
+.eyebrow::after {
+  content: ""; height: 1px; flex: 1; max-width: 8em;
+  background: linear-gradient(90deg, rgba(242,181,11,0.55), rgba(242,181,11,0));
+}
+
+h1, h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-variation-settings: "wdth" 92;
+  line-height: 0.96;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  margin: 0;
+}
+h1 { font-size: 7.4em; }
+h2 { font-size: 4.1em; }
+
+.lede {
+  font-size: 1.5em;
+  line-height: 1.42;
+  color: var(--fg-dim);
+  font-weight: 500;
+  max-width: 22ch;
+  text-wrap: balance;
+  margin: 0;
+}
+.body-copy {
+  font-size: 1.1em;
+  line-height: 1.62;
+  color: var(--fg-mute);
+  max-width: 46ch;
+  margin: 0;
+}
+
+/* ---------------------------------------------------- 1. title */
+.title-slide {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4em;
+  align-items: center;
+}
+.title-copy { display: grid; align-content: center; }
+
+/* ---- Digital Medical ID card (mirrors the website hero) ----
+   The card is deliberately LIGHT on the dark deck: that is how the Medical
+   ID reads in the product, and it is the one surface a scanner must see.
+   Every colour inside is stated against the light ground, never inherited
+   from the deck's shell-on-forest tokens. */
+.idcard-stage {
+  position: relative;
+  width: 19.5em;   /* explicit, so Safari can size the `auto` grid track */
+  flex: none;
+}
+.idcard {
+  position: relative; z-index: 2;
+  border-radius: 1.7em;
+  padding: 1.6em 1.5em 1.4em;
+  /* Frosted glass, like the website's .glass-strong. The gradient is the
+     sheen; the backdrop blur is what actually sells it — the orbs and grain
+     drift visibly behind the card. Opacity stops at 0.80 because the forest
+     text has to keep AA contrast against a DARK ground showing through
+     (0.62 measured ~2.8:1 and was unreadable). */
+  background: linear-gradient(150deg, rgba(247,244,240,0.90), rgba(244,239,234,0.80));
+  backdrop-filter: blur(22px) saturate(1.1);
+  -webkit-backdrop-filter: blur(22px) saturate(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.65),
+    0 2px 3px rgba(0,0,0,0.2),
+    0 30px 70px -24px rgba(0,0,0,0.85),
+    0 0 100px -34px rgba(72,161,17,0.55);
+  animation: floatSlow 7s ease-in-out infinite;
+}
+.idcard-head { display: flex; align-items: center; gap: 0.75em; margin-bottom: 1.4em; }
+.idcard-head img { width: 2.5em; height: 2.5em; object-fit: contain; }
+.idcard-head b {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.02em; font-weight: 700;
+  color: var(--forest);
+  letter-spacing: -0.01em;
+}
+.idcard-head span { display: block; font-size: 0.74em; color: var(--card-mute); margin-top: 0.15em; }
+
+/* The one surface that must NOT be glass: a translucent tile would let the
+   dark ground through and collapse the QR's module contrast, making it
+   unscannable. Stays fully opaque. */
+.idcard-qr {
+  width: 11em; height: 11em;
+  margin: 0 auto 1.2em;
+  border-radius: 1.3em;
+  padding: 0.7em;
+  background: linear-gradient(145deg, #EFF4EB, #E7EFE2);
+  border: 1px solid rgba(255,255,255,0.9);
+  box-shadow: inset 0 2px 6px rgba(37,103,30,0.12);
+}
+.idcard-qr svg { width: 100%; height: 100%; display: block; }
+
+.idcard-who { text-align: center; }
+.idcard-who b { display: block; font-size: 0.95em; font-weight: 700; color: var(--forest); }
+.idcard-who span {
+  display: block; margin-top: 0.3em;
+  font-family: var(--mono); font-size: 0.76em; color: var(--card-mute);
+}
+.idcard-badge {
+  margin: 1.1em auto 0;
+  width: max-content;
+  display: flex; align-items: center; gap: 0.5em;
+  font-size: 0.8em; font-weight: 500;
+  color: var(--forest);
+  background: rgba(72,161,17,0.13);
+  border-radius: 999px;
+  padding: 0.35em 0.9em;
+}
+.idcard-badge i {
+  width: 0.5em; height: 0.5em; border-radius: 50%;
+  background: var(--lime);
+  animation: pulseSoft 2.4s ease-in-out infinite;
+}
+
+/* satellites — offset so they overlap the card's edge; that overlap is
+   what makes the stack read as depth rather than three flat cards */
+.sat {
+  position: absolute; z-index: 3;
+  display: flex; align-items: center; gap: 0.65em;
+  padding: 0.7em 0.95em;
+  border-radius: 0.95em;
+  background: linear-gradient(150deg, rgba(247,244,240,0.88), rgba(244,239,234,0.78));
+  border: 1px solid rgba(255,255,255,0.68);
+  backdrop-filter: blur(18px) saturate(1.1);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.6),
+    0 18px 40px -18px rgba(0,0,0,0.75);
+  white-space: nowrap;
+}
+.sat b { display: block; font-size: 0.78em; font-weight: 700; color: var(--forest); }
+.sat span { display: block; font-size: 0.68em; color: var(--card-mute); }
+.sat-icon {
+  width: 2.2em; height: 2.2em; flex: none;
+  display: grid; place-items: center;
+  border-radius: 0.62em;
+  background: rgba(37,103,30,0.11);
+}
+/* 1.3em inside a 2.2em tile: at the old 1em/1.9em the glyphs were too
+   small to resolve and read as blobs. Lighter stroke for the same reason. */
+.sat-icon svg {
+  width: 1.3em; height: 1.3em;
+  fill: none; stroke: var(--forest);
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+}
+.sat-rx  { top: -1.2em;  right: -1.4em; animation: floatSlow 9s ease-in-out infinite reverse; }
+.sat-ayu { top: 38%;     left: -3.4em;  animation: floatSlow 7s ease-in-out infinite; }
+/* clear of the centred "Verified" badge, which it otherwise sat on top of */
+.sat-sec { bottom: -1.6em; left: -2.6em; animation: floatSlow 9s ease-in-out infinite reverse; }
+
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+@keyframes pulseSoft {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.55; }
+}
+.mark {
+  display: flex; align-items: center; gap: 1.1em;
+  margin-bottom: 2.4em;
+}
+.mark img {
+  width: 4.6em; height: 4.6em;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 24px rgba(72,161,17,0.35));
+}
+.mark-meta {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+  line-height: 1.8;
+}
+.mark-meta b { color: var(--lime-lift); font-weight: 500; }
+
+.title-slide h1 {
+  background: linear-gradient(96deg, var(--shell) 18%, var(--lime-lift) 62%, var(--amber) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  margin-bottom: 0.22em;
+}
+.title-slide .lede { max-width: 30ch; font-size: 1.9em; color: var(--fg); }
+.title-sub {
+  margin: 1.5em 0 0;
+  font-size: 1.05em;
+  line-height: 1.68;
+  color: var(--fg-mute);
+  max-width: 66ch;
+}
+.title-sub em { font-style: normal; color: var(--lime-lift); }
+.stat-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 1.6em 2.2em;
+  margin-top: 2.6em;
+  padding-top: 1.8em;
+  border-top: 1px solid var(--panel-line);
+}
+.stat-note {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.82em;
+  letter-spacing: 0.1em;
+  color: var(--fg-mute);
+}
+.stat b {
+  display: block;
+  font-family: var(--display);
+  font-size: 2.1em;
+  font-weight: 700;
+  font-variation-settings: "wdth" 90;
+  color: var(--lime-lift);
+  line-height: 1;
+}
+.stat span {
+  display: block;
+  margin-top: 0.5em;
+  font-family: var(--mono);
+  font-size: 0.78em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
+
+/* ---------------------------------------------------- 2. who built it */
+.profile { align-content: center; gap: 2.8em; }
+.profile-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 3.2em;
+  align-items: center;
+}
+.portrait {
+  margin: 0;
+  width: 15em; height: 15em;
+  border-radius: 50%;
+  overflow: hidden;
+  flex: none;
+  background: linear-gradient(160deg, rgba(111,209,33,0.3), rgba(242,181,11,0.16));
+  padding: 0.28em;
+  box-shadow: 0 20px 50px -20px rgba(0,0,0,0.8), 0 0 70px -26px rgba(72,161,17,0.6);
+}
+.portrait img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.profile h2 { font-size: 3.5em; }
+.profile-role {
+  margin: 0.5em 0 0;
+  font-size: 1.22em;
+  font-weight: 600;
+  color: var(--lime-lift);
+  max-width: 30ch;
+}
+.contact {
+  margin: 1.5em 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.55em 1.4em;
+  padding-top: 1.3em;
+  border-top: 1px solid var(--panel-line);
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.contact dt {
+  color: var(--amber);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.82em;
+  align-self: center;
+}
+.contact dd { margin: 0; color: var(--fg-dim); word-break: break-word; }
+
+.qr-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.4em; }
+.qr-card {
+  display: grid;
+  justify-items: center;
+  gap: 0.75em;
+  padding: 1.5em 1.2em;
+  border-radius: 1.2em;
+  border: 1px solid var(--panel-line);
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-align: center;
+}
+/* QR modules need a light ground to scan reliably — this is functional,
+   not decorative, so it stays shell-on-forest even in the dark deck. */
+.qr-code {
+  background: var(--shell);
+  border-radius: 0.6em;
+  padding: 0.6em;
+  line-height: 0;
+}
+.qr-code svg { width: 7.2em; height: 7.2em; display: block; }
+.qr-card b {
+  font-family: var(--display);
+  font-size: 1.12em;
+  font-weight: 600;
+  color: var(--fg);
+}
+.qr-card small {
+  font-family: var(--mono);
+  font-size: 0.74em;
+  line-height: 1.5;
+  color: var(--fg-mute);
+  word-break: break-all;
+}
+
+/* ---------------------------------------------------- 3. capability groups */
+.groups {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2.6em 3.4em;
+  margin-top: 2.6em;
+  align-items: start;
+}
+.group-title {
+  font-family: var(--mono);
+  font-size: 0.8em;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+  margin: 0 0 1.2em;
+  padding-bottom: 0.7em;
+  border-bottom: 1px solid var(--panel-line);
+}
+.group ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.35em; }
+.group li { line-height: 1.5; }
+.group b {
+  display: block;
+  font-size: 1.12em;
+  font-weight: 600;
+  color: var(--fg);
+  letter-spacing: -0.008em;
+}
+.group span {
+  display: block;
+  margin-top: 0.3em;
+  font-size: 0.95em;
+  color: var(--fg-mute);
+}
+.group em {
+  font-style: normal;
+  color: var(--lime-lift);
+}
+
+/* ---------------------------------------------------- 3. regulatory */
+.reg-head { display: grid; gap: 1.1em; margin-bottom: 2.4em; }
+.reg-list { margin: 0; display: grid; }
+.reg-row {
+  display: grid;
+  grid-template-columns: minmax(16em, 23em) 1fr auto;
+  gap: 2.4em;
+  align-items: baseline;
+  padding: 1.35em 0;
+  border-top: 1px solid var(--panel-line-2);
+}
+.reg-row:first-child { border-top: 1px solid var(--panel-line); }
+.reg-row dt {
+  font-family: var(--display);
+  font-size: 1.32em;
+  font-weight: 600;
+  font-variation-settings: "wdth" 94;
+  color: var(--fg);
+  letter-spacing: -0.012em;
+}
+.reg-row dt small {
+  display: block;
+  margin-top: 0.35em;
+  font-family: var(--mono);
+  font-size: 0.62em;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+}
+.reg-row dd {
+  margin: 0;
+  font-size: 1em;
+  line-height: 1.58;
+  color: var(--fg-mute);
+}
+.chip {
+  font-family: var(--mono);
+  font-size: 0.7em;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--amber);
+  border: 1px solid rgba(242,181,11,0.34);
+  background: rgba(242,181,11,0.08);
+  border-radius: 999px;
+  padding: 0.45em 0.95em;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------- 4–7. demo slides */
+.demo {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 3.2em;
+  align-items: center;
+  /* tighter than the other slides on three sides, so the phone gets the
+     full height and sits further right */
+  padding-top: 1.8em;
+  padding-bottom: 1.8em;
+  padding-right: 2em;
+}
+.demo-copy { display: grid; align-content: center; gap: 1.5em; }
+.beats { list-style: none; margin: 0.6em 0 0; padding: 0; display: grid; gap: 0.95em; }
+/* Block, not grid: a grid/flex li turns every inline <code> into its own
+   grid item, which breaks one sentence across several cells. An absolutely
+   positioned marker keeps the whole bullet as one inline flow. */
+.beats li {
+  position: relative;
+  padding-left: 1.5em;
+  font-size: 1.02em;
+  line-height: 1.55;
+  color: var(--fg-dim);
+}
+.beats li::before {
+  content: "";
+  position: absolute;
+  left: 0.05em; top: 0.5em;
+  width: 0.46em; height: 0.46em;
+  border-radius: 1px;
+  background: var(--lime-lift);
+  transform: rotate(45deg);
+}
+.beats code {
+  font-family: var(--mono);
+  font-size: 0.86em;
+  color: var(--amber);
+  background: rgba(242,181,11,0.09);
+  border-radius: 4px;
+  padding: 0.12em 0.42em;
+  white-space: nowrap;
+}
+
+/* the phone: a device that looks switched on and waiting, not a grey box */
+.phone {
+  position: relative;
+  /* Width is stated explicitly, not left to aspect-ratio: Safari does not
+     feed an aspect-ratio-derived width into `auto` grid track sizing, so
+     the column collapsed and the phone overlapped the text. These two are
+     the same pair of limits scaled by 9/19.5, so the ratio always holds.
+     aspect-ratio stays for the mobile rule below, where height is auto. */
+  width: min(43.385vh, 34.154em);
+  height: min(94vh, 74em);
+  aspect-ratio: 9 / 19.5;
+  border-radius: 2.6em;
+  padding: 0.55em;
+  background: linear-gradient(155deg, rgba(244,239,234,0.22), rgba(244,239,234,0.04) 42%, rgba(37,103,30,0.22));
+  box-shadow:
+    0 2px 2px rgba(0,0,0,0.5),
+    0 26px 60px -18px rgba(0,0,0,0.75),
+    0 0 90px -30px rgba(72,161,17,0.55);
+  flex: none;
+}
+.phone-screen {
+  position: relative;
+  height: 100%;
+  border-radius: 2.15em;
+  overflow: hidden;
+  background: #060D06;
+  display: grid;
+  place-items: center;
+}
+.phone-screen video {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+/* ---- in-phone video controls: play/pause + seekable timeline ---- */
+.vid-bar {
+  position: absolute; z-index: 4;
+  left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 0.7em;
+  padding: 2.6em 0.85em 0.85em;
+  background: linear-gradient(180deg,
+    rgba(6,13,6,0) 0%, rgba(6,13,6,0.55) 30%,
+    rgba(6,13,6,0.93) 62%, rgba(6,13,6,0.99) 100%);
+  opacity: 0;
+  transition: opacity 0.28s var(--ease);
+  pointer-events: none;
+}
+/* Visible on hover or keyboard focus — and pinned open whenever paused,
+   so a presenter who stops the clip does not have to hunt for the bar. */
+.phone:hover .vid-bar,
+.phone:focus-within .vid-bar,
+.phone.is-paused .vid-bar { opacity: 1; pointer-events: auto; }
+
+.vid-play {
+  flex: none;
+  width: 2em; height: 2em;
+  display: grid; place-items: center;
+  padding: 0; border: 0; border-radius: 50%;
+  background: var(--lime-lift);
+  color: #08130A;
+  cursor: pointer;
+}
+.vid-play svg { width: 0.9em; height: 0.9em; fill: currentColor; }
+
+.vid-seek {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 1em;
+  margin: 0;
+  -webkit-appearance: none; appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.vid-seek::-webkit-slider-runnable-track {
+  height: 0.28em; border-radius: 999px;
+  background: linear-gradient(90deg, var(--lime-lift) var(--p, 0%), rgba(244,239,234,0.28) var(--p, 0%));
+}
+.vid-seek::-moz-range-track {
+  height: 0.28em; border-radius: 999px;
+  background: linear-gradient(90deg, var(--lime-lift) var(--p, 0%), rgba(244,239,234,0.28) var(--p, 0%));
+}
+.vid-seek::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 0.72em; height: 0.72em; border-radius: 50%;
+  background: var(--shell); border: 0;
+  margin-top: -0.22em;
+}
+.vid-seek::-moz-range-thumb {
+  width: 0.72em; height: 0.72em; border-radius: 50%;
+  background: var(--shell); border: 0;
+}
+.vid-time {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 0.66em;
+  color: var(--fg-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.notch {
+  position: absolute; top: 0.85em; left: 50%;
+  transform: translateX(-50%);
+  width: 26%; height: 1.5em;
+  border-radius: 999px;
+  background: #060D06;
+  z-index: 3;
+}
+.placeholder {
+  display: grid; justify-items: center; gap: 1.1em;
+  text-align: center;
+  padding: 2em 1.6em;
+  color: var(--fg-mute);
+}
+.placeholder .pulse {
+  width: 3.4em; height: 3.4em;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  border: 1px solid rgba(72,161,17,0.45);
+  background: rgba(72,161,17,0.1);
+  position: relative;
+}
+.placeholder .pulse::after {
+  content: "";
+  position: absolute; inset: -1px;
+  border-radius: 50%;
+  border: 1px solid rgba(72,161,17,0.5);
+  animation: ping 2.6s var(--ease) infinite;
+}
+@keyframes ping {
+  0%   { transform: scale(1);    opacity: 0.85; }
+  70%  { transform: scale(1.45); opacity: 0; }
+  100% { transform: scale(1.45); opacity: 0; }
+}
+.placeholder .pulse span {
+  width: 0; height: 0;
+  border-left: 0.85em solid var(--lime-lift);
+  border-top: 0.55em solid transparent;
+  border-bottom: 0.55em solid transparent;
+  margin-left: 0.22em;
+}
+.placeholder b {
+  font-family: var(--mono);
+  font-size: 0.78em;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-dim);
+}
+.placeholder small {
+  font-family: var(--mono);
+  font-size: 0.72em;
+  line-height: 1.7;
+  color: var(--fg-mute);
+  word-break: break-all;
+}
+.placeholder small b { display: block; color: var(--amber); letter-spacing: 0.06em; text-transform: none; }
+
+/* ---------------------------------------------------- 8. thanks */
+.thanks { justify-items: start; }
+.thanks h1 {
+  font-size: 9em;
+  background: linear-gradient(96deg, var(--shell) 22%, var(--lime-lift) 70%, var(--amber) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.thanks .lede { margin-top: 0.7em; max-width: 34ch; }
+.thanks-meta {
+  margin-top: 3em; padding-top: 1.6em;
+  border-top: 1px solid var(--panel-line);
+  font-family: var(--mono);
+  font-size: 0.85em;
+  letter-spacing: 0.12em;
+  color: var(--fg-mute);
+  display: flex; flex-wrap: wrap; gap: 2.2em;
+}
+.thanks-meta a { color: var(--lime-lift); text-decoration: none; border-bottom: 1px solid rgba(111,209,33,0.35); }
+.thanks-meta a:hover { border-bottom-color: var(--lime-lift); }
+
+/* ---------------------------------------------------- rail + controls */
+.rail {
+  position: fixed; z-index: 5;
+  left: 0; top: 0; bottom: 0;
+  width: 4.6rem;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 1.5rem;
+  pointer-events: none;
+}
+html:not(.deck) .rail { display: none; }
+.rail-num {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.1em;
+  color: var(--fg-mute);
+  font-variant-numeric: tabular-nums;
+}
+.rail-num b { color: var(--lime-lift); font-weight: 500; }
+.thread {
+  position: relative;
+  width: 2px; flex: 0 1 46vh;
+  background: var(--panel-line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.thread i {
+  position: absolute; inset: 0 0 auto 0;
+  display: block;
+  height: 0;
+  background: linear-gradient(180deg, var(--lime-lift), var(--amber));
+  transition: height 0.55s var(--ease);
+}
+.dots { display: grid; gap: 0.6rem; pointer-events: auto; }
+.dot {
+  width: 0.5rem; height: 0.5rem;
+  padding: 0; border: 0; border-radius: 50%;
+  background: rgba(244,239,234,0.22);
+  cursor: pointer;
+  transition: background 0.3s var(--ease), transform 0.3s var(--ease);
+}
+.dot:hover { background: rgba(244,239,234,0.5); }
+.dot[aria-current="true"] { background: var(--lime-lift); transform: scale(1.5); }
+
+/* Bottom-LEFT, beside the rail: the demo phone now runs the full height of
+   the stage and reaches the right edge, so the old bottom-right corner is
+   no longer free. */
+.controls {
+  position: fixed; z-index: 5;
+  left: 5.2rem; bottom: 1.5rem;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+html:not(.deck) .controls { display: none; }
+.nav-btn {
+  width: 2.6rem; height: 2.6rem;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--panel-line);
+  background: var(--panel);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: border-color 0.25s var(--ease), color 0.25s var(--ease), background 0.25s var(--ease);
+}
+.nav-btn:hover:not(:disabled) { border-color: rgba(111,209,33,0.6); color: var(--lime-lift); background: rgba(72,161,17,0.12); }
+.nav-btn:disabled { opacity: 0.3; cursor: default; }
+.nav-btn svg { width: 1rem; height: 1rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.hint {
+  position: fixed; z-index: 5;
+  left: 50%; bottom: 1.9rem;
+  transform: translateX(-50%);
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fg-mute);
+  opacity: 0.75;
+  transition: opacity 0.5s var(--ease);
+  pointer-events: none;
+}
+.hint.gone { opacity: 0; }
+html:not(.deck) .hint { display: none; }
+
+:focus-visible { outline: 2px solid var(--lime-lift); outline-offset: 3px; border-radius: 3px; }
+
+/* ---------------------------------------------------- responsive */
+@media (max-width: 1100px) {
+  .groups { grid-template-columns: 1fr 1fr; }
+  .reg-row { grid-template-columns: minmax(12em, 18em) 1fr; }
+  .reg-row .chip { grid-column: 1 / -1; justify-self: start; }
+}
+@media (max-width: 820px) {
+  .slide { padding: 4.5em 1.6rem 5.5em 4.2rem; }
+  .demo { padding-right: 1.6rem; }
+  .controls { left: 4.2rem; }
+  .rail { width: 3.4rem; }
+  h1 { font-size: 4.6em; }
+  .thanks h1 { font-size: 5.2em; }
+  h2 { font-size: 2.9em; }
+  .title-slide { grid-template-columns: 1fr; gap: 2.4em; }
+  .idcard-stage { width: min(78vw, 17em); }
+  .sat-ayu { left: -1.6em; }
+  .groups { grid-template-columns: 1fr; gap: 1.9em; }
+  .demo { grid-template-columns: 1fr; gap: 2.2em; justify-items: start; }
+  .phone { height: auto; width: min(58vw, 15em); }
+  .reg-row { grid-template-columns: 1fr; gap: 0.5em; }
+  .stat-row { gap: 1.6em; }
+  html.deck .slide { overflow-y: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  html.deck .slide { transform: none !important; }
+}
+</style>
+
+<div class="orbs" aria-hidden="true">
+  <div class="orb orb-a"></div>
+  <div class="orb orb-b"></div>
+  <div class="orb orb-c"></div>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="rail" aria-hidden="true">
+  <div class="rail-num"><b id="railNow">01</b> / <span id="railTotal">09</span></div>
+  <div class="thread"><i id="thread"></i></div>
+  <div class="dots" id="dots"></div>
+</div>
+
+<main class="stage" id="stage">
+
+  <!-- ==================================================== 1 — title -->
+  <section class="slide title-slide" aria-label="AyuLink">
+   <div class="title-copy">
+    <div class="mark rise" style="--i:0">
+      <img src="assets/logo.png" alt="AyuLink logo">
+      <div class="mark-meta">
+        Sri Lanka<br>
+        <b>Digital health</b>
+      </div>
+    </div>
+    <h1 class="rise" style="--i:1">AyuLink</h1>
+    <p class="lede rise" style="--i:2">A digital healthcare ecosystem.</p>
+    <p class="title-sub rise" style="--i:3">
+      One QR-based medical identity links patient, doctor, pharmacy and
+      channelling centre. AI triages symptoms in Sinhala or English against a
+      real medical knowledge graph, finds the doctor and books the slot.
+    </p>
+    <div class="stat-row rise" style="--i:4">
+      <div class="stat"><b>4</b><span>Role apps</span></div>
+      <p class="stat-note">Patient · Doctor · Pharmacy · Channelling centre</p>
+    </div>
+   </div>
+
+   <!-- The Digital Medical ID, as the website's hero shows it: a light card
+        floating on the ground, with satellite cards overlapping its edge so
+        the stack reads as depth. The QR is real and encodes the Medical ID
+        exactly as the patient app does. -->
+   <div class="idcard-stage rise" style="--i:5">
+     <article class="idcard" aria-label="Digital Medical ID">
+       <header class="idcard-head">
+         <img src="assets/logo.png" alt="">
+         <div>
+           <b>Digital Medical ID</b>
+           <span>AyuLink Healthcare</span>
+         </div>
+       </header>
+       <div class="idcard-qr"><svg viewBox="0 0 27 27" role="img" aria-label="Medical ID AYU-200012345678" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path d="M1 1h1v1h-1zM2 1h1v1h-1zM3 1h1v1h-1zM4 1h1v1h-1zM5 1h1v1h-1zM6 1h1v1h-1zM7 1h1v1h-1zM9 1h1v1h-1zM10 1h1v1h-1zM11 1h1v1h-1zM14 1h1v1h-1zM15 1h1v1h-1zM16 1h1v1h-1zM19 1h1v1h-1zM20 1h1v1h-1zM21 1h1v1h-1zM22 1h1v1h-1zM23 1h1v1h-1zM24 1h1v1h-1zM25 1h1v1h-1zM1 2h1v1h-1zM7 2h1v1h-1zM9 2h1v1h-1zM13 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM16 2h1v1h-1zM19 2h1v1h-1zM25 2h1v1h-1zM1 3h1v1h-1zM3 3h1v1h-1zM4 3h1v1h-1zM5 3h1v1h-1zM7 3h1v1h-1zM9 3h1v1h-1zM10 3h1v1h-1zM14 3h1v1h-1zM15 3h1v1h-1zM19 3h1v1h-1zM21 3h1v1h-1zM22 3h1v1h-1zM23 3h1v1h-1zM25 3h1v1h-1zM1 4h1v1h-1zM3 4h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM7 4h1v1h-1zM10 4h1v1h-1zM13 4h1v1h-1zM15 4h1v1h-1zM16 4h1v1h-1zM17 4h1v1h-1zM19 4h1v1h-1zM21 4h1v1h-1zM22 4h1v1h-1zM23 4h1v1h-1zM25 4h1v1h-1zM1 5h1v1h-1zM3 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM7 5h1v1h-1zM9 5h1v1h-1zM10 5h1v1h-1zM14 5h1v1h-1zM16 5h1v1h-1zM19 5h1v1h-1zM21 5h1v1h-1zM22 5h1v1h-1zM23 5h1v1h-1zM25 5h1v1h-1zM1 6h1v1h-1zM7 6h1v1h-1zM13 6h1v1h-1zM14 6h1v1h-1zM15 6h1v1h-1zM17 6h1v1h-1zM19 6h1v1h-1zM25 6h1v1h-1zM1 7h1v1h-1zM2 7h1v1h-1zM3 7h1v1h-1zM4 7h1v1h-1zM5 7h1v1h-1zM6 7h1v1h-1zM7 7h1v1h-1zM9 7h1v1h-1zM11 7h1v1h-1zM13 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM19 7h1v1h-1zM20 7h1v1h-1zM21 7h1v1h-1zM22 7h1v1h-1zM23 7h1v1h-1zM24 7h1v1h-1zM25 7h1v1h-1zM10 8h1v1h-1zM11 8h1v1h-1zM15 8h1v1h-1zM1 9h1v1h-1zM4 9h1v1h-1zM5 9h1v1h-1zM6 9h1v1h-1zM7 9h1v1h-1zM8 9h1v1h-1zM9 9h1v1h-1zM10 9h1v1h-1zM12 9h1v1h-1zM14 9h1v1h-1zM15 9h1v1h-1zM18 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM24 9h1v1h-1zM25 9h1v1h-1zM4 10h1v1h-1zM11 10h1v1h-1zM12 10h1v1h-1zM13 10h1v1h-1zM15 10h1v1h-1zM16 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM21 10h1v1h-1zM22 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM25 10h1v1h-1zM3 11h1v1h-1zM4 11h1v1h-1zM7 11h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM15 11h1v1h-1zM16 11h1v1h-1zM17 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM20 11h1v1h-1zM21 11h1v1h-1zM25 11h1v1h-1zM5 12h1v1h-1zM10 12h1v1h-1zM11 12h1v1h-1zM13 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM18 12h1v1h-1zM23 12h1v1h-1zM25 12h1v1h-1zM1 13h1v1h-1zM7 13h1v1h-1zM8 13h1v1h-1zM9 13h1v1h-1zM11 13h1v1h-1zM14 13h1v1h-1zM15 13h1v1h-1zM16 13h1v1h-1zM18 13h1v1h-1zM19 13h1v1h-1zM22 13h1v1h-1zM24 13h1v1h-1zM1 14h1v1h-1zM2 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM8 14h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM13 14h1v1h-1zM16 14h1v1h-1zM18 14h1v1h-1zM20 14h1v1h-1zM21 14h1v1h-1zM22 14h1v1h-1zM23 14h1v1h-1zM24 14h1v1h-1zM25 14h1v1h-1zM1 15h1v1h-1zM2 15h1v1h-1zM5 15h1v1h-1zM6 15h1v1h-1zM7 15h1v1h-1zM10 15h1v1h-1zM11 15h1v1h-1zM15 15h1v1h-1zM16 15h1v1h-1zM17 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM1 16h1v1h-1zM4 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM13 16h1v1h-1zM14 16h1v1h-1zM15 16h1v1h-1zM16 16h1v1h-1zM18 16h1v1h-1zM21 16h1v1h-1zM23 16h1v1h-1zM24 16h1v1h-1zM25 16h1v1h-1zM1 17h1v1h-1zM3 17h1v1h-1zM4 17h1v1h-1zM6 17h1v1h-1zM7 17h1v1h-1zM8 17h1v1h-1zM9 17h1v1h-1zM12 17h1v1h-1zM13 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM18 17h1v1h-1zM19 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM23 17h1v1h-1zM24 17h1v1h-1zM25 17h1v1h-1zM9 18h1v1h-1zM10 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM16 18h1v1h-1zM17 18h1v1h-1zM21 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM25 18h1v1h-1zM1 19h1v1h-1zM2 19h1v1h-1zM3 19h1v1h-1zM4 19h1v1h-1zM5 19h1v1h-1zM6 19h1v1h-1zM7 19h1v1h-1zM9 19h1v1h-1zM11 19h1v1h-1zM13 19h1v1h-1zM14 19h1v1h-1zM15 19h1v1h-1zM17 19h1v1h-1zM19 19h1v1h-1zM21 19h1v1h-1zM22 19h1v1h-1zM25 19h1v1h-1zM1 20h1v1h-1zM7 20h1v1h-1zM9 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM12 20h1v1h-1zM14 20h1v1h-1zM17 20h1v1h-1zM21 20h1v1h-1zM25 20h1v1h-1zM1 21h1v1h-1zM3 21h1v1h-1zM4 21h1v1h-1zM5 21h1v1h-1zM7 21h1v1h-1zM9 21h1v1h-1zM11 21h1v1h-1zM12 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM21 21h1v1h-1zM25 21h1v1h-1zM1 22h1v1h-1zM3 22h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM7 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM11 22h1v1h-1zM13 22h1v1h-1zM14 22h1v1h-1zM16 22h1v1h-1zM17 22h1v1h-1zM19 22h1v1h-1zM20 22h1v1h-1zM23 22h1v1h-1zM24 22h1v1h-1zM25 22h1v1h-1zM1 23h1v1h-1zM3 23h1v1h-1zM4 23h1v1h-1zM5 23h1v1h-1zM7 23h1v1h-1zM12 23h1v1h-1zM14 23h1v1h-1zM21 23h1v1h-1zM22 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM1 24h1v1h-1zM7 24h1v1h-1zM11 24h1v1h-1zM12 24h1v1h-1zM13 24h1v1h-1zM14 24h1v1h-1zM16 24h1v1h-1zM19 24h1v1h-1zM23 24h1v1h-1zM24 24h1v1h-1zM25 24h1v1h-1zM1 25h1v1h-1zM2 25h1v1h-1zM3 25h1v1h-1zM4 25h1v1h-1zM5 25h1v1h-1zM6 25h1v1h-1zM7 25h1v1h-1zM9 25h1v1h-1zM12 25h1v1h-1zM13 25h1v1h-1zM14 25h1v1h-1zM16 25h1v1h-1zM17 25h1v1h-1zM18 25h1v1h-1zM19 25h1v1h-1zM20 25h1v1h-1zM21 25h1v1h-1zM25 25h1v1h-1z" fill="#25671E"/></svg></div>
+       <div class="idcard-who">
+         <b>Kasun Jayawardena</b>
+         <span>AYU-200012345678</span>
+       </div>
+       <p class="idcard-badge"><i></i>Verified</p>
+     </article>
+
+     <div class="sat sat-rx">
+       <span class="sat-icon" aria-hidden="true">
+         <svg viewBox="0 0 24 24"><g transform="rotate(-45 12 12)"><rect x="2.5"
+           y="8.75" width="19" height="6.5" rx="3.25"/><path d="M12 8.75v6.5"/></g></svg>
+       </span>
+       <div><b>Prescription</b><span>Just issued</span></div>
+     </div>
+
+     <div class="sat sat-ayu">
+       <span class="sat-icon" aria-hidden="true">
+         <svg viewBox="0 0 24 24"><rect x="4.2" y="8.2" width="15.6" height="11.4" rx="3.6"/><path d="M12 8.2V5.4"/><circle cx="12" cy="4.2" r="1.2"/><circle cx="9.4" cy="13.6" r="1.25" fill="var(--forest)" stroke="none"/><circle cx="14.6" cy="13.6" r="1.25" fill="var(--forest)" stroke="none"/><path d="M2.6 12.6v2.6M21.4 12.6v2.6"/></svg>
+       </span>
+       <div><b>Ayu</b><span>Health assistant</span></div>
+     </div>
+
+     <div class="sat sat-sec">
+       <span class="sat-icon" aria-hidden="true">
+         <svg viewBox="0 0 24 24"><path d="M12 3.1l7.1 2.8v5.1c0 4.4-3 8.4-7.1 10.1-4.1-1.7-7.1-5.7-7.1-10.1V5.9z"/><path d="M9.2 12.1l1.9 1.9 3.7-3.8"/></svg>
+       </span>
+       <div><b>Secured</b><span>Row-level access control</span></div>
+     </div>
+   </div>
+  </section>
+
+  <!-- ==================================================== 2 — who built it -->
+  <section class="slide profile" aria-label="R.M.Y.S Malhara">
+    <div class="profile-top">
+      <figure class="portrait rise" style="--i:0">
+        <img src="assets/profile.jpg" alt="R.M.Y.S Malhara">
+      </figure>
+      <div class="profile-id">
+        <p class="eyebrow rise" style="--i:1">Introduction</p>
+        <h2 class="rise" style="--i:2">R.M.Y.S Malhara</h2>
+        <p class="profile-role rise" style="--i:3">Undergraduate, Faculty of Engineering, University of Jaffna</p>
+        <dl class="contact rise" style="--i:4">
+          <dt>Phone</dt><dd>+94 76 640 2690</dd>
+          <dt>Email</dt><dd>sasindumalhara@gmail.com</dd>
+          <dt>LinkedIn</dt><dd>linkedin.com/in/sasindu-malhara-a87ab4236</dd>
+          <dt>GitHub</dt><dd>github.com/sasindumal</dd>
+        </dl>
+      </div>
+    </div>
+
+    <div class="qr-row">
+      <div class="qr-card rise" style="--i:5">
+        <div class="qr-code"><svg viewBox="0 0 33 33" role="img" aria-label="QR code for https://portfolio-six-snowy-93.vercel.app" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="33" height="33" fill="#F4EFEA"/><path d="M2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM5 2h1v1h-1zM6 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM10 2h1v1h-1zM11 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM18 2h1v1h-1zM21 2h1v1h-1zM22 2h1v1h-1zM24 2h1v1h-1zM25 2h1v1h-1zM26 2h1v1h-1zM27 2h1v1h-1zM28 2h1v1h-1zM29 2h1v1h-1zM30 2h1v1h-1zM2 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM12 3h1v1h-1zM14 3h1v1h-1zM18 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM12 4h1v1h-1zM14 4h1v1h-1zM15 4h1v1h-1zM20 4h1v1h-1zM21 4h1v1h-1zM22 4h1v1h-1zM24 4h1v1h-1zM26 4h1v1h-1zM27 4h1v1h-1zM28 4h1v1h-1zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM10 5h1v1h-1zM11 5h1v1h-1zM12 5h1v1h-1zM13 5h1v1h-1zM15 5h1v1h-1zM17 5h1v1h-1zM19 5h1v1h-1zM21 5h1v1h-1zM24 5h1v1h-1zM26 5h1v1h-1zM27 5h1v1h-1zM28 5h1v1h-1zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM11 6h1v1h-1zM13 6h1v1h-1zM15 6h1v1h-1zM16 6h1v1h-1zM17 6h1v1h-1zM18 6h1v1h-1zM21 6h1v1h-1zM22 6h1v1h-1zM24 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM14 7h1v1h-1zM16 7h1v1h-1zM19 7h1v1h-1zM20 7h1v1h-1zM21 7h1v1h-1zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h1v1h-1zM25 8h1v1h-1zM26 8h1v1h-1zM27 8h1v1h-1zM28 8h1v1h-1zM29 8h1v1h-1zM30 8h1v1h-1zM10 9h1v1h-1zM11 9h1v1h-1zM14 9h1v1h-1zM16 9h1v1h-1zM17 9h1v1h-1zM19 9h1v1h-1zM22 9h1v1h-1zM2 10h1v1h-1zM4 10h1v1h-1zM5 10h1v1h-1zM7 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM11 10h1v1h-1zM13 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM19 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM27 10h1v1h-1zM29 10h1v1h-1zM30 10h1v1h-1zM2 11h1v1h-1zM3 11h1v1h-1zM6 11h1v1h-1zM7 11h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM20 11h1v1h-1zM21 11h1v1h-1zM22 11h1v1h-1zM23 11h1v1h-1zM24 11h1v1h-1zM25 11h1v1h-1zM26 11h1v1h-1zM30 11h1v1h-1zM5 12h1v1h-1zM6 12h1v1h-1zM8 12h1v1h-1zM9 12h1v1h-1zM10 12h1v1h-1zM12 12h1v1h-1zM13 12h1v1h-1zM14 12h1v1h-1zM16 12h1v1h-1zM20 12h1v1h-1zM23 12h1v1h-1zM25 12h1v1h-1zM28 12h1v1h-1zM29 12h1v1h-1zM2 13h1v1h-1zM6 13h1v1h-1zM7 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM15 13h1v1h-1zM16 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM20 13h1v1h-1zM21 13h1v1h-1zM25 13h1v1h-1zM30 13h1v1h-1zM2 14h1v1h-1zM3 14h1v1h-1zM4 14h1v1h-1zM8 14h1v1h-1zM9 14h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1zM14 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM17 14h1v1h-1zM18 14h1v1h-1zM19 14h1v1h-1zM21 14h1v1h-1zM25 14h1v1h-1zM27 14h1v1h-1zM28 14h1v1h-1zM6 15h1v1h-1zM7 15h1v1h-1zM9 15h1v1h-1zM13 15h1v1h-1zM14 15h1v1h-1zM17 15h1v1h-1zM18 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM24 15h1v1h-1zM28 15h1v1h-1zM29 15h1v1h-1zM30 15h1v1h-1zM3 16h1v1h-1zM7 16h1v1h-1zM8 16h1v1h-1zM11 16h1v1h-1zM15 16h1v1h-1zM19 16h1v1h-1zM20 16h1v1h-1zM21 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM26 16h1v1h-1zM28 16h1v1h-1zM29 16h1v1h-1zM30 16h1v1h-1zM2 17h1v1h-1zM5 17h1v1h-1zM6 17h1v1h-1zM7 17h1v1h-1zM10 17h1v1h-1zM12 17h1v1h-1zM17 17h1v1h-1zM18 17h1v1h-1zM21 17h1v1h-1zM24 17h1v1h-1zM26 17h1v1h-1zM29 17h1v1h-1zM2 18h1v1h-1zM3 18h1v1h-1zM7 18h1v1h-1zM8 18h1v1h-1zM11 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM14 18h1v1h-1zM15 18h1v1h-1zM20 18h1v1h-1zM23 18h1v1h-1zM26 18h1v1h-1zM27 18h1v1h-1zM29 18h1v1h-1zM5 19h1v1h-1zM9 19h1v1h-1zM15 19h1v1h-1zM16 19h1v1h-1zM17 19h1v1h-1zM19 19h1v1h-1zM20 19h1v1h-1zM22 19h1v1h-1zM25 19h1v1h-1zM27 19h1v1h-1zM28 19h1v1h-1zM29 19h1v1h-1zM2 20h1v1h-1zM5 20h1v1h-1zM6 20h1v1h-1zM7 20h1v1h-1zM8 20h1v1h-1zM13 20h1v1h-1zM17 20h1v1h-1zM20 20h1v1h-1zM22 20h1v1h-1zM24 20h1v1h-1zM25 20h1v1h-1zM28 20h1v1h-1zM6 21h1v1h-1zM11 21h1v1h-1zM12 21h1v1h-1zM13 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM26 21h1v1h-1zM28 21h1v1h-1zM3 22h1v1h-1zM4 22h1v1h-1zM5 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM11 22h1v1h-1zM14 22h1v1h-1zM15 22h1v1h-1zM19 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM24 22h1v1h-1zM25 22h1v1h-1zM26 22h1v1h-1zM27 22h1v1h-1zM28 22h1v1h-1zM10 23h1v1h-1zM12 23h1v1h-1zM13 23h1v1h-1zM14 23h1v1h-1zM15 23h1v1h-1zM18 23h1v1h-1zM19 23h1v1h-1zM20 23h1v1h-1zM22 23h1v1h-1zM26 23h1v1h-1zM27 23h1v1h-1zM28 23h1v1h-1zM29 23h1v1h-1zM30 23h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM5 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM10 24h1v1h-1zM11 24h1v1h-1zM14 24h1v1h-1zM15 24h1v1h-1zM19 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM22 24h1v1h-1zM24 24h1v1h-1zM26 24h1v1h-1zM27 24h1v1h-1zM29 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM10 25h1v1h-1zM11 25h1v1h-1zM14 25h1v1h-1zM17 25h1v1h-1zM20 25h1v1h-1zM21 25h1v1h-1zM22 25h1v1h-1zM26 25h1v1h-1zM27 25h1v1h-1zM29 25h1v1h-1zM30 25h1v1h-1zM2 26h1v1h-1zM4 26h1v1h-1zM5 26h1v1h-1zM6 26h1v1h-1zM8 26h1v1h-1zM11 26h1v1h-1zM12 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM16 26h1v1h-1zM19 26h1v1h-1zM20 26h1v1h-1zM22 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM28 26h1v1h-1zM29 26h1v1h-1zM30 26h1v1h-1zM2 27h1v1h-1zM4 27h1v1h-1zM5 27h1v1h-1zM6 27h1v1h-1zM8 27h1v1h-1zM10 27h1v1h-1zM12 27h1v1h-1zM14 27h1v1h-1zM15 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM20 27h1v1h-1zM21 27h1v1h-1zM23 27h1v1h-1zM25 27h1v1h-1zM26 27h1v1h-1zM27 27h1v1h-1zM30 27h1v1h-1zM2 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM11 28h1v1h-1zM13 28h1v1h-1zM15 28h1v1h-1zM16 28h1v1h-1zM22 28h1v1h-1zM25 28h1v1h-1zM28 28h1v1h-1zM30 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h1v1h-1zM12 29h1v1h-1zM14 29h1v1h-1zM16 29h1v1h-1zM22 29h1v1h-1zM23 29h1v1h-1zM24 29h1v1h-1zM26 29h1v1h-1zM27 29h1v1h-1zM29 29h1v1h-1zM2 30h1v1h-1zM3 30h1v1h-1zM4 30h1v1h-1zM5 30h1v1h-1zM6 30h1v1h-1zM7 30h1v1h-1zM8 30h1v1h-1zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h1v1h-1zM18 30h1v1h-1zM21 30h1v1h-1zM22 30h1v1h-1zM23 30h1v1h-1zM25 30h1v1h-1zM27 30h1v1h-1zM29 30h1v1h-1z" fill="#12330E"/></svg></div>
+        <b>Portfolio</b>
+        <small>portfolio-six-snowy-93.vercel.app</small>
+      </div>
+      <div class="qr-card rise" style="--i:6">
+        <div class="qr-code"><svg viewBox="0 0 37 37" role="img" aria-label="QR code for https://linkedin.com/in/sasindu-malhara-a87ab4236" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="37" height="37" fill="#F4EFEA"/><path d="M2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM5 2h1v1h-1zM6 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM10 2h1v1h-1zM11 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM16 2h1v1h-1zM17 2h1v1h-1zM18 2h1v1h-1zM20 2h1v1h-1zM25 2h1v1h-1zM28 2h1v1h-1zM29 2h1v1h-1zM30 2h1v1h-1zM31 2h1v1h-1zM32 2h1v1h-1zM33 2h1v1h-1zM34 2h1v1h-1zM2 3h1v1h-1zM8 3h1v1h-1zM11 3h1v1h-1zM14 3h1v1h-1zM15 3h1v1h-1zM16 3h1v1h-1zM20 3h1v1h-1zM21 3h1v1h-1zM23 3h1v1h-1zM28 3h1v1h-1zM34 3h1v1h-1zM2 4h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM11 4h1v1h-1zM16 4h1v1h-1zM19 4h1v1h-1zM20 4h1v1h-1zM21 4h1v1h-1zM22 4h1v1h-1zM23 4h1v1h-1zM24 4h1v1h-1zM25 4h1v1h-1zM26 4h1v1h-1zM28 4h1v1h-1zM30 4h1v1h-1zM31 4h1v1h-1zM32 4h1v1h-1zM34 4h1v1h-1zM2 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM10 5h1v1h-1zM13 5h1v1h-1zM14 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM21 5h1v1h-1zM24 5h1v1h-1zM25 5h1v1h-1zM28 5h1v1h-1zM30 5h1v1h-1zM31 5h1v1h-1zM32 5h1v1h-1zM34 5h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM10 6h1v1h-1zM11 6h1v1h-1zM12 6h1v1h-1zM15 6h1v1h-1zM18 6h1v1h-1zM19 6h1v1h-1zM21 6h1v1h-1zM24 6h1v1h-1zM25 6h1v1h-1zM28 6h1v1h-1zM30 6h1v1h-1zM31 6h1v1h-1zM32 6h1v1h-1zM34 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM15 7h1v1h-1zM17 7h1v1h-1zM20 7h1v1h-1zM22 7h1v1h-1zM24 7h1v1h-1zM28 7h1v1h-1zM34 7h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h1v1h-1zM26 8h1v1h-1zM28 8h1v1h-1zM29 8h1v1h-1zM30 8h1v1h-1zM31 8h1v1h-1zM32 8h1v1h-1zM33 8h1v1h-1zM34 8h1v1h-1zM10 9h1v1h-1zM11 9h1v1h-1zM19 9h1v1h-1zM20 9h1v1h-1zM21 9h1v1h-1zM22 9h1v1h-1zM23 9h1v1h-1zM24 9h1v1h-1zM25 9h1v1h-1zM2 10h1v1h-1zM6 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM10 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM17 10h1v1h-1zM19 10h1v1h-1zM22 10h1v1h-1zM23 10h1v1h-1zM24 10h1v1h-1zM26 10h1v1h-1zM27 10h1v1h-1zM28 10h1v1h-1zM29 10h1v1h-1zM30 10h1v1h-1zM31 10h1v1h-1zM34 10h1v1h-1zM9 11h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM12 11h1v1h-1zM17 11h1v1h-1zM18 11h1v1h-1zM19 11h1v1h-1zM20 11h1v1h-1zM22 11h1v1h-1zM25 11h1v1h-1zM27 11h1v1h-1zM31 11h1v1h-1zM32 11h1v1h-1zM33 11h1v1h-1zM2 12h1v1h-1zM8 12h1v1h-1zM10 12h1v1h-1zM12 12h1v1h-1zM13 12h1v1h-1zM14 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM17 12h1v1h-1zM20 12h1v1h-1zM22 12h1v1h-1zM23 12h1v1h-1zM25 12h1v1h-1zM26 12h1v1h-1zM31 12h1v1h-1zM33 12h1v1h-1zM4 13h1v1h-1zM5 13h1v1h-1zM6 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM14 13h1v1h-1zM15 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM22 13h1v1h-1zM23 13h1v1h-1zM24 13h1v1h-1zM27 13h1v1h-1zM33 13h1v1h-1zM2 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM8 14h1v1h-1zM9 14h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM12 14h1v1h-1zM13 14h1v1h-1zM15 14h1v1h-1zM17 14h1v1h-1zM18 14h1v1h-1zM23 14h1v1h-1zM25 14h1v1h-1zM26 14h1v1h-1zM27 14h1v1h-1zM28 14h1v1h-1zM30 14h1v1h-1zM31 14h1v1h-1zM3 15h1v1h-1zM4 15h1v1h-1zM5 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM12 15h1v1h-1zM16 15h1v1h-1zM19 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM22 15h1v1h-1zM23 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM27 15h1v1h-1zM29 15h1v1h-1zM32 15h1v1h-1zM5 16h1v1h-1zM6 16h1v1h-1zM7 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM15 16h1v1h-1zM17 16h1v1h-1zM20 16h1v1h-1zM22 16h1v1h-1zM23 16h1v1h-1zM24 16h1v1h-1zM25 16h1v1h-1zM26 16h1v1h-1zM27 16h1v1h-1zM28 16h1v1h-1zM29 16h1v1h-1zM33 16h1v1h-1zM2 17h1v1h-1zM3 17h1v1h-1zM10 17h1v1h-1zM12 17h1v1h-1zM13 17h1v1h-1zM14 17h1v1h-1zM16 17h1v1h-1zM17 17h1v1h-1zM18 17h1v1h-1zM19 17h1v1h-1zM23 17h1v1h-1zM26 17h1v1h-1zM27 17h1v1h-1zM28 17h1v1h-1zM29 17h1v1h-1zM30 17h1v1h-1zM2 18h1v1h-1zM3 18h1v1h-1zM5 18h1v1h-1zM6 18h1v1h-1zM7 18h1v1h-1zM8 18h1v1h-1zM9 18h1v1h-1zM11 18h1v1h-1zM19 18h1v1h-1zM20 18h1v1h-1zM21 18h1v1h-1zM22 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM26 18h1v1h-1zM28 18h1v1h-1zM30 18h1v1h-1zM33 18h1v1h-1zM4 19h1v1h-1zM5 19h1v1h-1zM7 19h1v1h-1zM17 19h1v1h-1zM18 19h1v1h-1zM20 19h1v1h-1zM25 19h1v1h-1zM27 19h1v1h-1zM31 19h1v1h-1zM32 19h1v1h-1zM33 19h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM6 20h1v1h-1zM8 20h1v1h-1zM9 20h1v1h-1zM11 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM15 20h1v1h-1zM16 20h1v1h-1zM17 20h1v1h-1zM19 20h1v1h-1zM22 20h1v1h-1zM24 20h1v1h-1zM25 20h1v1h-1zM27 20h1v1h-1zM28 20h1v1h-1zM29 20h1v1h-1zM31 20h1v1h-1zM33 20h1v1h-1zM3 21h1v1h-1zM4 21h1v1h-1zM5 21h1v1h-1zM6 21h1v1h-1zM7 21h1v1h-1zM10 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM18 21h1v1h-1zM19 21h1v1h-1zM20 21h1v1h-1zM21 21h1v1h-1zM22 21h1v1h-1zM23 21h1v1h-1zM24 21h1v1h-1zM26 21h1v1h-1zM27 21h1v1h-1zM29 21h1v1h-1zM33 21h1v1h-1zM3 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM11 22h1v1h-1zM15 22h1v1h-1zM16 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM25 22h1v1h-1zM28 22h1v1h-1zM29 22h1v1h-1zM30 22h1v1h-1zM31 22h1v1h-1zM2 23h1v1h-1zM4 23h1v1h-1zM9 23h1v1h-1zM10 23h1v1h-1zM11 23h1v1h-1zM12 23h1v1h-1zM13 23h1v1h-1zM16 23h1v1h-1zM18 23h1v1h-1zM19 23h1v1h-1zM21 23h1v1h-1zM23 23h1v1h-1zM24 23h1v1h-1zM25 23h1v1h-1zM26 23h1v1h-1zM27 23h1v1h-1zM29 23h1v1h-1zM31 23h1v1h-1zM33 23h1v1h-1zM4 24h1v1h-1zM5 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM10 24h1v1h-1zM12 24h1v1h-1zM14 24h1v1h-1zM16 24h1v1h-1zM18 24h1v1h-1zM20 24h1v1h-1zM21 24h1v1h-1zM25 24h1v1h-1zM27 24h1v1h-1zM28 24h1v1h-1zM30 24h1v1h-1zM31 24h1v1h-1zM33 24h1v1h-1zM6 25h1v1h-1zM10 25h1v1h-1zM12 25h1v1h-1zM16 25h1v1h-1zM19 25h1v1h-1zM20 25h1v1h-1zM21 25h1v1h-1zM22 25h1v1h-1zM23 25h1v1h-1zM24 25h1v1h-1zM25 25h1v1h-1zM29 25h1v1h-1zM30 25h1v1h-1zM33 25h1v1h-1zM2 26h1v1h-1zM3 26h1v1h-1zM8 26h1v1h-1zM9 26h1v1h-1zM11 26h1v1h-1zM13 26h1v1h-1zM14 26h1v1h-1zM16 26h1v1h-1zM17 26h1v1h-1zM18 26h1v1h-1zM19 26h1v1h-1zM22 26h1v1h-1zM23 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM27 26h1v1h-1zM28 26h1v1h-1zM29 26h1v1h-1zM30 26h1v1h-1zM33 26h1v1h-1zM34 26h1v1h-1zM10 27h1v1h-1zM11 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM17 27h1v1h-1zM18 27h1v1h-1zM19 27h1v1h-1zM26 27h1v1h-1zM30 27h1v1h-1zM32 27h1v1h-1zM33 27h1v1h-1zM2 28h1v1h-1zM3 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM7 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM11 28h1v1h-1zM12 28h1v1h-1zM15 28h1v1h-1zM16 28h1v1h-1zM17 28h1v1h-1zM20 28h1v1h-1zM22 28h1v1h-1zM24 28h1v1h-1zM26 28h1v1h-1zM28 28h1v1h-1zM30 28h1v1h-1zM31 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h1v1h-1zM12 29h1v1h-1zM14 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM18 29h1v1h-1zM21 29h1v1h-1zM23 29h1v1h-1zM26 29h1v1h-1zM30 29h1v1h-1zM33 29h1v1h-1zM2 30h1v1h-1zM4 30h1v1h-1zM5 30h1v1h-1zM6 30h1v1h-1zM8 30h1v1h-1zM10 30h1v1h-1zM11 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM15 30h1v1h-1zM16 30h1v1h-1zM18 30h1v1h-1zM21 30h1v1h-1zM22 30h1v1h-1zM23 30h1v1h-1zM26 30h1v1h-1zM27 30h1v1h-1zM28 30h1v1h-1zM29 30h1v1h-1zM30 30h1v1h-1zM31 30h1v1h-1zM34 30h1v1h-1zM2 31h1v1h-1zM4 31h1v1h-1zM5 31h1v1h-1zM6 31h1v1h-1zM8 31h1v1h-1zM11 31h1v1h-1zM13 31h1v1h-1zM14 31h1v1h-1zM15 31h1v1h-1zM16 31h1v1h-1zM20 31h1v1h-1zM21 31h1v1h-1zM22 31h1v1h-1zM23 31h1v1h-1zM24 31h1v1h-1zM25 31h1v1h-1zM26 31h1v1h-1zM28 31h1v1h-1zM29 31h1v1h-1zM30 31h1v1h-1zM2 32h1v1h-1zM4 32h1v1h-1zM5 32h1v1h-1zM6 32h1v1h-1zM8 32h1v1h-1zM14 32h1v1h-1zM17 32h1v1h-1zM25 32h1v1h-1zM26 32h1v1h-1zM28 32h1v1h-1zM29 32h1v1h-1zM30 32h1v1h-1zM31 32h1v1h-1zM2 33h1v1h-1zM8 33h1v1h-1zM11 33h1v1h-1zM13 33h1v1h-1zM17 33h1v1h-1zM18 33h1v1h-1zM19 33h1v1h-1zM20 33h1v1h-1zM21 33h1v1h-1zM22 33h1v1h-1zM23 33h1v1h-1zM24 33h1v1h-1zM26 33h1v1h-1zM2 34h1v1h-1zM3 34h1v1h-1zM4 34h1v1h-1zM5 34h1v1h-1zM6 34h1v1h-1zM7 34h1v1h-1zM8 34h1v1h-1zM10 34h1v1h-1zM11 34h1v1h-1zM12 34h1v1h-1zM13 34h1v1h-1zM14 34h1v1h-1zM15 34h1v1h-1zM19 34h1v1h-1zM21 34h1v1h-1zM22 34h1v1h-1zM23 34h1v1h-1zM24 34h1v1h-1zM26 34h1v1h-1zM28 34h1v1h-1zM34 34h1v1h-1z" fill="#12330E"/></svg></div>
+        <b>LinkedIn</b>
+        <small>linkedin.com/in/sasindu-malhara-a87ab4236</small>
+      </div>
+      <div class="qr-card rise" style="--i:7">
+        <div class="qr-code"><svg viewBox="0 0 33 33" role="img" aria-label="QR code for https://github.com/sasindumal" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><rect width="33" height="33" fill="#F4EFEA"/><path d="M2 2h1v1h-1zM3 2h1v1h-1zM4 2h1v1h-1zM5 2h1v1h-1zM6 2h1v1h-1zM7 2h1v1h-1zM8 2h1v1h-1zM10 2h1v1h-1zM11 2h1v1h-1zM12 2h1v1h-1zM13 2h1v1h-1zM14 2h1v1h-1zM15 2h1v1h-1zM16 2h1v1h-1zM17 2h1v1h-1zM20 2h1v1h-1zM24 2h1v1h-1zM25 2h1v1h-1zM26 2h1v1h-1zM27 2h1v1h-1zM28 2h1v1h-1zM29 2h1v1h-1zM30 2h1v1h-1zM2 3h1v1h-1zM8 3h1v1h-1zM13 3h1v1h-1zM17 3h1v1h-1zM22 3h1v1h-1zM24 3h1v1h-1zM30 3h1v1h-1zM2 4h1v1h-1zM4 4h1v1h-1zM5 4h1v1h-1zM6 4h1v1h-1zM8 4h1v1h-1zM10 4h1v1h-1zM11 4h1v1h-1zM13 4h1v1h-1zM14 4h1v1h-1zM15 4h1v1h-1zM19 4h1v1h-1zM22 4h1v1h-1zM24 4h1v1h-1zM26 4h1v1h-1zM27 4h1v1h-1zM28 4h1v1h-1zM30 4h1v1h-1zM2 5h1v1h-1zM4 5h1v1h-1zM5 5h1v1h-1zM6 5h1v1h-1zM8 5h1v1h-1zM13 5h1v1h-1zM17 5h1v1h-1zM18 5h1v1h-1zM19 5h1v1h-1zM20 5h1v1h-1zM22 5h1v1h-1zM24 5h1v1h-1zM26 5h1v1h-1zM27 5h1v1h-1zM28 5h1v1h-1zM30 5h1v1h-1zM2 6h1v1h-1zM4 6h1v1h-1zM5 6h1v1h-1zM6 6h1v1h-1zM8 6h1v1h-1zM11 6h1v1h-1zM17 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM24 6h1v1h-1zM26 6h1v1h-1zM27 6h1v1h-1zM28 6h1v1h-1zM30 6h1v1h-1zM2 7h1v1h-1zM8 7h1v1h-1zM10 7h1v1h-1zM12 7h1v1h-1zM14 7h1v1h-1zM15 7h1v1h-1zM16 7h1v1h-1zM18 7h1v1h-1zM19 7h1v1h-1zM20 7h1v1h-1zM22 7h1v1h-1zM24 7h1v1h-1zM30 7h1v1h-1zM2 8h1v1h-1zM3 8h1v1h-1zM4 8h1v1h-1zM5 8h1v1h-1zM6 8h1v1h-1zM7 8h1v1h-1zM8 8h1v1h-1zM10 8h1v1h-1zM12 8h1v1h-1zM14 8h1v1h-1zM16 8h1v1h-1zM18 8h1v1h-1zM20 8h1v1h-1zM22 8h1v1h-1zM24 8h1v1h-1zM25 8h1v1h-1zM26 8h1v1h-1zM27 8h1v1h-1zM28 8h1v1h-1zM29 8h1v1h-1zM30 8h1v1h-1zM14 9h1v1h-1zM15 9h1v1h-1zM2 10h1v1h-1zM4 10h1v1h-1zM8 10h1v1h-1zM9 10h1v1h-1zM12 10h1v1h-1zM14 10h1v1h-1zM15 10h1v1h-1zM17 10h1v1h-1zM18 10h1v1h-1zM21 10h1v1h-1zM22 10h1v1h-1zM25 10h1v1h-1zM28 10h1v1h-1zM30 10h1v1h-1zM2 11h1v1h-1zM3 11h1v1h-1zM4 11h1v1h-1zM6 11h1v1h-1zM7 11h1v1h-1zM10 11h1v1h-1zM11 11h1v1h-1zM13 11h1v1h-1zM14 11h1v1h-1zM18 11h1v1h-1zM21 11h1v1h-1zM22 11h1v1h-1zM23 11h1v1h-1zM24 11h1v1h-1zM25 11h1v1h-1zM29 11h1v1h-1zM30 11h1v1h-1zM3 12h1v1h-1zM4 12h1v1h-1zM7 12h1v1h-1zM8 12h1v1h-1zM15 12h1v1h-1zM16 12h1v1h-1zM18 12h1v1h-1zM19 12h1v1h-1zM21 12h1v1h-1zM24 12h1v1h-1zM25 12h1v1h-1zM26 12h1v1h-1zM27 12h1v1h-1zM28 12h1v1h-1zM30 12h1v1h-1zM4 13h1v1h-1zM5 13h1v1h-1zM6 13h1v1h-1zM7 13h1v1h-1zM11 13h1v1h-1zM12 13h1v1h-1zM13 13h1v1h-1zM14 13h1v1h-1zM16 13h1v1h-1zM17 13h1v1h-1zM18 13h1v1h-1zM21 13h1v1h-1zM23 13h1v1h-1zM26 13h1v1h-1zM27 13h1v1h-1zM2 14h1v1h-1zM5 14h1v1h-1zM6 14h1v1h-1zM7 14h1v1h-1zM8 14h1v1h-1zM10 14h1v1h-1zM11 14h1v1h-1zM12 14h1v1h-1zM14 14h1v1h-1zM15 14h1v1h-1zM16 14h1v1h-1zM21 14h1v1h-1zM24 14h1v1h-1zM25 14h1v1h-1zM30 14h1v1h-1zM3 15h1v1h-1zM4 15h1v1h-1zM5 15h1v1h-1zM6 15h1v1h-1zM7 15h1v1h-1zM9 15h1v1h-1zM12 15h1v1h-1zM14 15h1v1h-1zM15 15h1v1h-1zM16 15h1v1h-1zM20 15h1v1h-1zM21 15h1v1h-1zM22 15h1v1h-1zM24 15h1v1h-1zM25 15h1v1h-1zM29 15h1v1h-1zM30 15h1v1h-1zM2 16h1v1h-1zM3 16h1v1h-1zM4 16h1v1h-1zM7 16h1v1h-1zM8 16h1v1h-1zM9 16h1v1h-1zM10 16h1v1h-1zM11 16h1v1h-1zM14 16h1v1h-1zM17 16h1v1h-1zM19 16h1v1h-1zM21 16h1v1h-1zM23 16h1v1h-1zM24 16h1v1h-1zM25 16h1v1h-1zM26 16h1v1h-1zM30 16h1v1h-1zM2 17h1v1h-1zM5 17h1v1h-1zM7 17h1v1h-1zM9 17h1v1h-1zM13 17h1v1h-1zM15 17h1v1h-1zM20 17h1v1h-1zM21 17h1v1h-1zM22 17h1v1h-1zM24 17h1v1h-1zM25 17h1v1h-1zM4 18h1v1h-1zM6 18h1v1h-1zM8 18h1v1h-1zM10 18h1v1h-1zM12 18h1v1h-1zM13 18h1v1h-1zM15 18h1v1h-1zM17 18h1v1h-1zM18 18h1v1h-1zM22 18h1v1h-1zM23 18h1v1h-1zM24 18h1v1h-1zM30 18h1v1h-1zM4 19h1v1h-1zM5 19h1v1h-1zM6 19h1v1h-1zM7 19h1v1h-1zM10 19h1v1h-1zM18 19h1v1h-1zM19 19h1v1h-1zM21 19h1v1h-1zM24 19h1v1h-1zM25 19h1v1h-1zM28 19h1v1h-1zM29 19h1v1h-1zM30 19h1v1h-1zM2 20h1v1h-1zM3 20h1v1h-1zM5 20h1v1h-1zM8 20h1v1h-1zM9 20h1v1h-1zM10 20h1v1h-1zM11 20h1v1h-1zM12 20h1v1h-1zM13 20h1v1h-1zM14 20h1v1h-1zM15 20h1v1h-1zM16 20h1v1h-1zM18 20h1v1h-1zM19 20h1v1h-1zM21 20h1v1h-1zM26 20h1v1h-1zM27 20h1v1h-1zM30 20h1v1h-1zM6 21h1v1h-1zM10 21h1v1h-1zM12 21h1v1h-1zM14 21h1v1h-1zM16 21h1v1h-1zM17 21h1v1h-1zM18 21h1v1h-1zM20 21h1v1h-1zM22 21h1v1h-1zM24 21h1v1h-1zM26 21h1v1h-1zM2 22h1v1h-1zM3 22h1v1h-1zM7 22h1v1h-1zM8 22h1v1h-1zM9 22h1v1h-1zM10 22h1v1h-1zM11 22h1v1h-1zM14 22h1v1h-1zM15 22h1v1h-1zM16 22h1v1h-1zM22 22h1v1h-1zM23 22h1v1h-1zM24 22h1v1h-1zM25 22h1v1h-1zM26 22h1v1h-1zM27 22h1v1h-1zM29 22h1v1h-1zM10 23h1v1h-1zM11 23h1v1h-1zM12 23h1v1h-1zM13 23h1v1h-1zM15 23h1v1h-1zM16 23h1v1h-1zM22 23h1v1h-1zM26 23h1v1h-1zM27 23h1v1h-1zM28 23h1v1h-1zM30 23h1v1h-1zM2 24h1v1h-1zM3 24h1v1h-1zM4 24h1v1h-1zM5 24h1v1h-1zM6 24h1v1h-1zM7 24h1v1h-1zM8 24h1v1h-1zM10 24h1v1h-1zM11 24h1v1h-1zM13 24h1v1h-1zM17 24h1v1h-1zM19 24h1v1h-1zM20 24h1v1h-1zM22 24h1v1h-1zM24 24h1v1h-1zM26 24h1v1h-1zM30 24h1v1h-1zM2 25h1v1h-1zM8 25h1v1h-1zM11 25h1v1h-1zM12 25h1v1h-1zM14 25h1v1h-1zM15 25h1v1h-1zM20 25h1v1h-1zM21 25h1v1h-1zM22 25h1v1h-1zM26 25h1v1h-1zM29 25h1v1h-1zM2 26h1v1h-1zM4 26h1v1h-1zM5 26h1v1h-1zM6 26h1v1h-1zM8 26h1v1h-1zM11 26h1v1h-1zM14 26h1v1h-1zM15 26h1v1h-1zM17 26h1v1h-1zM18 26h1v1h-1zM21 26h1v1h-1zM22 26h1v1h-1zM23 26h1v1h-1zM24 26h1v1h-1zM25 26h1v1h-1zM26 26h1v1h-1zM27 26h1v1h-1zM2 27h1v1h-1zM4 27h1v1h-1zM5 27h1v1h-1zM6 27h1v1h-1zM8 27h1v1h-1zM11 27h1v1h-1zM12 27h1v1h-1zM13 27h1v1h-1zM18 27h1v1h-1zM19 27h1v1h-1zM21 27h1v1h-1zM22 27h1v1h-1zM23 27h1v1h-1zM26 27h1v1h-1zM27 27h1v1h-1zM28 27h1v1h-1zM29 27h1v1h-1zM2 28h1v1h-1zM4 28h1v1h-1zM5 28h1v1h-1zM6 28h1v1h-1zM8 28h1v1h-1zM10 28h1v1h-1zM16 28h1v1h-1zM18 28h1v1h-1zM19 28h1v1h-1zM23 28h1v1h-1zM26 28h1v1h-1zM29 28h1v1h-1zM30 28h1v1h-1zM2 29h1v1h-1zM8 29h1v1h-1zM11 29h1v1h-1zM12 29h1v1h-1zM13 29h1v1h-1zM15 29h1v1h-1zM17 29h1v1h-1zM18 29h1v1h-1zM22 29h1v1h-1zM25 29h1v1h-1zM26 29h1v1h-1zM27 29h1v1h-1zM2 30h1v1h-1zM3 30h1v1h-1zM4 30h1v1h-1zM5 30h1v1h-1zM6 30h1v1h-1zM7 30h1v1h-1zM8 30h1v1h-1zM10 30h1v1h-1zM11 30h1v1h-1zM12 30h1v1h-1zM13 30h1v1h-1zM18 30h1v1h-1zM19 30h1v1h-1zM20 30h1v1h-1zM22 30h1v1h-1zM26 30h1v1h-1zM27 30h1v1h-1zM30 30h1v1h-1z" fill="#12330E"/></svg></div>
+        <b>GitHub</b>
+        <small>github.com/sasindumal</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 3 — what it does -->
+  <section class="slide" aria-label="What AyuLink does">
+    <p class="eyebrow rise" style="--i:0">Introduction</p>
+    <h2 class="rise" style="--i:1">What AyuLink does</h2>
+
+    <div class="groups">
+      <div class="group rise" style="--i:2">
+        <h3 class="group-title">For patients</h3>
+        <ul>
+          <li>
+            <b>A personal health assistant</b>
+            <span><em>Ayu</em> lives on the home screen and keeps the health record current.</span>
+          </li>
+          <li>
+            <b>AI symptom analysis &amp; doctor channelling</b>
+            <span>By voice or chat, in Sinhala or English — ending in a booked appointment.</span>
+          </li>
+          <li>
+            <b>Past health history in natural language</b>
+            <span>Ayu asks in the patient's own words; the structured profile fills itself.</span>
+          </li>
+          <li>
+            <b>Course tracking &amp; reminders</b>
+            <span>Every dose, on schedule, until the full course is complete.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="group rise" style="--i:3">
+        <h3 class="group-title">In the consulting room</h3>
+        <ul>
+          <li>
+            <b>QR-based digital prescription management</b>
+            <span>Scan the Medical ID, read the history, issue the prescription — no paper slip.</span>
+          </li>
+          <li>
+            <b>Feedback collected during the course</b>
+            <span>Returned to the prescribing doctor — and, when recovery stalls, used to point the
+            patient to a <em>better-suited speciality</em>.</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="group rise" style="--i:4">
+        <h3 class="group-title">Across the network</h3>
+        <ul>
+          <li>
+            <b>Doctor rating &amp; ranking</b>
+            <span>From real patients, after real treatment — and it feeds the search that finds them.</span>
+          </li>
+          <li>
+            <b>AI-powered pharmacy drug management</b>
+            <span>Verify against what the doctor actually wrote, then dispense item by item.</span>
+          </li>
+          <li>
+            <b>AI-powered channelling-centre appointments</b>
+            <span>Sessions, availability, confirmations and completions in one place.</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 3 — challenges -->
+  <section class="slide" aria-label="Regulatory challenges">
+    <div class="reg-head">
+      <p class="eyebrow rise" style="--i:0">Challenges</p>
+      <h2 class="rise" style="--i:1">Built around the regulation</h2>
+      <p class="body-copy rise" style="--i:2">
+        AyuLink handles national identity, clinical records and prescriptions.
+        The regulatory surface — not the software — is the hard part, and
+        each instrument below is still work to be done.
+      </p>
+    </div>
+
+    <dl class="reg-list">
+      <div class="reg-row rise" style="--i:3">
+        <dt>Personal Data Protection Act<small>PDPA</small></dt>
+        <dd>A lawful basis, explicit consent and purpose limitation for every health
+        record we hold — plus data-subject rights we must be able to honour on request.</dd>
+        <span class="chip">To build</span>
+      </div>
+      <div class="reg-row rise" style="--i:4">
+        <dt>Telemedicine Guidelines<small>Ministry of Health · HIU</small></dt>
+        <dd>What a remote consultation may and may not conclude, and how the
+        clinician on the other side must be identified and accountable.</dd>
+        <span class="chip">To build</span>
+      </div>
+      <div class="reg-row rise" style="--i:5">
+        <dt>Electronic Transactions Act<small>ETA</small></dt>
+        <dd>What makes a digital prescription legally equivalent to a signed paper
+        one, and how that equivalence is evidenced later.</dd>
+        <span class="chip">To build</span>
+      </div>
+      <div class="reg-row rise" style="--i:6">
+        <dt>NMRA Act<small>National Medicines Regulatory Authority</small></dt>
+        <dd>How medicines may be prescribed, dispensed and recorded — and what a
+        pharmacy must verify before it hands anything over.</dd>
+        <span class="chip">To build</span>
+      </div>
+      <div class="reg-row rise" style="--i:7">
+        <dt>National Digital Health Guidelines<small>NDHGS</small></dt>
+        <dd>The interoperability, record-format and security standards a system
+        operating at national scale is expected to meet.</dd>
+        <span class="chip">To build</span>
+      </div>
+    </dl>
+  </section>
+
+  <!-- ==================================================== 4 — demo: Ayu -->
+  <section class="slide demo" aria-label="Demo: Ayu takes the history" data-video="ayu">
+    <div class="demo-copy">
+      <p class="eyebrow rise" style="--i:0">Demo · 01</p>
+      <h2 class="rise" style="--i:1">Ayu takes the history</h2>
+      <p class="body-copy rise" style="--i:2">
+        Ayu asks only for what the profile is still missing, in the patient's
+        own language, and writes the answers back as structured records — never
+        as loose free text a doctor has to interpret.
+      </p>
+      <ul class="beats">
+        <li class="rise" style="--i:3">Speaks Sinhala or English — stores English only</li>
+        <li class="rise" style="--i:4">Plans the interview from what the profile actually lacks</li>
+        <li class="rise" style="--i:5">Allergies, conditions, medicines, surgeries, family history, lifestyle</li>
+        <li class="rise" style="--i:6">An explicit <code>I don't know</code> is recorded as unknown, never as "none"</li>
+      </ul>
+    </div>
+    <div class="phone rise" style="--i:3">
+      <div class="phone-screen"><div class="notch"></div></div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 5 — demo: diagnosis -->
+  <section class="slide demo" aria-label="Demo: symptom analysis and channelling" data-video="diagnosis">
+    <div class="demo-copy">
+      <p class="eyebrow rise" style="--i:0">Demo · 02</p>
+      <h2 class="rise" style="--i:1">Symptoms in, appointment out</h2>
+      <p class="body-copy rise" style="--i:2">
+        The patient describes the problem by voice or text. The assistant grounds
+        it against a real medical knowledge graph, explains the likely condition,
+        finds a doctor who treats it, and books the slot.
+      </p>
+      <ul class="beats">
+        <li class="rise" style="--i:3">Symptom → disease → speciality, every hop from the graph</li>
+        <li class="rise" style="--i:4">Never invents a condition the graph doesn't contain</li>
+        <li class="rise" style="--i:5">Doctors ranked by patient rating, with live availability</li>
+        <li class="rise" style="--i:6">Ends with a confirmed booking — <code>APT-000123</code></li>
+      </ul>
+    </div>
+    <div class="phone rise" style="--i:3">
+      <div class="phone-screen"><div class="notch"></div></div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 6 — demo: prescribe -->
+  <section class="slide demo" aria-label="Demo: the doctor prescribes" data-video="prescribe">
+    <div class="demo-copy">
+      <p class="eyebrow rise" style="--i:0">Demo · 03</p>
+      <h2 class="rise" style="--i:1">Scan, read, prescribe</h2>
+      <p class="body-copy rise" style="--i:2">
+        The doctor scans the patient's Medical ID and the clinical history opens
+        — allergies first. The prescription is issued straight to that ID, where
+        the patient and their pharmacy can both read it.
+      </p>
+      <ul class="beats">
+        <li class="rise" style="--i:3">Scan the QR, or type <code>AYU-200012345678</code></li>
+        <li class="rise" style="--i:4">Allergies surface first, ordered by severity</li>
+        <li class="rise" style="--i:5">Each entry badged self-reported or clinician-confirmed</li>
+        <li class="rise" style="--i:6">Structured prescription, dosage schedule and follow-up plan</li>
+      </ul>
+    </div>
+    <div class="phone rise" style="--i:3">
+      <div class="phone-screen"><div class="notch"></div></div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 7 — demo: dispense -->
+  <section class="slide demo" aria-label="Demo: the pharmacy dispenses" data-video="dispense">
+    <div class="demo-copy">
+      <p class="eyebrow rise" style="--i:0">Demo · 04</p>
+      <h2 class="rise" style="--i:1">Verify, then dispense</h2>
+      <p class="body-copy rise" style="--i:2">
+        The pharmacist scans the same Medical ID — or a single prescription's own
+        QR, so the patient can show just one — and dispenses item by item against
+        exactly what the doctor wrote.
+      </p>
+      <ul class="beats">
+        <li class="rise" style="--i:3">No handwriting to decipher, no slip to doubt</li>
+        <li class="rise" style="--i:4">Item by item, not all-or-nothing</li>
+        <li class="rise" style="--i:5">A <code>15-minute undo</code> window on every dispense</li>
+        <li class="rise" style="--i:6">The patient's care timeline updates the moment it's done</li>
+      </ul>
+    </div>
+    <div class="phone rise" style="--i:3">
+      <div class="phone-screen"><div class="notch"></div></div>
+    </div>
+  </section>
+
+  <!-- ==================================================== 8 — thanks -->
+  <section class="slide thanks" aria-label="Thank you">
+    <h1 class="rise" style="--i:0">Thank&nbsp;you.</h1>
+    <p class="lede rise" style="--i:1">AyuLink — a digital healthcare ecosystem.</p>
+    <div class="thanks-meta rise" style="--i:2">
+      <span>ayulink-web.onrender.com</span>
+      <span>Patient · Doctor · Pharmacy · Channelling centre</span>
+    </div>
+  </section>
+
+</main>
+
+<nav class="controls" aria-label="Slide navigation">
+  <button class="nav-btn" id="prev" type="button" aria-label="Previous slide">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+  </button>
+  <button class="nav-btn" id="next" type="button" aria-label="Next slide">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+  </button>
+</nav>
+
+<p class="hint" id="hint">← → or scroll · F for fullscreen</p>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+     DEMO VIDEOS — just drop your vertical recordings into docs/videos/
+     named after the slide. No config editing needed:
+
+       docs/videos/ayu.mov        docs/videos/prescribe.mov
+       docs/videos/diagnosis.mov  docs/videos/dispense.mov
+
+     .mov, .mp4, .webm and .m4v are all tried in turn, and whichever
+     exists wins. A slide with no matching file keeps its placeholder.
+
+     Use VIDEOS below only to point a slide at a different path/name.
+     ------------------------------------------------------------------ */
+  var VIDEOS = {
+    ayu:       "",   // e.g. "videos/ayu-final-cut.mp4"
+    diagnosis: "",
+    prescribe: "",
+    dispense:  ""
+  };
+
+  /* Tried in order. No `type` attribute is set on the <source> elements
+     on purpose: Chrome reports it cannot play "video/quicktime" and would
+     skip a .mov outright, even though it decodes the H.264 inside one
+     perfectly well. With no type hint it fetches and sniffs instead. */
+  var EXTS = ["mov", "mp4", "m4v", "webm"];
+
+  var LABEL = {
+    ayu:       "Ayu · health history",
+    diagnosis: "Symptoms · channelling",
+    prescribe: "Doctor · prescribe",
+    dispense:  "Pharmacy · dispense"
+  };
+
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var stage  = document.getElementById("stage");
+  var thread = document.getElementById("thread");
+  var railNow = document.getElementById("railNow");
+  var railTotal = document.getElementById("railTotal");
+  railTotal.textContent = String(slides.length).padStart(2, "0");
+  var dotsWrap = document.getElementById("dots");
+  var prevBtn = document.getElementById("prev");
+  var nextBtn = document.getElementById("next");
+  var hint = document.getElementById("hint");
+  var current = 0;
+
+  /* Declared with `var`, so unlike the function declarations below these do
+     NOT hoist their values — they must sit above the loop that builds the
+     controls, or the play button renders the string "undefined". */
+  var PLAY  = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+  var PAUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+
+  /* ---- fill each demo phone: real video if one exists, else placeholder */
+  function placeholder(key) {
+    var box = document.createElement("div");
+    box.className = "placeholder";
+    box.innerHTML =
+      '<span class="pulse"><span></span></span>' +
+      '<b>' + LABEL[key] + '</b>' +
+      '<small>Vertical demo goes here<b>videos/' + key + '.mov</b></small>';
+    return box;
+  }
+
+  slides.forEach(function (slide) {
+    var key = slide.getAttribute("data-video");
+    if (!key) return;
+    var screen = slide.querySelector(".phone-screen");
+    if (!screen) return;
+
+    var paths = VIDEOS[key]
+      ? [VIDEOS[key]]
+      : EXTS.map(function (e) { return "videos/" + key + "." + e; });
+
+    var v = document.createElement("video");
+    v.muted = true;
+    v.loop = true;
+    v.playsInline = true;
+    v.setAttribute("playsinline", "");
+    v.setAttribute("muted", "");
+    v.preload = "metadata";
+
+    /* A <video> with <source> children does NOT fire `error` itself when
+       the list is exhausted — only each <source> does. So count them. */
+    var failed = 0;
+    paths.forEach(function (path) {
+      var s = document.createElement("source");
+      /* #t=0.1 makes Safari paint the first frame of a paused clip instead
+         of a black screen (Chrome does this on its own with preload). */
+      s.src = path + "#t=0.1";
+      s.addEventListener("error", function () {
+        if (++failed === paths.length && v.parentNode === screen) {
+          screen.replaceChild(placeholder(key), v);
+          if (bar.parentNode) bar.parentNode.removeChild(bar);
+          phone.classList.remove("is-paused");
+        }
+      });
+      v.appendChild(s);
+    });
+
+    var phone = slide.querySelector(".phone");
+    /* starts paused, so the play button is showing from the first look */
+    phone.classList.add("is-paused");
+    var bar = buildControls(v, phone);
+    screen.appendChild(v);
+    screen.appendChild(bar);
+  });
+
+  function clock(s) {
+    if (!isFinite(s) || s < 0) s = 0;
+    var m = Math.floor(s / 60);
+    var r = Math.floor(s % 60);
+    return m + ":" + (r < 10 ? "0" : "") + r;
+  }
+
+  function buildControls(v, phone) {
+    var bar = document.createElement("div");
+    bar.className = "vid-bar";
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "vid-play";
+    btn.setAttribute("aria-label", "Play");
+    btn.innerHTML = PLAY;
+
+    var seek = document.createElement("input");
+    seek.type = "range";
+    seek.className = "vid-seek";
+    seek.min = "0"; seek.max = "1000"; seek.value = "0"; seek.step = "1";
+    seek.setAttribute("aria-label", "Seek");
+
+    var time = document.createElement("span");
+    time.className = "vid-time";
+    time.textContent = "0:00 / 0:00";
+
+    bar.appendChild(btn); bar.appendChild(seek); bar.appendChild(time);
+
+    function toggle() {
+      if (v.paused) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+      else { v.pause(); }
+    }
+    btn.addEventListener("click", toggle);
+    v.addEventListener("click", toggle);
+
+    v.addEventListener("play", function () {
+      btn.innerHTML = PAUSE;
+      btn.setAttribute("aria-label", "Pause");
+      if (phone) phone.classList.remove("is-paused");
+    });
+    v.addEventListener("pause", function () {
+      btn.innerHTML = PLAY;
+      btn.setAttribute("aria-label", "Play");
+      if (phone) phone.classList.add("is-paused");
+    });
+
+    function paint() {
+      var d = v.duration;
+      var pct = (isFinite(d) && d > 0) ? (v.currentTime / d) * 100 : 0;
+      seek.style.setProperty("--p", pct.toFixed(2) + "%");
+      if (!seek.dragging) seek.value = String(Math.round(pct * 10));
+      time.textContent = clock(v.currentTime) + " / " + clock(d);
+    }
+    v.addEventListener("loadedmetadata", paint);
+    v.addEventListener("timeupdate", paint);
+
+    seek.addEventListener("pointerdown", function () { seek.dragging = true; });
+    seek.addEventListener("pointerup", function () { seek.dragging = false; });
+    seek.addEventListener("input", function () {
+      var d = v.duration;
+      if (isFinite(d) && d > 0) v.currentTime = (Number(seek.value) / 1000) * d;
+      seek.style.setProperty("--p", (Number(seek.value) / 10).toFixed(2) + "%");
+    });
+
+    return bar;
+  }
+
+  /* ---- rail dots */
+  slides.forEach(function (slide, i) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "dot";
+    b.setAttribute("aria-label", "Go to slide " + (i + 1));
+    b.addEventListener("click", function () { go(i); });
+    dotsWrap.appendChild(b);
+  });
+  var dots = Array.prototype.slice.call(dotsWrap.children);
+
+  /* ---- videos never autoplay: they start only when the presenter presses
+     play. Leaving a slide pauses its clip and keeps the position. */
+  function syncVideo(index) {
+    slides.forEach(function (slide, i) {
+      var v = slide.querySelector("video");
+      if (v && i !== index && !v.paused) v.pause();
+    });
+  }
+
+  /* ---- replay the staggered entrance for the slide being shown */
+  function replay(slide) {
+    var items = slide.querySelectorAll(".rise");
+    for (var i = 0; i < items.length; i++) {
+      var el = items[i];
+      el.style.animation = "none";
+      void el.offsetWidth;          /* force reflow so the animation restarts */
+      el.style.animation = "";
+    }
+  }
+
+  function go(index) {
+    index = Math.max(0, Math.min(slides.length - 1, index));
+    if (index === current) return;
+    current = index;
+    render();
+  }
+
+  function render() {
+    slides.forEach(function (slide, i) {
+      var on = i === current;
+      slide.classList.toggle("is-on", on);
+      slide.classList.toggle("is-past", i < current);
+      slide.setAttribute("aria-hidden", on ? "false" : "true");
+      if (on) replay(slide);
+    });
+    dots.forEach(function (d, i) {
+      d.setAttribute("aria-current", i === current ? "true" : "false");
+    });
+    var pct = slides.length > 1 ? (current / (slides.length - 1)) * 100 : 100;
+    thread.style.height = pct + "%";
+    railNow.textContent = String(current + 1).padStart(2, "0");
+    prevBtn.disabled = current === 0;
+    nextBtn.disabled = current === slides.length - 1;
+    syncVideo(current);
+  }
+
+  function dismissHint() {
+    if (hint) hint.classList.add("gone");
+  }
+
+  /* ---- keyboard */
+  document.addEventListener("keydown", function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    var k = e.key;
+    /* While a video control has focus, arrows scrub and Space toggles play.
+       Without this the deck would also jump a slide on the same keypress. */
+    if (e.target && e.target.closest && e.target.closest(".vid-bar")) {
+      if (k === "ArrowLeft" || k === "ArrowRight" || k === "ArrowUp" ||
+          k === "ArrowDown" || k === " " || k === "Enter") return;
+    }
+    if (k === "ArrowRight" || k === "ArrowDown" || k === "PageDown" || k === " " || k === "Enter") {
+      e.preventDefault(); dismissHint(); go(current + 1);
+    } else if (k === "ArrowLeft" || k === "ArrowUp" || k === "PageUp" || k === "Backspace") {
+      e.preventDefault(); dismissHint(); go(current - 1);
+    } else if (k === "Home") {
+      e.preventDefault(); go(0);
+    } else if (k === "End") {
+      e.preventDefault(); go(slides.length - 1);
+    } else if (k === "f" || k === "F") {
+      e.preventDefault();
+      if (document.fullscreenElement) { document.exitFullscreen(); }
+      else if (document.documentElement.requestFullscreen) { document.documentElement.requestFullscreen(); }
+    }
+  });
+
+  prevBtn.addEventListener("click", function () { dismissHint(); go(current - 1); });
+  nextBtn.addEventListener("click", function () { dismissHint(); go(current + 1); });
+
+  /* ---- wheel, throttled so one gesture is one slide */
+  var wheelLock = false;
+  stage.addEventListener("wheel", function (e) {
+    if (Math.abs(e.deltaY) < 12) return;
+    /* let a short slide scroll itself on small screens */
+    if (stage.scrollHeight > stage.clientHeight + 4) return;
+    e.preventDefault();
+    if (wheelLock) return;
+    wheelLock = true;
+    dismissHint();
+    go(current + (e.deltaY > 0 ? 1 : -1));
+    setTimeout(function () { wheelLock = false; }, 620);
+  }, { passive: false });
+
+  /* ---- touch */
+  var touchY = null;
+  stage.addEventListener("touchstart", function (e) {
+    touchY = e.touches[0].clientY;
+  }, { passive: true });
+  stage.addEventListener("touchend", function (e) {
+    if (touchY === null) return;
+    var dy = touchY - e.changedTouches[0].clientY;
+    if (Math.abs(dy) > 55) { dismissHint(); go(current + (dy > 0 ? 1 : -1)); }
+    touchY = null;
+  }, { passive: true });
+
+  /* ---- first paint */
+  slides.forEach(function (slide, i) {
+    slide.classList.toggle("is-on", i === 0);
+    slide.setAttribute("aria-hidden", i === 0 ? "false" : "true");
+  });
+  dots[0].setAttribute("aria-current", "true");
+  prevBtn.disabled = true;
+  thread.style.height = "0%";
+  syncVideo(0);
+  setTimeout(dismissHint, 6000);
+})();
+</script>
