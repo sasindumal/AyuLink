@@ -1227,35 +1227,10 @@ html:not(.deck) .hint { display: none; }
     </div>
   </section>
 
-  <!-- ==================================================== 7 — demo: Sinhala chat -->
-  <section class="slide demo" aria-label="Demo: the assistant in Sinhala" data-video="sinhala">
-    <div class="demo-copy">
-      <p class="eyebrow rise" style="--i:0">Demo · 03</p>
-      <h2 class="rise" style="--i:1">The same care, in Sinhala</h2>
-      <p class="body-copy rise" style="--i:2">
-        A patient who is more comfortable in Sinhala never has to switch
-        language. They describe the problem in their own words, and the
-        assistant asks, explains and books in Sinhala too.
-      </p>
-      <p class="si-quote rise" style="--i:3" lang="si">
-        මට දවස් දෙකක ඉඳන් උණයි, ඇඟ රිදෙනවා
-        <span lang="en">"I've had a fever for two days, and my body aches"</span>
-      </p>
-      <ul class="beats">
-        <li class="rise" style="--i:4">Sinhala in, Sinhala out — typed or spoken</li>
-        <li class="rise" style="--i:5">Follow-up questions and the explanation arrive in Sinhala</li>
-        <li class="rise" style="--i:6">Same knowledge graph, same doctors, same booking flow</li>
-      </ul>
-    </div>
-    <div class="phone rise" style="--i:3">
-      <div class="phone-screen"><div class="notch"></div></div>
-    </div>
-  </section>
-
-  <!-- ==================================================== 8 — demo: prescribe -->
+  <!-- ==================================================== 7 — demo: prescribe -->
   <section class="slide demo" aria-label="Demo: the doctor prescribes" data-video="prescribe">
     <div class="demo-copy">
-      <p class="eyebrow rise" style="--i:0">Demo · 04</p>
+      <p class="eyebrow rise" style="--i:0">Demo · 03</p>
       <h2 class="rise" style="--i:1">Scan, read, prescribe</h2>
       <p class="body-copy rise" style="--i:2">
         The doctor scans the patient's Medical ID and the clinical history opens
@@ -1274,10 +1249,10 @@ html:not(.deck) .hint { display: none; }
     </div>
   </section>
 
-  <!-- ==================================================== 9 — demo: dispense -->
+  <!-- ==================================================== 8 — demo: dispense -->
   <section class="slide demo" aria-label="Demo: the pharmacy dispenses" data-video="dispense">
     <div class="demo-copy">
-      <p class="eyebrow rise" style="--i:0">Demo · 05</p>
+      <p class="eyebrow rise" style="--i:0">Demo · 04</p>
       <h2 class="rise" style="--i:1">Verify, then dispense</h2>
       <p class="body-copy rise" style="--i:2">
         The pharmacist scans the same Medical ID — or a single prescription's own
@@ -1329,7 +1304,6 @@ html:not(.deck) .hint { display: none; }
 
        docs/videos/ayu.mov        docs/videos/prescribe.mov
        docs/videos/diagnosis.mov  docs/videos/dispense.mov
-       docs/videos/sinhala.mov
 
      .mov, .mp4, .webm and .m4v are all tried in turn, and whichever
      exists wins. A slide with no matching file keeps its placeholder.
@@ -1339,7 +1313,6 @@ html:not(.deck) .hint { display: none; }
   var VIDEOS = {
     ayu:       "",   // e.g. "videos/ayu-final-cut.mp4"
     diagnosis: "",
-    sinhala:   "",
     prescribe: "",
     dispense:  ""
   };
@@ -1353,7 +1326,6 @@ html:not(.deck) .hint { display: none; }
   var LABEL = {
     ayu:       "Ayu · health history",
     diagnosis: "Symptoms · channelling",
-    sinhala:   "Sinhala · chat",
     prescribe: "Doctor · prescribe",
     dispense:  "Pharmacy · dispense"
   };
